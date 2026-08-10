@@ -1,0 +1,18 @@
+parameters:
+    level: 5
+    paths:
+        - backend
+        - api.php
+        - db.php
+        - db_migrations.php
+    excludePaths:
+        - vendor
+        - node_modules
+        - storage
+        - tests
+    treatPhpDocTypesAsCertain: false
+    checkMissingIterableValueType: false
+    ignoreErrors:
+        - '#Call to an undefined method PDO::#'
+        - '#Cannot access offset#'
+        - '#Variable .+ might not be defined.#'

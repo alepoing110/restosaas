@@ -1,0 +1,119 @@
+/* RestoCloud - Premium CSS Variables & Reset */
+:root {
+    --primary: #ff6b35;
+    --primary-hover: #fa581d;
+    --primary-glow: rgba(255, 107, 53, 0.15);
+    --primary-soft: rgba(255, 107, 53, 0.08);
+    
+    --secondary: #ffb627;
+    --secondary-hover: #e0a01d;
+    --secondary-glow: rgba(255, 182, 39, 0.15);
+    
+    --accent: #2ec4b6;
+    --accent-hover: #23a89c;
+    --accent-glow: rgba(46, 196, 182, 0.15);
+
+    --bg-dark: #0c0c0e;
+    --bg-main: #121216;
+    --bg-surface: #1a1a22;
+    --bg-surface-hover: #22222d;
+    --bg-elevated: #1e1e28;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-focus: rgba(255, 107, 53, 0.4);
+    --border-strong: rgba(255, 255, 255, 0.12);
+    
+    --text-main: #f3f3f6;
+    --text-muted: #8c8c9a;
+    --text-inverse: #0c0c0e;
+    --text-bright: #ffffff;
+    
+    --success: #4cbd6b;
+    --success-glow: rgba(76, 189, 107, 0.15);
+    --warning: #f7a072;
+    --warning-glow: rgba(247, 160, 114, 0.15);
+    --danger: #ef476f;
+    --danger-hover: #d63c5e;
+    --danger-glow: rgba(239, 71, 111, 0.15);
+    
+    --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+    --shadow-glow: 0 0 20px rgba(255, 107, 53, 0.15);
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 24px;
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    --sidebar-width: 260px;
+    --sidebar-collapsed: 72px;
+    --header-height: 76px;
+}
+
+/* Light Mode Theme */
+[data-theme="light"] {
+    --primary: #ff6b35;
+    --primary-hover: #fa581d;
+    --primary-glow: rgba(255, 107, 53, 0.12);
+    --primary-soft: rgba(255, 107, 53, 0.06);
+    
+    --secondary: #ffb627;
+    --secondary-hover: #e0a01d;
+    --secondary-glow: rgba(255, 182, 39, 0.12);
+    
+    --accent: #2ec4b6;
+    --accent-hover: #23a89c;
+    --accent-glow: rgba(46, 196, 182, 0.12);
+
+    --bg-dark: #f0f0f5;
+    --bg-main: #f5f5fa;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #f0f0f5;
+    --bg-elevated: #ffffff;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-focus: rgba(255, 107, 53, 0.4);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    
+    --text-main: #1a1a22;
+    --text-muted: #6b6b78;
+    --text-inverse: #ffffff;
+    --text-bright: #0c0c0e;
+    
+    --success: #3da85a;
+    --success-glow: rgba(61, 168, 90, 0.12);
+    --warning: #e68a5a;
+    --warning-glow: rgba(230, 138, 90, 0.12);
+    --danger: #d93d62;
+    --danger-hover: #c42e52;
+    --danger-glow: rgba(217, 61, 98, 0.12);
+    
+    --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.18);
+    --shadow-glow: 0 0 20px rgba(255, 107, 53, 0.1);
+}
+
+[data-theme="light"] * {
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Outfit', sans-serif;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}

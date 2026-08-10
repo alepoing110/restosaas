@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RestoCloud - Confirmar Pago</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; min-height: 100vh; }
+        .header { background: #1e3a5f; color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 1.4rem; }
+        .container { max-width: 600px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .card h2 { font-size: 1.3rem; margin-bottom: 16px; color: #1e3a5f; }
+        .card p { color: #64748b; margin-bottom: 12px; line-height: 1.5; }
+        .plan-badge { display: inline-block; background: #2563eb; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+        .bank-details { background: #f8fafc; border-radius: 8px; padding: 20px; margin: 16px 0; }
+        .bank-details .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+        .bank-details .detail-row:last-child { border-bottom: none; }
+        .bank-details .label { font-weight: 600; color: #334155; }
+        .bank-details .value { color: #1e3a5f; font-weight: 500; }
+        .whatsapp-section { text-align: center; margin: 20px 0; }
+        .btn-whatsapp { display: inline-block; background: #25d366; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1rem; }
+        .btn-whatsapp:hover { background: #1da851; }
+        .confirmation-form { margin-top: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .btn-confirm { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 700; cursor: pointer; }
+        .btn-confirm:hover { background: #1d4ed8; }
+        .btn-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+        .success-msg { text-align: center; padding: 20px; }
+        .success-msg .icon { font-size: 3rem; margin-bottom: 12px; }
+        .success-msg h3 { color: #16a34a; margin-bottom: 8px; }
+        .error-msg { color: #dc2626; font-size: 0.85rem; margin-top: 8px; display: none; }
+        .note { font-size: 0.8rem; color: #94a3b8; margin-top: 12px; }
+        footer { text-align: center; padding: 30px 20px; color: #94a3b8; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>RestoCloud</h1>
+    </div>
+
+    <div class="container">
+        <div class="card" id="payment-card">
+            <h2>Confirmar Pago</h2>
+            <span class="plan-badge" id="plan-name">Plan Pro</span>
+            <p>Realiza una transferencia bancaria con los datos de abajo y luego confirma tu pago.</p>
+
+            <div class="bank-details">
+                <div class="detail-row">
+                    <span class="label">Titular:</span>
+                    <span class="value">RestoCloud S.R.L.</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Banco:</span>
+                    <span class="value">Banco Unión</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Nro. Cuenta:</span>
+                    <span class="value">1234567890</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Cuenta CI:</span>
+                    <span class="value">12345678</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Monto:</span>
+                    <span class="value" id="plan-price">Bs 79.00</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Concepto:</span>
+                    <span class="value">RestoCloud - Plan <span id="plan-concept">Pro</span></span>
+                </div>
+            </div>
+
+            <div class="whatsapp-section">
+                <p style="margin-bottom: 12px;">Envía tu comprobante por WhatsApp:</p>
+                <a href="https://wa.me/59170000000?text=Hola%2C%20realic%C3%A9%20el%20pago%20para%20RestoCloud" class="btn-whatsapp" target="_blank">
+                    📱 Enviar comprobante por WhatsApp
+                </a>
+            </div>
+
+            <div class="confirmation-form">
+                <h3 style="margin-bottom: 12px;">O confirma aquí:</h3>
+                <div class="form-group">
+                    <label for="confirm-name">Tu nombre</label>
+                    <input type="text" id="confirm-name" placeholder="Nombre con el que transferiste">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-notes">Referencia o monto transferido</label>
+                    <textarea id="confirm-notes" placeholder="Ej: Transferí Bs 79, referencia: ABC123"></textarea>
+                </div>
+                <button class="btn-confirm" id="btn-confirm" onclick="confirmPayment()">Confirmar Pago Enviado</button>
+                <div class="error-msg" id="confirm-error"></div>
+                <p class="note">Tu cuenta será activada una vez que verifiquemos tu pago (máximo 24 horas).</p>
+            </div>
+        </div>
+
+        <div class="card" id="success-card" style="display:none;">
+            <div class="success-msg">
+                <div class="icon">✅</div>
+                <h3>Pago confirmado</h3>
+                <p>Tu solicitud de activación fue enviada. Te notificaremos cuando tu cuenta esté activa.</p>
+                <p style="margin-top: 16px;"><a href="index.html" style="color:#2563eb;">Volver al inicio</a></p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 RestoCloud. Sistema POS para Restaurantes.</p>
+    </footer>
+
+    <script>
+        const PLAN_PRICES = {
+            starter: { name: 'Starter', price: 'Bs 29.00' },
+            pro: { name: 'Pro', price: 'Bs 79.00' },
+            enterprise: { name: 'Enterprise', price: 'Bs 199.00' }
+        };
+
+        function getPlanFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('plan') || 'starter';
+        }
+
+        function initPaymentPage() {
+            const planCode = getPlanFromUrl();
+            const plan = PLAN_PRICES[planCode] || PLAN_PRICES.starter;
+
+            document.getElementById('plan-name').textContent = 'Plan ' + plan.name;
+            document.getElementById('plan-price').textContent = plan.price;
+            document.getElementById('plan-concept').textContent = plan.name;
+        }
+
+        async function confirmPayment() {
+            const btn = document.getElementById('btn-confirm');
+            const errEl = document.getElementById('confirm-error');
+            errEl.style.display = 'none';
+
+            const name = document.getElementById('confirm-name').value.trim();
+            const notes = document.getElementById('confirm-notes').value.trim();
+
+            if (!name) {
+                errEl.textContent = 'Ingresa tu nombre.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            const planCode = getPlanFromUrl();
+
+            try {
+                const res = await fetch('api.php?action=public_register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nombre_restaurante: localStorage.getItem('pending_business_name') || 'Mi Restaurante',
+                        name: name,
+                        email: localStorage.getItem('pending_email') || '',
+                        password: localStorage.getItem('pending_password') || '',
+                        pais: 'Bolivia',
+                        plan_code: planCode,
+                        payment_notes: notes
+                    })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    document.getElementById('payment-card').style.display = 'none';
+                    document.getElementById('success-card').style.display = 'block';
+                    localStorage.removeItem('pending_business_name');
+                    localStorage.removeItem('pending_email');
+                    localStorage.removeItem('pending_password');
+                } else {
+                    errEl.textContent = data.message || 'Error al enviar confirmación.';
+                    errEl.style.display = 'block';
+                }
+            } catch (err) {
+                errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirmar Pago Enviado';
+            }
+        }
+
+        initPaymentPage();
+    </script>
+</body>
+</html>

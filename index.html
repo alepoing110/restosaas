@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RestoCloud - Sistema de gestión de ventas y punto de venta para restaurantes. Administra pedidos, mesas, inventario y reportes.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="application-name" content="RestoCloud POS">
+    <meta name="theme-color" content="#6C63FF">
+    <title>RestoCloud - Sistema de Gestión de Ventas</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- html2pdf.js library (loaded async, only needed for PDF export) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Mobile Hamburger -->
+        <button class="mobile-hamburger" id="mobile-hamburger" aria-label="Abrir menú">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="mobile-overlay" id="mobile-overlay"></div>
+
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="app-sidebar">
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Colapsar/Expandir menu" aria-label="Colapsar menú">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <div class="brand">
+                <i class="fa-solid fa-utensils brand-icon"></i>
+                <div class="brand-text">
+                    <h1 id="sidebar-brand-name">RestoCloud</h1>
+                    <span>Restaurante POS</span>
+                </div>
+            </div>
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="pos" id="nav-pos" data-permission="pos" aria-current="page">
+                    <i class="fa-solid fa-cash-register"></i>
+                    <span>Toma de Pedidos</span>
+                    <span class="nav-tooltip">Toma de Pedidos</span>
+                </button>
+                <button class="nav-item" data-tab="active-orders" id="nav-active-orders" data-permission="orders">
+                    <i class="fa-solid fa-bell"></i>
+                    <span>Pedidos Activos</span>
+                    <span class="badge" id="active-orders-count">0</span>
+                    <span class="nav-tooltip">Pedidos Activos</span>
+                </button>
+                <button class="nav-item" data-tab="menu-config" id="nav-menu-config" data-permission="inventory">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                    <span>Platos y Menú</span>
+                    <span class="nav-tooltip">Platos y Menú</span>
+                </button>
+                <button class="nav-item" data-tab="inventory" id="nav-inventory" data-permission="inventory">
+                    <i class="fa-solid fa-warehouse"></i>
+                    <span>Control Stock</span>
+                    <span class="nav-tooltip">Control Stock</span>
+                </button>
+                <button class="nav-item" data-tab="reports" id="nav-reports" data-permission="reports">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Finanzas y Reportes</span>
+                    <span class="nav-tooltip">Finanzas y Reportes</span>
+                </button>
+                <button class="nav-item" data-tab="dashboard" id="nav-dashboard" data-permission="dashboard">
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <span>Dashboard</span>
+                    <span class="nav-tooltip">Dashboard</span>
+                </button>
+                <button class="nav-item" data-tab="reservations" id="nav-reservations" data-role="super_admin,owner,admin" data-permission="settings">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span>Reservas</span>
+                    <span class="nav-tooltip">Reservas</span>
+                </button>
+                <button class="nav-item" data-tab="users" id="nav-users" data-role="super_admin,owner,admin" data-permission="settings">
+                    <i class="fa-solid fa-users-gear"></i>
+                    <span>Usuarios</span>
+                    <span class="nav-tooltip">Usuarios</span>
+                </button>
+                <button class="nav-item" data-tab="saas-admin" id="nav-saas-admin" style="display:none;" data-role="super_admin" data-permission="saas_admin">
+                    <i class="fa-solid fa-globe"></i>
+                    <span>SaaS Admin</span>
+                    <span class="nav-tooltip">SaaS Admin</span>
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <p>&copy; 2026 RestoCloud</p>
+                <div class="sidebar-footer-actions">
+                    <button class="btn-icon" id="btn-toggle-theme" title="Cambiar tema claro/oscuro">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <button class="btn-icon" id="btn-toggle-sound" title="Activar/Desactivar sonido de notificaciones">
+                        <i class="fa-solid fa-bell"></i>
+                    </button>
+                    <span class="status-indicator online">Sistema Activo</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-title-container">
+                    <h2 id="current-tab-title">Toma de Pedidos</h2>
+                    <p class="header-subtitle" id="current-tab-desc">Gestiona y crea nuevas órdenes para el día.</p>
+                </div>
+                <div class="header-actions">
+                    <div class="auth-summary" id="header-auth-summary">
+                        <div class="auth-summary-text">
+                            <strong id="header-auth-user">Sin sesión</strong>
+                            <span id="header-auth-meta">Inicia sesión para continuar</span>
+                        </div>
+                        <button class="btn btn-outline btn-sm" id="btn-auth-logout" type="button">
+                            <i class="fa-solid fa-right-from-bracket"></i> Salir
+                        </button>
+                    </div>
+                    <div class="menu-summary-pill low-stock-pill" id="header-low-stock-alert" style="display:none;">
+                        <i class="fa-solid fa-triangle-exclamation" style="margin-right: 4px;"></i>
+                        <span class="pill-label" style="color: var(--primary);">Bajo Stock:</span>
+                        <span class="pill-value pill-value--primary" id="low-stock-count-header">0 prod.</span>
+                    </div>
+                    <div class="menu-summary-pill">
+                        <span class="pill-label">Sopas:</span>
+                        <span class="pill-value" id="header-soup-stock">0/0</span>
+                    </div>
+                    <div class="header-date">
+                        <i class="fa-regular fa-calendar"></i>
+                        <span id="current-date-display">28 de Junio, 2026</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Screens -->
+            <div class="screen-container">
+                
+                <!-- SCREEN 1: POS (Toma de Pedidos) -->
+                <section class="screen-section active" id="screen-pos">
+                    <!-- Mobile cart toggle (floating) -->
+                    <button class="mobile-cart-toggle" id="mobile-cart-toggle" aria-label="Ver carrito">
+                        <i class="fa-solid fa-receipt"></i>
+                        <span class="mobile-cart-badge" id="mobile-cart-badge">0</span>
+                    </button>
+                    <div class="pos-grid">
+                        <!-- Left Panel: Menu Items Selection -->
+                        <div class="pos-catalog">
+                            <!-- Active Menu Selector -->
+                            <div class="menu-selector-bar" id="menu-selector-bar">
+                                <i class="fa-solid fa-utensils icon--primary"></i>
+                                <label class="label-overline" style="white-space:nowrap;">Menú Activo:</label>
+                                <select id="pos-active-menu-select" class="form-select form-select--compact">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+
+                            <!-- Category Filter Tabs -->
+                            <div class="catalog-tabs">
+                                <button class="catalog-tab-btn active" id="btn-cat-meals">
+                                    <i class="fa-solid fa-bowl-food"></i> Almuerzos
+                                </button>
+                                <button class="catalog-tab-btn" id="btn-cat-extras">
+                                    <i class="fa-solid fa-utensils"></i> Platos Extras
+                                </button>
+                                <button class="catalog-tab-btn" id="btn-cat-drinks">
+                                    <i class="fa-solid fa-bottle-water"></i> Gaseosas y Bebidas
+                                </button>
+                            </div>
+                            
+                            <!-- Catalog Content Container -->
+                            <div class="catalog-cards" id="pos-catalog-cards">
+                                <!-- Cards will render dynamically from JS -->
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Current Order Summary (Cart) -->
+                        <div class="pos-cart">
+                            <div class="cart-header">
+                                <h3 class="panel-title"><i class="fa-solid fa-receipt"></i> Detalle del Pedido</h3>
+                                <button class="btn-clear-cart" id="btn-clear-cart" title="Vaciar pedido" aria-label="Vaciar carrito">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Table Selector and Customer Name -->
+                            <div class="customer-info-group">
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <label class="label-overline" for="order-table-select">Ubicar Pedido (Mesa / Llevar):</label>
+                                    <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
+                                        <i class="fa-solid fa-chair input-icon--abs"></i>
+                                        <select id="order-table-select" class="form-select" style="padding-left: 40px;">
+                                            <option value="Llevar">Llevar</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="input-icon-wrapper input-icon-wrapper--compact" id="custom-customer-name-wrapper" style="display: none;">
+                                    <i class="fa-solid fa-user input-icon--abs"></i>
+                                    <input type="text" id="order-customer-name" placeholder="Escriba el nombre del cliente..." class="form-input">
+                                </div>
+
+                                <!-- Payment Method Selector -->
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <label class="label-overline" for="order-payment-select">Método de Pago:</label>
+                                    <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
+                                        <i class="fa-solid fa-credit-card input-icon--abs"></i>
+                                        <select id="order-payment-select" class="form-select" style="padding-left: 40px;">
+                                            <option value="efectivo" selected>💵 Efectivo</option>
+                                            <option value="qr">📱 QR / Transferencia</option>
+                                            <option value="tarjeta">💳 Tarjeta (Crédito/Débito)</option>
+                                            <option value="mixto">🔀 Mixto (Efectivo + QR)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Mixed Payment Inputs (hidden by default) -->
+                                <div id="mixed-payment-section" class="mixed-payment-section" style="display: none;">
+                                    <div class="mixed-payment-row">
+                                        <label class="mixed-payment-label">
+                                            <i class="fa-solid fa-money-bill-wave"></i> Efectivo
+                                        </label>
+                                        <div class="input-currency-wrapper" style="flex:1;">
+                                            <span class="currency-symbol">Bs</span>
+                                            <input type="number" id="mixed-efectivo" class="form-input" min="0" step="0.50" placeholder="0.00" value="0">
+                                        </div>
+                                    </div>
+                                    <div class="mixed-payment-row">
+                                        <label class="mixed-payment-label">
+                                            <i class="fa-solid fa-qrcode"></i> QR / Transf.
+                                        </label>
+                                        <div class="input-currency-wrapper" style="flex:1;">
+                                            <span class="currency-symbol">Bs</span>
+                                            <input type="number" id="mixed-qr" class="form-input" min="0" step="0.50" placeholder="0.00" value="0">
+                                        </div>
+                                    </div>
+                                    <div class="mixed-payment-total">
+                                        <span>Total:</span>
+                                        <span id="mixed-payment-sum">Bs 0.00 / Bs 0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cart Items List -->
+                            <div class="cart-items" id="cart-items-container">
+                                <!-- Empty Cart State -->
+                                <div class="empty-cart" id="empty-cart-state">
+                                    <i class="fa-solid fa-basket-shopping"></i>
+                                    <p>El pedido está vacío</p>
+                                    <span>Agregue almuerzos, platos extras o gaseosas para empezar</span>
+                                </div>
+                            </div>
+
+                            <!-- Cart Footer Summary -->
+                            <div class="cart-totals">
+                                <div class="total-row">
+                                    <span>Subtotal</span>
+                                    <span id="cart-subtotal">Bs 0.00</span>
+                                </div>
+                                <div class="total-row main-total">
+                                    <span>Total a Pagar</span>
+                                    <span id="cart-total">Bs 0.00</span>
+                                </div>
+                            </div>
+
+                            <!-- Cart Actions -->
+                            <div class="cart-actions-grid">
+                                <button class="btn btn-outline" id="btn-save-pending">
+                                    <i class="fa-solid fa-clock"></i> Comanda (Mesa)
+                                </button>
+                                <button class="btn btn-primary" id="btn-complete-sale">
+                                    <i class="fa-solid fa-check-double"></i> Cobrar / Imprimir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 2: ACTIVE ORDERS (Pedidos Activos) -->
+                <section class="screen-section" id="screen-active-orders">
+                    <!-- Floor Plan Section (Mapa de Mesas) -->
+                    <div class="floor-plan-panel">
+                        <h3 class="panel-title panel-title--between">
+                            <span><i class="fa-solid fa-map-location-dot"></i> Mapa de Mesas</span>
+                            <button id="btn-open-tables-config" class="btn btn-sm btn-ghost" title="Configurar Mesas">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
+                        </h3>
+                        <p class="panel-subtitle">Haz clic en una mesa para cambiar su estado, cobrar o pre-visualizar su ticket.</p>
+                        <div class="tables-map-grid" id="tables-map-grid">
+                            <!-- Rendered dynamically -->
+                        </div>
+                    </div>
+
+                    <hr class="config-divider">
+
+                    <!-- Filters/Actions bar -->
+                    <div class="active-orders-controls">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="search-active-orders" placeholder="Buscar pedido por mesa..." class="form-input">
+                        </div>
+                        <div class="orders-summary-metrics">
+                            <span>Pendientes: <strong id="metrics-pending-count" class="badge badge-warning">0</strong></span>
+                            <span>Para Servirse: <strong id="metrics-dinein-count" class="badge badge-info">0</strong></span>
+                            <span>Para Llevar: <strong id="metrics-takeout-count" class="badge badge-accent">0</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Orders Board Grid -->
+                    <div class="orders-board" id="active-orders-board">
+                        <!-- Dynamic active order cards will go here -->
+                        <div class="empty-board-state" id="empty-board-state">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                            <h4>No hay pedidos activos</h4>
+                            <p>Todos los pedidos han sido entregados y cobrados, o no hay órdenes tomadas.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 3: MENU & PLATOS CONFIG (Platos y Menú - CRUDs por Submenús) -->
+                <section class="screen-section" id="screen-menu-config">
+                    <!-- Sub-navigation tabs -->
+                    <div class="menu-config-subnav">
+                        <button type="button" class="subnav-btn active" data-subtab="menu-dia">
+                            <i class="fa-solid fa-bowl-food"></i> Menú del Día & Precios
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="a-la-carta">
+                            <i class="fa-solid fa-utensils"></i> Platos a la Carta
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="bebidas">
+                            <i class="fa-solid fa-bottle-water"></i> Refrescos y Bebidas
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="salsas">
+                            <i class="fa-solid fa-bowl-food"></i> Salsas
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="programables">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Menús Programables
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="establecimiento">
+                            <i class="fa-solid fa-store"></i> Datos del Local
+                        </button>
+                    </div>
+
+                    <!-- Subtab 1: Menú del Día & Precios Base -->
+                    <div class="menu-config-panel" id="subtab-menu-dia">
+                        <div class="config-grid">
+                            <!-- Left Column: Precios Base & Segundos -->
+                            <div class="config-left-column">
+                                <!-- Price Card -->
+                                <div class="config-card-panel">
+                                    <h3 class="panel-title"><i class="fa-solid fa-tags"></i> Precios Base Almuerzos</h3>
+                                    <p class="panel-subtitle">Define el precio de venta para el menú básico.</p>
+                                    
+                                    <form id="form-prices" class="config-form">
+                                        <div class="form-group-row">
+                                            <div class="form-group">
+                                                <label for="price-almuerzo-input">Almuerzo Completo (Bs):</label>
+                                                <div class="input-currency-wrapper">
+                                                    <span class="currency-symbol">Bs</span>
+                                                    <input type="number" id="price-almuerzo-input" class="form-input" min="0" step="0.5" value="15.00" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group-row">
+                                            <div class="form-group">
+                                                <label for="price-segundo-input">Segundo Suelto (Bs):</label>
+                                                <div class="input-currency-wrapper">
+                                                    <span class="currency-symbol">Bs</span>
+                                                    <input type="number" id="price-segundo-input" class="form-input" min="0" step="0.5" value="12.00" required>
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="price-sopa-input">Sopa Suelta (Bs):</label>
+                                                <div class="input-currency-wrapper">
+                                                    <span class="currency-symbol">Bs</span>
+                                                    <input type="number" id="price-sopa-input" class="form-input" min="0" step="0.5" value="6.00" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-full" id="btn-save-prices">
+                                            <i class="fa-solid fa-save"></i> Guardar Precios
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- CRUD: Segundos del Menú del Día -->
+                                <div class="config-card-panel">
+                                    <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Segundos del Menú del Día</h3>
+                                    <p class="panel-subtitle">Lista de segundos para Almuerzo Completo y Segundo Suelto.</p>
+                                    
+                                    <!-- Add new Segundo form -->
+                                    <form id="form-add-segundo" class="add-segundo-inline-form add-form-inline">
+                                        <div class="form-row-three form-row-two-col">
+                                            <div class="form-group">
+                                                <label for="new-segundo-name">Nombre del Plato:</label>
+                                                <input type="text" id="new-segundo-name" placeholder="Ej: Silpancho de Res" class="form-input" required>
+                                            </div>
+                                            <div class="form-group col-btn">
+                                                <label class="btn-spacer">&nbsp;</label>
+                                                <button type="submit" class="btn btn-primary w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </form>
+
+                                    <!-- Daily Seconds CRUD Table -->
+                                    <div class="seconds-table-container">
+                                        <table class="seconds-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nombre Segundo</th>
+                                                    <th style="width:90px; text-align:center;">Estado</th>
+                                                    <th style="width:70px; text-align:center;">Salsa</th>
+                                                    <th style="width: 130px; text-align:right;">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="seconds-crud-body">
+                                                <!-- Dynamic rows from JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Sopas -->
+                            <div class="config-right-column">
+                                <!-- CRUD: Sopas del Menú -->
+                                <div class="config-card-panel">
+                                    <h3 class="panel-title"><i class="fa-solid fa-bowl-hot"></i> Sopas del Menú del Día</h3>
+                                    <p class="panel-subtitle">Lista de sopas para Almuerzo Completo y Sopa Suelta.</p>
+                                    
+                                    <!-- Add new Sopa form -->
+                                    <form id="form-add-sopa" class="add-segundo-inline-form add-form-inline">
+                                        <div class="form-row-three form-row-two-col">
+                                            <div class="form-group">
+                                                <label for="new-sopa-name">Nombre de la Sopa:</label>
+                                                <input type="text" id="new-sopa-name" placeholder="Ej: Sopa de Maní" class="form-input" required>
+                                            </div>
+                                            <div class="form-group col-btn">
+                                                <label class="btn-spacer">&nbsp;</label>
+                                                <button type="submit" class="btn btn-primary w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </form>
+
+                                    <!-- Daily Soups CRUD Table -->
+                                    <div class="seconds-table-container">
+                                        <table class="seconds-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nombre Sopa</th>
+                                                    <th style="width:90px; text-align:center;">Estado</th>
+                                                    <th style="width:70px; text-align:center;">Salsa</th>
+                                                    <th style="width: 130px; text-align:right;">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="sopas-crud-body">
+                                                <!-- Dynamic rows from JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 2: Platos a la Carta -->
+                    <div class="menu-config-panel" id="subtab-a-la-carta" style="display:none;">
+                        <div class="config-card-panel" style="max-width: 900px; margin: 0 auto;">
+                            <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> CRUD Platos Extras a la Carta</h3>
+                            <p class="panel-subtitle">Gestiona platos adicionales a la carta vendidos individualmente.</p>
+                            
+                            <!-- Add Platos Extras form -->
+                            <form id="form-add-plato-extra" class="add-segundo-inline-form add-form-inline">
+                                <div class="form-row-three form-row-three-col">
+                                    <div class="form-group">
+                                        <label for="new-platoextra-name">Plato Extra:</label>
+                                        <input type="text" id="new-platoextra-name" placeholder="Ej: Pique Macho" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-platoextra-price">Precio (Bs):</label>
+                                        <input type="number" id="new-platoextra-price" value="25" min="0" step="0.5" class="form-input" required>
+                                    </div>
+                                    <div class="form-group col-btn">
+                                        <label class="btn-spacer">&nbsp;</label>
+                                        <button type="submit" class="btn btn-accent w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Platos Extras CRUD Table -->
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre Plato Extra</th>
+                                            <th style="width: 100px;">Precio</th>
+                                            <th style="width:70px; text-align:center;">Salsa</th>
+                                            <th style="width: 130px; text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="platos-extras-crud-body">
+                                        <!-- Dynamic rows from JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 3: Refrescos y Bebidas -->
+                    <div class="menu-config-panel" id="subtab-bebidas" style="display:none;">
+                        <div class="config-card-panel" style="max-width: 900px; margin: 0 auto;">
+                            <h3 class="panel-title"><i class="fa-solid fa-whiskey-glass"></i> CRUD Gaseosas y Bebidas</h3>
+                            <p class="panel-subtitle">Gestiona las bebidas del inventario y refrescos del restaurante.</p>
+                            
+                            <!-- Add Gaseosa form -->
+                            <form id="form-add-extra" class="add-segundo-inline-form add-form-inline">
+                                <div class="form-row-three form-row-three-col">
+                                    <div class="form-group">
+                                        <label for="new-extra-name">Bebida / Refresco:</label>
+                                        <input type="text" id="new-extra-name" placeholder="Ej: Coca Cola 500ml" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-extra-price">Precio (Bs):</label>
+                                        <input type="number" id="new-extra-price" value="5" min="0" step="0.5" class="form-input" required>
+                                    </div>
+                                    <div class="form-group col-btn">
+                                        <label class="btn-spacer">&nbsp;</label>
+                                        <button type="submit" class="btn btn-accent w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Gaseosas CRUD Table -->
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre Bebida</th>
+                                            <th style="width: 100px;">Precio</th>
+                                            <th style="width: 130px; text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="extras-crud-body">
+                                        <!-- Dynamic rows from JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 4: Salsas -->
+                    <div class="menu-config-panel" id="subtab-salsas" style="display:none;">
+                        <div class="config-card-panel" style="max-width: 900px; margin: 0 auto;">
+                            <h3 class="panel-title"><i class="fa-solid fa-bowl-food"></i> CRUD Salsas</h3>
+                            <p class="panel-subtitle">Gestiona las salsas disponibles para asociar a productos.</p>
+
+                            <!-- Add new Salsa form -->
+                            <form id="form-add-salsa" class="add-segundo-inline-form add-form-inline">
+                                <div class="form-row-three form-row-four-col">
+                                    <div class="form-group">
+                                        <label for="new-salsa-name">Nombre de la Salsa:</label>
+                                        <input type="text" id="new-salsa-name" placeholder="Ej: Salsa de Maní" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-salsa-price">Precio (Bs):</label>
+                                        <input type="number" id="new-salsa-price" value="0" min="0" step="0.5" class="form-input" required>
+                                    </div>
+                                    <div class="form-group col-btn">
+                                        <label class="btn-spacer">&nbsp;</label>
+                                        <button type="submit" class="btn btn-accent w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Salsas CRUD Table -->
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre Salsa</th>
+                                            <th style="width: 100px;">Precio</th>
+                                            <th style="width:90px; text-align:center;">Estado</th>
+                                            <th style="width: 130px; text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="salsas-crud-body">
+                                        <!-- Dynamic rows from JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 5: Menús Programables -->
+                    <div class="menu-config-panel" id="subtab-programables" style="display:none;">
+                        <div class="config-card-panel" style="max-width: 900px; margin: 0 auto;">
+                            <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Menús Programables</h3>
+                            <p class="panel-subtitle">Crea y gestiona menús para distintos horarios (mañana, tarde, noche).</p>
+                            
+                            <!-- Add new Menu form -->
+                            <form id="form-add-menu" class="add-segundo-inline-form add-form-inline">
+                                <div class="form-row-three form-row-four-col">
+                                    <div class="form-group">
+                                        <label for="new-menu-name">Nombre del Menú:</label>
+                                        <input type="text" id="new-menu-name" placeholder="Ej: Menú Mañana" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-menu-start">Inicio:</label>
+                                        <input type="time" id="new-menu-start" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-menu-end">Fin:</label>
+                                        <input type="time" id="new-menu-end" class="form-input">
+                                    </div>
+                                    <div class="form-group col-btn">
+                                        <label class="btn-spacer">&nbsp;</label>
+                                        <button type="submit" class="btn btn-primary w-full" style="padding:10px;"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Menus CRUD Table -->
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th style="width: 120px;">Horario</th>
+                                            <th style="width: 90px;">Estado</th>
+                                            <th style="width: 120px; text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="menus-crud-body">
+                                        <!-- Dynamic rows from JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 5: Datos del Local -->
+                    <div class="menu-config-panel" id="subtab-establecimiento" style="display:none;">
+                        <div class="config-card-panel" style="max-width: 650px; margin: 0 auto;">
+                            <h3 class="panel-title"><i class="fa-solid fa-store"></i> Datos del Establecimiento</h3>
+                            <p class="panel-subtitle">Personaliza los datos impresos en los recibos y reportes oficiales.</p>
+                            <form id="form-business-info" class="config-form">
+                                <div class="form-group">
+                                    <label for="biz-name-input">Nombre del Restaurante:</label>
+                                    <input type="text" id="biz-name-input" class="form-input" placeholder="Ej: RestoCloud" required>
+                                </div>
+                                <div class="form-group-row">
+                                    <div class="form-group">
+                                        <label for="biz-address-input">Dirección:</label>
+                                        <input type="text" id="biz-address-input" class="form-input" placeholder="Ej: Calle Sucre #123" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="biz-phone-input">Teléfono:</label>
+                                        <input type="text" id="biz-phone-input" class="form-input" placeholder="Ej: 4567890" required>
+                                    </div>
+                                </div>
+                                <div class="form-group-row">
+                                    <div class="form-group">
+                                        <label for="biz-country-input"><i class="fa-solid fa-globe"></i> País:</label>
+                                        <select id="biz-country-input" class="form-select">
+                                            <option value="Bolivia">🇧🇴 Bolivia</option>
+                                            <option value="Perú">🇵🇪 Perú</option>
+                                            <option value="Colombia">🇨🇴 Colombia</option>
+                                            <option value="Ecuador">🇪🇨 Ecuador</option>
+                                            <option value="Argentina">🇦🇷 Argentina</option>
+                                            <option value="Chile">🇨🇱 Chile</option>
+                                            <option value="Venezuela">🇻🇪 Venezuela</option>
+                                            <option value="Brasil">🇧🇷 Brasil</option>
+                                            <option value="Paraguay">🇵🇾 Paraguay</option>
+                                            <option value="Uruguay">🇺🇾 Uruguay</option>
+                                            <option value="México">🇲🇽 México</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group"></div>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-full">
+                                    <i class="fa-solid fa-save"></i> Guardar Establecimiento
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 4: INVENTORY DASHBOARD & STOCK REPLENISH -->
+                <section class="screen-section" id="screen-inventory">
+                    <div class="config-grid">
+                        <!-- Left Panel: Seconds Stock Adjustment -->
+                        <div class="config-left-column">
+                            <!-- Seconds Stock Card -->
+                            <div class="config-card-panel config-card-panel--spaced">
+                                <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Stock de Segundos</h3>
+                                <p class="panel-subtitle">Ajusta el stock actual de cada segundo en preparación.</p>
+                                
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Segundo</th>
+                                                <th style="width: 90px; text-align:center;">Estado</th>
+                                                <th style="width: 120px;">Stock</th>
+                                                <th style="width: 60px; text-align:right;">Ajustar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="seconds-stock-table-body">
+                                            <!-- Dynamic rows from JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Sopas Stock Card -->
+                            <div class="config-card-panel">
+                                <h3 class="panel-title"><i class="fa-solid fa-bowl-hot"></i> Stock de Sopas</h3>
+                                <p class="panel-subtitle">Ajusta el stock actual de cada sopa en preparación.</p>
+                                
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Sopa</th>
+                                                <th style="width: 90px; text-align:center;">Estado</th>
+                                                <th style="width: 120px;">Stock</th>
+                                                <th style="width: 60px; text-align:right;">Ajustar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sopas-stock-table-body">
+                                            <!-- Dynamic rows from JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Platos Extras Stock & Gaseosas Stock Adjustment -->
+                        <div class="config-right-column">
+                            <!-- Platos Extras Stock Card -->
+                            <div class="config-card-panel config-card-panel--spaced">
+                                <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Stock de Platos Extras</h3>
+                                <p class="panel-subtitle">Ajusta el stock disponible para platos especiales a la carta.</p>
+                                
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Plato Extra</th>
+                                                <th style="width: 150px;">Stock Disponible</th>
+                                                <th style="width: 80px; text-align:right;">Ajustar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="platos-extras-stock-table-body">
+                                            <!-- Dynamic rows from JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Gaseosas Stock Card -->
+                            <div class="config-card-panel">
+                                <div class="panel-header-row">
+                                    <div>
+                                        <h3 class="panel-title"><i class="fa-solid fa-whiskey-glass"></i> Stock de Gaseosas / Bebidas</h3>
+                                        <p class="panel-subtitle panel-subtitle--compact">Ajusta las botellas o vasos disponibles en nevera.</p>
+                                    </div>
+                                    <button class="btn btn-accent btn-sm btn--compact" id="btn-export-drinks-report">
+                                        <i class="fa-solid fa-file-invoice"></i> Reporte para Pedido
+                                    </button>
+                                </div>
+                                
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Bebida</th>
+                                                <th style="width: 100px;">Stock</th>
+                                                <th style="width: 100px;">+ Sumar</th>
+                                                <th style="width: 80px; text-align:right;">Ajustar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="extras-stock-table-body">
+                                            <!-- Dynamic rows from JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 5: REPORTS & SALES (Finanzas y Reportes) -->
+                <section class="screen-section" id="screen-reports">
+                    <div class="reports-date-filter" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; background:var(--bg-card); padding:14px 18px; border-radius:12px; border:1px solid var(--border);">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span style="font-weight:700; font-size:13px;"><i class="fa-solid fa-calendar-days"></i> Rango de Reporte:</span>
+                            <input type="date" id="report-start-date" class="form-input" style="width:auto; padding:6px 10px; font-size:12px;">
+                            <span style="font-size:12px; color:var(--text-secondary);">hasta</span>
+                            <input type="date" id="report-end-date" class="form-input" style="width:auto; padding:6px 10px; font-size:12px;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="applyReportDateRange()">
+                                <i class="fa-solid fa-filter"></i> Filtrar
+                            </button>
+                        </div>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="setReportQuickRange('today')">Hoy</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="setReportQuickRange('week')">Últimos 7 días</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="setReportQuickRange('month')">Este Mes</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="setReportQuickRange('all')">Todo</button>
+                        </div>
+                    </div>
+                    <!-- Dashboard Statistics Widgets -->
+                    <div class="reports-widgets">
+                        <div class="widget-card">
+                            <div class="widget-icon primary-color"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                            <div class="widget-data">
+                                <span class="widget-title">Recaudación Bruta (Ventas)</span>
+                                <h3 class="widget-value" id="report-total-revenue">Bs 0.00</h3>
+                                <div class="payment-breakdown" id="report-payment-breakdown">
+                                    Efectivo: Bs 0.00 | QR: Bs 0.00 | Tarjeta: Bs 0.00
+                                </div>
+                            </div>
+                        </div>
+                        <div class="widget-card">
+                            <div class="widget-icon danger-color"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                            <div class="widget-data">
+                                <span class="widget-title">Egresos / Gastos</span>
+                                <h3 class="widget-value widget-value--danger" id="report-total-expenses">Bs 0.00</h3>
+                            </div>
+                        </div>
+                        <div class="widget-card">
+                            <div class="widget-icon success-color"><i class="fa-solid fa-wallet"></i></div>
+                            <div class="widget-data">
+                                <span class="widget-title">Utilidad Neta (Ganancia)</span>
+                                <h3 class="widget-value widget-value--success" id="report-net-profit">Bs 0.00</h3>
+                            </div>
+                        </div>
+                        <div class="widget-card">
+                            <div class="widget-icon accent-color"><i class="fa-solid fa-vault"></i></div>
+                            <div class="widget-data">
+                                <span class="widget-title">Efectivo en Caja</span>
+                                <h3 class="widget-value widget-value--accent" id="report-cash-in-vault">Bs 0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="reports-subnav" role="tablist" aria-label="Secciones de finanzas y reportes">
+                        <button class="reports-subtab" data-report-tab="resumen" type="button" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-chart-line"></i> Resumen
+                        </button>
+                        <button class="reports-subtab active" data-report-tab="caja" type="button" role="tab" aria-selected="true">
+                            <i class="fa-solid fa-cash-register"></i> Caja
+                        </button>
+                        <button class="reports-subtab" data-report-tab="ventas" type="button" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-receipt"></i> Ventas
+                        </button>
+                        <button class="reports-subtab" data-report-tab="ranking" type="button" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-trophy"></i> Ranking
+                        </button>
+                        <button class="reports-subtab" data-report-tab="historico" type="button" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-folder-open"></i> Historial
+                        </button>
+                    </div>
+
+                    <!-- Resumen Subtab Executive Overview Panel -->
+                    <div class="sales-history-panel sales-history-panel--padded" data-report-panel="resumen" style="margin-bottom: 24px;">
+                        <div class="panel-header-actions panel-header-actions--spaced">
+                            <div>
+                                <h3 class="panel-title"><i class="fa-solid fa-chart-line"></i> Resumen Ejecutivo de la Jornada</h3>
+                                <p class="panel-subtitle" style="margin-bottom: 0;">Balance financiero en tiempo real de la caja y ventas del día.</p>
+                            </div>
+                            <div class="btn-group-wrap">
+                                <button class="btn btn-secondary btn-sm" onclick="switchReportsSubtab('caja')">
+                                    <i class="fa-solid fa-cash-register"></i> Ir a Caja
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="switchReportsSubtab('ventas')">
+                                    <i class="fa-solid fa-receipt"></i> Ir a Ventas
+                                </button>
+                                <button class="btn btn-accent btn-sm" onclick="switchReportsSubtab('ranking')">
+                                    <i class="fa-solid fa-trophy"></i> Ver Ranking
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
+                            <div class="widget-card" style="padding: 16px;">
+                                <div class="widget-icon primary-color"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size: 11px;">Recaudación Total</span>
+                                    <h4 class="widget-value" id="resumen-total-revenue" style="font-size: 18px;">Bs 0.00</h4>
+                                </div>
+                            </div>
+                            <div class="widget-card" style="padding: 16px;">
+                                <div class="widget-icon danger-color"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size: 11px;">Egresos / Gastos</span>
+                                    <h4 class="widget-value widget-value--danger" id="resumen-total-expenses" style="font-size: 18px;">Bs 0.00</h4>
+                                </div>
+                            </div>
+                            <div class="widget-card" style="padding: 16px;">
+                                <div class="widget-icon success-color"><i class="fa-solid fa-wallet"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size: 11px;">Ganancia Neta</span>
+                                    <h4 class="widget-value widget-value--success" id="resumen-net-profit" style="font-size: 18px;">Bs 0.00</h4>
+                                </div>
+                            </div>
+                            <div class="widget-card" style="padding: 16px;">
+                                <div class="widget-icon accent-color"><i class="fa-solid fa-vault"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size: 11px;">Efectivo en Caja</span>
+                                    <h4 class="widget-value widget-value--accent" id="resumen-cash-in-vault" style="font-size: 18px;">Bs 0.00</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Two Column Financial Grid -->
+                    <div class="reports-grid reports-grid-layout" id="reports-panels-grid">
+                        
+                        <!-- Left Column: Caja Chica, Gastos & Arqueo -->
+                        <div class="financial-left-column financial-column" data-report-panel="caja">
+                            
+                            <!-- Apertura de Caja Card -->
+                            <div class="config-card-panel">
+                                <h3 class="panel-title panel-title--spaced"><i class="fa-solid fa-cash-register"></i> Apertura de Caja Chica</h3>
+                                <p class="panel-subtitle panel-subtitle--spaced">Dinero inicial en efectivo para cambio del día.</p>
+                                
+                                <div id="caja-apertura-wrapper">
+                                    <form id="form-caja-apertura" class="config-form" style="gap: 12px;">
+                                        <div class="form-group">
+                                            <label for="caja-monto-apertura">Monto Inicial (Bs):</label>
+                                            <div class="input-currency-wrapper">
+                                                <span class="currency-symbol">Bs</span>
+                                                <input type="number" id="caja-monto-apertura" class="form-input" min="0" step="10" value="150" required>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-full" style="padding: 10px;">
+                                            <i class="fa-solid fa-unlock"></i> Abrir Caja Chica
+                                        </button>
+                                    </form>
+                                </div>
+                                <div id="caja-estado-abierta" style="display: none;">
+                                    <span class="caja-status-label">CAJA ABIERTA HOY</span>
+                                    <h4 class="caja-monto-display" id="caja-monto-inicial-lbl">Bs 150.00</h4>
+                                </div>
+                            </div>
+
+                            <!-- Registrar Gasto Card -->
+                            <div class="config-card-panel">
+                                <h3 class="panel-title panel-title--spaced"><i class="fa-solid fa-receipt"></i> Registrar Egreso / Gasto</h3>
+                                <p class="panel-subtitle panel-subtitle--spaced">Cualquier gasto en efectivo del día.</p>
+                                
+                                <form id="form-caja-egreso" class="config-form" style="gap: 12px;">
+                                    <div class="form-group">
+                                        <label for="caja-egreso-desc">Detalle del Gasto:</label>
+                                        <input type="text" id="caja-egreso-desc" class="form-input" placeholder="Ej: Compra de cilantro" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="caja-egreso-monto">Monto (Bs):</label>
+                                        <div class="input-currency-wrapper">
+                                            <span class="currency-symbol">Bs</span>
+                                            <input type="number" id="caja-egreso-monto" class="form-input" min="0.01" step="0.01" placeholder="0.00" required>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-outline-danger w-full" style="padding: 10px;">
+                                        <i class="fa-solid fa-minus-circle"></i> Registrar Egreso
+                                    </button>
+                                </form>
+                             </div>
+
+                             <!-- Arqueo de Caja Chica Card -->
+                             <div class="config-card-panel">
+                                 <h3 class="panel-title panel-title--spaced"><i class="fa-solid fa-calculator"></i> Arqueo de Caja Chica</h3>
+                                 <p class="panel-subtitle panel-subtitle--spaced">Verifica la caja física al cierre de jornada.</p>
+                                 
+                                 <div class="config-form" style="gap: 12px;">
+                                     <div class="form-group">
+                                         <label for="caja-efectivo-real">Efectivo Físico en Caja (Bs):</label>
+                                         <div class="input-currency-wrapper">
+                                             <span class="currency-symbol">Bs</span>
+                                             <input type="number" id="caja-efectivo-real" class="form-input" min="0" step="0.01" placeholder="Cuenta el dinero en físico...">
+                                         </div>
+                                     </div>
+                                     <div class="arqueo-resultado-box">
+                                         <div class="arqueo-row">
+                                             <span style="color:var(--text-muted);">Efectivo Esperado:</span>
+                                             <span style="font-weight:700;" id="arqueo-efectivo-esperado-lbl">Bs 0.00</span>
+                                         </div>
+                                         <div class="arqueo-row--bordered">
+                                             <span style="color:var(--text-muted); font-weight:600;">Diferencia (Arqueo):</span>
+                                             <span style="font-weight:800; font-size:13px;" id="arqueo-diferencia-lbl">Bs 0.00</span>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+
+                        <!-- Right Column: Sales History & Cash Movements Table -->
+                        <div class="financial-right-column financial-column">
+                            
+                            <!-- Movimientos de Caja Table -->
+                            <div class="sales-history-panel sales-history-panel--padded" data-report-panel="caja">
+                                <h3 class="panel-title panel-title--spaced"><i class="fa-solid fa-list-check"></i> Movimientos de Caja Chica</h3>
+                                <p class="panel-subtitle panel-subtitle--spaced">Registro cronológico de aperturas, ingresos y egresos de efectivo.</p>
+                                
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Hora</th>
+                                                <th>Detalle / Movimiento</th>
+                                                <th>Tipo</th>
+                                                <th style="text-align:right;">Monto</th>
+                                                <th style="width: 80px; text-align:right;">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="caja-movimientos-body">
+                                            <!-- Dynamic movements list -->
+                                        </tbody>
+                                    </table>
+                                    <div class="empty-table-state" id="empty-caja-movimientos-state">
+                                        <i class="fa-solid fa-receipt"></i>
+                                        <p>No se han registrado movimientos hoy.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Historial de Ventas Card -->
+                            <div class="sales-history-panel sales-history-panel--padded" data-report-panel="ventas">
+                                <div class="panel-header-actions panel-header-actions--spaced">
+                                    <h3 class="panel-title"><i class="fa-solid fa-history"></i> Historial de Ventas</h3>
+                                    <div class="btn-group-wrap">
+                                        <button class="btn btn-secondary btn-sm" id="btn-print-cierre">
+                                            <i class="fa-solid fa-print"></i> Imprimir Cierre
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" id="btn-export-cierre-pdf">
+                                            <i class="fa-solid fa-file-pdf"></i> Cierre PDF
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" id="btn-export-ventas-pdf">
+                                            <i class="fa-solid fa-file-pdf"></i> Ventas PDF
+                                        </button>
+                                        <button class="btn btn-accent btn-sm" id="btn-export-csv">
+                                            <i class="fa-solid fa-file-excel"></i> Exportar CSV
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" id="btn-reset-data">
+                                            <i class="fa-solid fa-trash-arrow-up"></i> Cierre de Caja (Reset)
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="sales-history-filters" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; padding:10px 14px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+                                    <input type="text" id="sales-filter-text" class="form-input" placeholder="Buscar por cliente o producto..." style="flex:1; min-width:180px; padding:6px 10px; font-size:12px;" oninput="applySalesHistoryFilters()">
+                                    <select id="sales-filter-status" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applySalesHistoryFilters()">
+                                        <option value="">Todos los estados</option>
+                                        <option value="completado">Cobrado</option>
+                                        <option value="anulado">Anulado</option>
+                                    </select>
+                                    <select id="sales-filter-payment" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applySalesHistoryFilters()">
+                                        <option value="">Todos los pagos</option>
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="qr">QR</option>
+                                        <option value="tarjeta">Tarjeta</option>
+                                        <option value="mixto">Mixto</option>
+                                    </select>
+                                    <input type="number" id="sales-filter-min" class="form-input" placeholder="Monto min" style="width:90px; padding:6px 8px; font-size:12px;" oninput="applySalesHistoryFilters()">
+                                    <input type="number" id="sales-filter-max" class="form-input" placeholder="Monto max" style="width:90px; padding:6px 8px; font-size:12px;" oninput="applySalesHistoryFilters()">
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="clearSalesHistoryFilters()" title="Limpiar filtros">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+
+                                <div id="sales-history-kpi-bar" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+                                    <span class="badge-status" style="background:rgba(16,185,129,0.12);color:var(--success);font-weight:600;">
+                                        <i class="fa-solid fa-receipt"></i> <span id="sales-kpi-total">0</span> ventas
+                                    </span>
+                                    <span class="badge-status" style="background:rgba(16,185,129,0.12);color:var(--success);font-weight:600;">
+                                        <i class="fa-solid fa-coins"></i> Total: <span id="sales-kpi-revenue">Bs 0.00</span>
+                                    </span>
+                                    <span class="badge-status" style="background:rgba(245,158,11,0.12);color:var(--warning);font-weight:600;">
+                                        <i class="fa-solid fa-chart-line"></i> Ticket promedio: <span id="sales-kpi-avg">Bs 0.00</span>
+                                    </span>
+                                </div>
+                                
+                                <div class="sales-table-container">
+                                    <table class="sales-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Hora</th>
+                                                <th>Mesa/Cliente</th>
+                                                <th>Items</th>
+                                                <th>Pago</th>
+                                                <th>Total</th>
+                                                <th>Estado</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sales-history-body">
+                                            <!-- Dynamic sales rows go here -->
+                                        </tbody>
+                                    </table>
+                                    <div class="empty-table-state" id="empty-sales-state">
+                                        <i class="fa-solid fa-receipt"></i>
+                                        <p>Aún no se han registrado ventas hoy.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ranking Platos y Bebidas Más Vendidos Card -->
+                            <div class="sales-history-panel sales-history-panel--padded" data-report-panel="ranking" style="margin-top: 24px;">
+                                <div class="panel-header-actions panel-header-actions--spaced">
+                                    <div>
+                                        <h3 class="panel-title"><i class="fa-solid fa-trophy" style="color: var(--warning);"></i> Ranking: Platos y Bebidas Más Vendidos</h3>
+                                        <p class="panel-subtitle">Los productos con mayor demanda e ingresos generados en el período.</p>
+                                    </div>
+                                    <div class="btn-group-wrap">
+                                        <select id="ranking-category-filter" class="form-input" style="width:auto; padding:5px 8px; font-size:12px;" onchange="applyRankingCategoryFilter()">
+                                            <option value="">Todos</option>
+                                            <option value="almuerzo">Almuerzos</option>
+                                            <option value="segundo">Segundos</option>
+                                            <option value="sopa">Sopas</option>
+                                            <option value="plato_extra">Platos Extra</option>
+                                            <option value="extra">Bebidas</option>
+                                        </select>
+                                        <button class="btn btn-primary btn-sm" id="btn-export-top-sellers-pdf">
+                                            <i class="fa-solid fa-file-pdf"></i> Ranking PDF
+                                        </button>
+                                        <button class="btn btn-accent btn-sm" id="btn-export-top-sellers-csv">
+                                            <i class="fa-solid fa-file-excel"></i> Exportar CSV
+                                        </button>
+                                        <button class="btn btn-outline btn-sm" onclick="runReport('salesByWeekday', { mode: 'preview' })">
+                                            <i class="fa-solid fa-calendar-days"></i> Ventas por Dia
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="sales-table-container">
+                                    <table class="sales-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 60px; text-align:center;">#</th>
+                                                <th>Producto / Plato</th>
+                                                <th>Categoría</th>
+                                                <th style="text-align:center;">Cant. Vendida</th>
+                                                <th style="text-align:right;">Ingresos (Bs)</th>
+                                                <th style="width: 140px; text-align:center;">Participación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="top-sellers-body">
+                                            <!-- Dynamic ranking rows go here -->
+                                        </tbody>
+                                    </table>
+                                    <div class="empty-table-state" id="empty-top-sellers-state">
+                                        <i class="fa-solid fa-chart-pie"></i>
+                                        <p>Aún no hay datos de ventas registrados para calcular el ranking.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    
+                    <!-- Historial de Cierres Diarios (Previos) -->
+                    <div class="sales-history-panel sales-history-panel--padded" data-report-panel="historico" style="margin-top: 24px;">
+                        <div class="panel-header-actions panel-header-actions--spaced">
+                            <div>
+                                <h3 class="panel-title"><i class="fa-solid fa-folder-open"></i> Historial de Arqueos y Cierres Diarios</h3>
+                                <p class="panel-subtitle" style="margin-bottom: 0;">Consulta y descarga los cierres de caja anteriores archivados en el sistema.</p>
+                            </div>
+                            <button class="btn btn-accent btn-sm" id="btn-export-cierres-csv">
+                                <i class="fa-solid fa-file-excel"></i> Exportar Histórico
+                            </button>
+                        </div>
+                        
+                        <div class="seconds-table-container">
+                            <table class="seconds-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th style="text-align:right;">Caja Inicial</th>
+                                        <th style="text-align:right;">Ventas Efectivo</th>
+                                        <th style="text-align:right;">Gastos/Egresos</th>
+                                        <th style="text-align:right;">Esperado</th>
+                                        <th style="text-align:right;">Real Contado</th>
+                                        <th style="text-align:right;">Diferencia</th>
+                                        <th style="text-align:right;">Utilidad Neta</th>
+                                        <th style="width: 80px; text-align:right;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="caja-cierres-history-body">
+                                    <!-- Dynamic historical closures list -->
+                                </tbody>
+                            </table>
+                            <div class="empty-table-state empty-table-state--padded" id="empty-cierres-state">
+                                <i class="fa-solid fa-folder-closed icon--xl"></i>
+                                <p>No hay cierres de caja archivados en el histórico todavía.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 6: DASHBOARD -->
+                <section class="screen-section" id="screen-dashboard">
+                    <!-- Date Filters -->
+                    <div class="dashboard-filters" id="dashboard-filters">
+                        <div class="dashboard-filter-group">
+                            <button class="btn btn-sm btn-outline active" data-range="7d">7 días</button>
+                            <button class="btn btn-sm btn-outline" data-range="30d">30 días</button>
+                            <button class="btn btn-sm btn-outline" data-range="month">Mes actual</button>
+                            <button class="btn btn-sm btn-outline" data-range="custom">Personalizado</button>
+                        </div>
+                        <div class="dashboard-custom-dates" id="dashboard-custom-dates" style="display:none;">
+                            <label for="dashboard-start-date" class="sr-only">Fecha inicio</label>
+                            <input type="date" id="dashboard-start-date" class="form-input" aria-label="Fecha inicio del rango">
+                            <span style="color:var(--text-muted);">a</span>
+                            <label for="dashboard-end-date" class="sr-only">Fecha fin</label>
+                            <input type="date" id="dashboard-end-date" class="form-input" aria-label="Fecha fin del rango">
+                            <button class="btn btn-sm btn-primary" id="btn-apply-custom-range">Aplicar</button>
+                        </div>
+                        <button class="btn btn-sm btn-outline" id="btn-export-dashboard-pdf" title="Exportar PDF">
+                            <i class="fa-solid fa-file-pdf"></i> PDF
+                        </button>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div class="dashboard-kpi-grid" id="dashboard-kpi-grid" role="group" aria-label="Indicadores clave de rendimiento">
+                        <div class="kpi-card" data-detail="revenue" title="Ver detalle de ingresos" role="button" tabindex="0" aria-label="Ingresos totales - clic para ver detalle">
+                            <div class="kpi-icon" style="background: var(--primary-glow); color: var(--primary);">
+                                <i class="fa-solid fa-sack-dollar"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Ingresos Totales</span>
+                                <h3 class="kpi-value" id="kpi-total-revenue">Bs 0.00</h3>
+                            </div>
+                            <i class="fa-solid fa-chevron-right kpi-arrow"></i>
+                        </div>
+                        <div class="kpi-card" data-detail="orders" title="Ver detalle de pedidos" role="button" tabindex="0" aria-label="Pedidos totales - clic para ver detalle">
+                            <div class="kpi-icon kpi-icon--blue">
+                                <i class="fa-solid fa-receipt"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Pedidos Totales</span>
+                                <h3 class="kpi-value" id="kpi-total-orders">0</h3>
+                            </div>
+                            <i class="fa-solid fa-chevron-right kpi-arrow"></i>
+                        </div>
+                        <div class="kpi-card" data-detail="ticket" title="Ver detalle de ticket promedio" role="button" tabindex="0" aria-label="Ticket promedio - clic para ver detalle">
+                            <div class="kpi-icon kpi-icon--green">
+                                <i class="fa-solid fa-calculator"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Ticket Promedio</span>
+                                <h3 class="kpi-value" id="kpi-avg-ticket">Bs 0.00</h3>
+                            </div>
+                            <i class="fa-solid fa-chevron-right kpi-arrow"></i>
+                        </div>
+                        <div class="kpi-card" data-detail="anulled" title="Ver detalle de anulados" role="button" tabindex="0" aria-label="Pedidos anulados - clic para ver detalle">
+                            <div class="kpi-icon kpi-icon--red">
+                                <i class="fa-solid fa-ban"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Anulados</span>
+                                <h3 class="kpi-value" id="kpi-total-anulled">0</h3>
+                            </div>
+                            <i class="fa-solid fa-chevron-right kpi-arrow"></i>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="dashboard-charts-grid">
+                        <div class="dashboard-chart-card">
+                            <div class="chart-title-row">
+                                <h4 class="chart-title"><i class="fa-solid fa-chart-bar"></i> Ventas Diarias</h4>
+                                <button class="btn-chart-export" onclick="DashboardController.exportChartPNG('salesByDay', 'ventas-diarias')" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+                            </div>
+                            <div class="chart-container"><canvas id="chart-sales-by-day"></canvas></div>
+                        </div>
+                        <div class="dashboard-chart-card">
+                            <div class="chart-title-row">
+                                <h4 class="chart-title"><i class="fa-solid fa-chart-pie"></i> Ventas por Categoría</h4>
+                                <button class="btn-chart-export" onclick="DashboardController.exportChartPNG('category', 'ventas-por-categoria')" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+                            </div>
+                            <div class="chart-container"><canvas id="chart-category"></canvas></div>
+                        </div>
+                        <div class="dashboard-chart-card">
+                            <div class="chart-title-row">
+                                <h4 class="chart-title"><i class="fa-solid fa-credit-card"></i> Métodos de Pago</h4>
+                                <button class="btn-chart-export" onclick="DashboardController.exportChartPNG('paymentMethods', 'metodos-de-pago')" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+                            </div>
+                            <div class="chart-container"><canvas id="chart-payment-methods"></canvas></div>
+                        </div>
+                        <div class="dashboard-chart-card">
+                            <div class="chart-title-row">
+                                <h4 class="chart-title"><i class="fa-solid fa-clock"></i> Horas Pico</h4>
+                                <button class="btn-chart-export" onclick="DashboardController.exportChartPNG('peakHours', 'horas-pico')" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+                            </div>
+                            <div class="chart-container"><canvas id="chart-peak-hours"></canvas></div>
+                        </div>
+                        <div class="dashboard-chart-card">
+                            <div class="chart-title-row">
+                                <h4 class="chart-title"><i class="fa-solid fa-chart-line"></i> Tendencia Semanal</h4>
+                                <button class="btn-chart-export" onclick="DashboardController.exportChartPNG('weeklyTrend', 'tendencia-semanal')" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+                            </div>
+                            <div class="chart-container"><canvas id="chart-weekly-trend"></canvas></div>
+                        </div>
+                        <div class="dashboard-chart-card dashboard-chart-card--table">
+                            <h4 class="chart-title"><i class="fa-solid fa-trophy"></i> Top Productos</h4>
+                            <div class="chart-table-wrapper">
+                                <table class="data-table" id="dashboard-top-products-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Producto</th>
+                                            <th>Unidades</th>
+                                            <th>Revenue</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-top-products-body"></tbody>
+                                </table>
+                                <div class="empty-table-state" id="dashboard-empty-state" style="display:none; padding:24px 0; text-align:center;">
+                                    <i class="fa-solid fa-chart-simple icon--xl--muted"></i>
+                                    <p style="color:var(--text-muted); margin-top:8px;">No hay datos para el rango seleccionado</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 8: RESERVATIONS -->
+                <section class="screen-section" id="screen-reservations">
+                    <div class="reservations-layout">
+                        <!-- Left: Reservations table -->
+                        <div class="reservations-main">
+                            <div class="reservations-toolbar">
+                                <div class="reservations-toolbar-left">
+                                    <div class="reservations-date-nav">
+                                        <button class="btn btn-sm btn-outline" onclick="changeReservationsDate(new Date(new Date(document.getElementById('reservations-date-picker').value).getTime() - 86400000).toISOString().slice(0,10))" title="Día anterior">
+                                            <i class="fa-solid fa-chevron-left"></i>
+                                        </button>
+                                        <input type="date" id="reservations-date-picker" class="form-input" onchange="changeReservationsDate(this.value)">
+                                        <button class="btn btn-sm btn-outline" onclick="changeReservationsDate(new Date(new Date(document.getElementById('reservations-date-picker').value).getTime() + 86400000).toISOString().slice(0,10))" title="Día siguiente">
+                                            <i class="fa-solid fa-chevron-right"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" onclick="changeReservationsDate(new Date().toISOString().slice(0,10))" title="Ir a hoy">
+                                            <i class="fa-solid fa-calendar-day"></i> Hoy
+                                        </button>
+                                    </div>
+                                    <div id="reservations-summary" class="reservations-summary"></div>
+                                </div>
+                                <div class="reservations-toolbar-right">
+                                    <div class="search-input-wrapper">
+                                        <i class="fa-solid fa-search"></i>
+                                        <input type="text" id="reservation-search-input" class="form-input" placeholder="Buscar por nombre o teléfono..." oninput="searchReservations(this.value)">
+                                    </div>
+                                    <button class="btn btn-primary btn-sm" onclick="toggleReservationForm()">
+                                        <i class="fa-solid fa-plus"></i> Nueva Reserva
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Reservation Form (hidden by default) -->
+                            <div id="reservation-form-section" class="config-card-panel" style="display:none; margin-bottom:16px;">
+                                <h3 class="panel-title" id="reservation-form-title">Nueva Reserva</h3>
+                                <form id="form-reservation" class="config-form" onsubmit="handleSaveReservation(event)">
+                                    <input type="hidden" id="reservation-form-id" value="">
+                                    <div class="reservation-form-layout">
+                                        <!-- Left: Customer Info -->
+                                        <div class="reservation-form-customer">
+                                            <h4 class="reservation-form-subtitle"><i class="fa-solid fa-user"></i> Datos del Cliente</h4>
+                                            <div class="reservation-form-grid">
+                                                <div class="form-group">
+                                                    <label for="reservation-form-name">Nombre *</label>
+                                                    <input type="text" id="reservation-form-name" class="form-input" placeholder="Ej: Juan Pérez" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="reservation-form-phone">Teléfono</label>
+                                                    <input type="tel" id="reservation-form-phone" class="form-input" placeholder="Ej: 71234567">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="reservation-form-party">Personas *</label>
+                                                    <input type="number" id="reservation-form-party" class="form-input" min="1" max="50" value="1" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="reservation-form-date">Fecha *</label>
+                                                    <input type="date" id="reservation-form-date" class="form-input" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="reservation-form-time">Hora *</label>
+                                                    <input type="time" id="reservation-form-time" class="form-input" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="reservation-form-type">Tipo *</label>
+                                                    <select id="reservation-form-type" class="form-select" onchange="onReservationTypeChange()">
+                                                        <option value="para_servirse">🍽️ Para servirse</option>
+                                                        <option value="para_llevar">🥡 Para llevar</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group" id="reservation-form-table-group">
+                                                    <label for="reservation-form-table">Mesa *</label>
+                                                    <select id="reservation-form-table" class="form-select">
+                                                        <option value="">Seleccionar mesa...</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group form-group--full-width">
+                                                    <label for="reservation-form-notes">Notas</label>
+                                                    <input type="text" id="reservation-form-notes" class="form-input" placeholder="Ej: Cumpleaños, silla de bebé...">
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Right: Menu Items -->
+                                        <div class="reservation-form-menu">
+                                            <h4 class="reservation-form-subtitle"><i class="fa-solid fa-utensils"></i> Pedido</h4>
+                                            <div class="reservation-catalog-toolbar">
+                                                <div class="input-icon-wrapper input-icon-wrapper--compact reservation-catalog-search">
+                                                    <i class="fa-solid fa-search input-icon--abs"></i>
+                                                    <input type="text" id="reservation-catalog-search" class="form-input" placeholder="Buscar productos..." oninput="setReservationCatalogSearch(this.value)" autocomplete="off">
+                                                </div>
+                                                <div class="reservation-catalog-tabs" role="tablist" aria-label="Catalogo de productos para reserva">
+                                                    <button type="button" class="reservation-catalog-tab active" data-res-catalog-tab="meals" onclick="switchReservationCatalogTab('meals')">
+                                                        <i class="fa-solid fa-bowl-food"></i> Almuerzos
+                                                    </button>
+                                                    <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="extras" onclick="switchReservationCatalogTab('extras')">
+                                                        <i class="fa-solid fa-utensils"></i> Platos extras
+                                                    </button>
+                                                    <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="drinks" onclick="switchReservationCatalogTab('drinks')">
+                                                        <i class="fa-solid fa-bottle-water"></i> Bebidas
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="reservation-catalog-cards" id="reservation-catalog-cards">
+                                                <div class="reservation-catalog-empty">
+                                                    <i class="fa-solid fa-basket-shopping"></i>
+                                                    <p>Cargando productos...</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="reservation-cart-header">
+                                                <span><i class="fa-solid fa-receipt"></i> Lista de productos</span>
+                                                <button type="button" class="btn btn-sm btn-outline" onclick="clearReservationCart()" title="Vaciar lista">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- Cart items list -->
+                                            <div class="reservation-cart-items" id="reservation-cart-items">
+                                                <p class="text-muted" style="text-align:center; padding:20px; font-size:12px;">Agrega items del menú al pedido</p>
+                                            </div>
+
+                                            <!-- Cart total -->
+                                            <div class="reservation-cart-total">
+                                                <span>Total:</span>
+                                                <strong id="reservation-cart-total-value">Bs 0.00</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="reservation-form-actions">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fa-solid fa-save"></i> Guardar Reserva
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="resetReservationForm(); document.getElementById('reservation-form-section').style.display='none';">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Reservations Table -->
+                            <div class="reservation-subtabs">
+                                <button class="reservation-subtab active" onclick="filterReservations('activas')" id="res-subtab-activas">
+                                    <i class="fa-solid fa-clock"></i> Activas
+                                </button>
+                                <button class="reservation-subtab" onclick="filterReservations('entregadas')" id="res-subtab-entregadas">
+                                    <i class="fa-solid fa-check-double"></i> Entregadas
+                                </button>
+                            </div>
+                            <div class="config-card-panel">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th style="width:70px; text-align:center;">Hora</th>
+                                            <th style="width:65px; text-align:center;">Pers.</th>
+                                            <th style="width:90px; text-align:center;">Tipo</th>
+                                            <th>Mesa</th>
+                                            <th>Pedido</th>
+                                            <th style="width:85px; text-align:right;">Total</th>
+                                            <th style="width:85px; text-align:center;">Estado</th>
+                                            <th style="width:180px; text-align:center;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reservations-table-body">
+                                        <!-- Dynamic rows from JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 9: TENANT USERS (owner/admin only) -->
+                <section class="screen-section" id="screen-users">
+                    <div class="users-layout">
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3><i class="fa-solid fa-users"></i> Usuarios del Negocio</h3>
+                                <button class="btn btn-primary btn-sm" id="btn-create-tenant-user">
+                                    <i class="fa-solid fa-plus"></i> Nuevo Usuario
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="crud-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Email</th>
+                                            <th>Rol</th>
+                                            <th>Sucursal</th>
+                                            <th>Estado</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tenant-users-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal: Create/Edit Tenant User -->
+                    <div class="modal-backdrop" id="modal-tenant-user" role="dialog" aria-modal="true" aria-labelledby="modal-tenant-user-title">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3 id="modal-tenant-user-title">Nuevo Usuario</h3>
+                                <button class="btn-close-modal" onclick="closeModal('modal-tenant-user')"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="form-tenant-user" class="modal-form-grid">
+                                    <input type="hidden" id="tenant-user-edit-id">
+                                    <div class="form-group">
+                                        <label for="tenant-user-name">Nombre</label>
+                                        <input type="text" id="tenant-user-name" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tenant-user-email">Email</label>
+                                        <input type="email" id="tenant-user-email" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tenant-user-password">Contraseña <small id="tenant-user-password-hint"></small></label>
+                                        <input type="password" id="tenant-user-password" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tenant-user-role">Rol</label>
+                                        <select id="tenant-user-role" class="form-select">
+                                            <option value="admin">Admin</option>
+                                            <option value="cajero">Cajero</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tenant-user-branch">Sucursal</label>
+                                        <select id="tenant-user-branch" class="form-select" required></select>
+                                    </div>
+                                    <div class="modal-actions">
+                                        <button type="button" class="btn btn-outline" onclick="closeModal('modal-tenant-user')">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary">Guardar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 9: SaaS Admin -->
+                <section class="screen-section" id="screen-saas-admin">
+                    <!-- Sub-tabs Navigation -->
+                    <div class="saas-subtabs">
+                        <button class="saas-subtab active" data-saas-tab="summary" onclick="switchSaasSubtab('summary')" type="button">
+                            <i class="fa-solid fa-chart-pie"></i> Resumen
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="pending-payments" onclick="switchSaasSubtab('pending-payments')" type="button">
+                            <i class="fa-solid fa-clock"></i> Pagos Pendientes
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="tenants" onclick="switchSaasSubtab('tenants')" type="button">
+                            <i class="fa-solid fa-building"></i> Tenants
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="branches" onclick="switchSaasSubtab('branches')" type="button">
+                            <i class="fa-solid fa-code-branch"></i> Sucursales
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="users" onclick="switchSaasSubtab('users')" type="button">
+                            <i class="fa-solid fa-users"></i> Usuarios
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="subscriptions" onclick="switchSaasSubtab('subscriptions')" type="button">
+                            <i class="fa-solid fa-credit-card"></i> Suscripciones
+                        </button>
+                        <button class="saas-subtab" data-saas-tab="plans" onclick="switchSaasSubtab('plans')" type="button">
+                            <i class="fa-solid fa-layer-group"></i> Planes
+                        </button>
+                    </div>
+
+                    <!-- Sub-tab: Resumen -->
+                    <div class="saas-subtab-panel active" id="saas-panel-summary">
+                        <div class="saas-summary-grid">
+                            <div class="content-card stat-card">
+                                <div class="stat-icon"><i class="fa-solid fa-building"></i></div>
+                                <div class="stat-value" id="saas-summary-tenants">0</div>
+                                <div class="stat-label">Tenants</div>
+                            </div>
+                            <div class="content-card stat-card">
+                                <div class="stat-icon"><i class="fa-solid fa-code-branch"></i></div>
+                                <div class="stat-value" id="saas-summary-branches">0</div>
+                                <div class="stat-label">Sucursales</div>
+                            </div>
+                            <div class="content-card stat-card">
+                                <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+                                <div class="stat-value" id="saas-summary-users">0</div>
+                                <div class="stat-label">Usuarios</div>
+                            </div>
+                            <div class="content-card stat-card">
+                                <div class="stat-icon"><i class="fa-solid fa-credit-card"></i></div>
+                                <div class="stat-value" id="saas-summary-subscriptions">0</div>
+                                <div class="stat-label">Suscripciones Activas</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Pagos Pendientes -->
+                    <div class="saas-subtab-panel" id="saas-panel-pending-payments">
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3><i class="fa-solid fa-clock"></i> Pagos Pendientes de Verificación</h3>
+                            </div>
+                            <div id="saas-pending-payments">
+                                <p class="text-muted" style="text-align:center; padding:20px;">No hay pagos pendientes.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Tenants -->
+                    <div class="saas-subtab-panel" id="saas-panel-tenants">
+                        <div class="content-card admin-form-card saas-admin-builder-card" id="saas-tenant-card">
+                            <div class="saas-admin-builder-header">
+                                <div>
+                                    <span class="plan-builder-kicker"><i class="fa-solid fa-building-circle-check"></i> Alta de cliente</span>
+                                    <h3><i class="fa-solid fa-building"></i> Crear Tenant</h3>
+                                    <p>Crea la empresa, su sucursal inicial, owner y suscripción en una sola operación.</p>
+                                </div>
+                            </div>
+                            <form id="form-saas-create-tenant" class="saas-admin-builder-form">
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-store"></i> Negocio</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-tenant-name">Nombre del Tenant</label>
+                                    <input type="text" id="saas-tenant-name" class="form-input" required placeholder="Mi Restaurante">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-tenant-slug">Slug</label>
+                                    <input type="text" id="saas-tenant-slug" class="form-input" required placeholder="mi-restaurante" pattern="[a-z0-9-]{3,50}" maxlength="50">
+                                    <small class="text-muted">URL interna: minúsculas, números y guiones.</small>
+                                </div>
+                                <div class="form-group plan-builder-span">
+                                    <label for="saas-branch-name">Sucursal Inicial</label>
+                                    <input type="text" id="saas-branch-name" class="form-input" required placeholder="Sucursal Central">
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-user-shield"></i> Owner</legend>
+                                    <div class="plan-builder-grid plan-builder-grid-3">
+                                <div class="form-group">
+                                    <label for="saas-owner-name">Nombre del Dueño</label>
+                                    <input type="text" id="saas-owner-name" class="form-input" required placeholder="Nombre completo">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-owner-email">Email del Dueño</label>
+                                    <input type="email" id="saas-owner-email" class="form-input" required placeholder="owner@empresa.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-owner-password">Contraseña del Dueño</label>
+                                    <input type="password" id="saas-owner-password" class="form-input" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-credit-card"></i> Suscripción inicial</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-plan-code">Plan</label>
+                                    <select id="saas-plan-code" class="form-select">
+                                        <option value="starter">Starter</option>
+                                        <option value="pro">Pro</option>
+                                        <option value="enterprise">Enterprise</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-subscription-status">Estado Suscripción</label>
+                                    <select id="saas-subscription-status" class="form-select">
+                                        <option value="trial">Trial</option>
+                                        <option value="active">Activa</option>
+                                        <option value="suspended">Suspendida</option>
+                                    </select>
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <div class="plan-builder-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Crear tenant completo</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="content-card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <h3><i class="fa-solid fa-building"></i> Tenants Registrados</h3>
+                                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                    <div class="search-box" style="width:200px;">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                        <input type="text" id="saas-tenant-search-input" placeholder="Buscar empresa..." oninput="filterSaasTenants(this.value, document.getElementById('saas-tenant-status-select').value)" style="padding-left:32px;">
+                                    </div>
+                                    <select id="saas-tenant-status-select" class="form-select" onchange="filterSaasTenants(document.getElementById('saas-tenant-search-input').value, this.value)" style="width:auto; padding:6px 12px; font-size:12px;">
+                                        <option value="all">Todos los Estados</option>
+                                        <option value="active">🟢 Activos</option>
+                                        <option value="pending_payment">🟡 Pago Pendiente</option>
+                                        <option value="trial">🔵 Prueba (Trial)</option>
+                                        <option value="suspended">🔴 Suspendidos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="crud-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Plan</th>
+                                            <th>Estado</th>
+                                            <th>Suscripción</th>
+                                            <th>Sucursales</th>
+                                            <th>Usuarios</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="saas-tenants-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Sucursales -->
+                    <div class="saas-subtab-panel" id="saas-panel-branches">
+                        <div class="content-card admin-form-card saas-admin-builder-card" id="saas-branch-card">
+                            <div class="saas-admin-builder-header">
+                                <div>
+                                    <span class="plan-builder-kicker"><i class="fa-solid fa-code-branch"></i> Expansión</span>
+                                    <h3><i class="fa-solid fa-code-branch"></i> Crear Sucursal</h3>
+                                    <p>Agrega una nueva sucursal respetando los límites del plan contratado.</p>
+                                </div>
+                            </div>
+                            <form id="form-saas-create-branch" class="saas-admin-inline-form">
+                                <div class="form-group">
+                                    <label for="saas-branch-tenant-id">Tenant</label>
+                                    <select id="saas-branch-tenant-id" class="form-select" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-new-branch-name">Nombre de Sucursal</label>
+                                    <input type="text" id="saas-new-branch-name" class="form-input" required placeholder="Ej: Zona Sur">
+                                </div>
+                                <div class="plan-builder-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Crear Sucursal</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3><i class="fa-solid fa-code-branch"></i> Sucursales Registradas</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="crud-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Tenant</th>
+                                            <th>Estado</th>
+                                            <th>ID</th>
+                                            <th style="text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="saas-branches-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Usuarios -->
+                    <div class="saas-subtab-panel" id="saas-panel-users">
+                        <div class="content-card admin-form-card saas-admin-builder-card" id="saas-user-card">
+                            <div class="saas-admin-builder-header">
+                                <div>
+                                    <span class="plan-builder-kicker"><i class="fa-solid fa-user-plus"></i> Accesos</span>
+                                    <h3><i class="fa-solid fa-user-plus"></i> Crear Usuario SaaS</h3>
+                                    <p>Asigna usuarios a un tenant y sucursal específica con el rol correcto.</p>
+                                </div>
+                            </div>
+                            <form id="form-saas-create-user" class="saas-admin-builder-form">
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-sitemap"></i> Asignación</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-user-tenant-id">Tenant</label>
+                                    <select id="saas-user-tenant-id" class="form-select" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-user-branch-id">Sucursal</label>
+                                    <select id="saas-user-branch-id" class="form-select" required></select>
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-address-card"></i> Credenciales</legend>
+                                    <div class="plan-builder-grid plan-builder-grid-3">
+                                <div class="form-group">
+                                    <label for="saas-user-name">Nombre</label>
+                                    <input type="text" id="saas-user-name" class="form-input" required placeholder="Nombre completo">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-user-email">Email</label>
+                                    <input type="email" id="saas-user-email" class="form-input" required placeholder="usuario@empresa.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-user-password">Contraseña</label>
+                                    <input type="password" id="saas-user-password" class="form-input" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-key"></i> Permisos</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-user-role">Rol</label>
+                                    <select id="saas-user-role" class="form-select">
+                                        <option value="owner">Owner</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="cajero">Cajero</option>
+                                    </select>
+                                    <small class="text-muted">Owner administra todo el tenant; cajero opera ventas y caja.</small>
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <div class="plan-builder-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Crear usuario</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3><i class="fa-solid fa-users"></i> Usuarios SaaS</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="crud-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Tenant</th>
+                                            <th>Sucursal</th>
+                                            <th>Rol</th>
+                                            <th>Estado</th>
+                                            <th>ID</th>
+                                            <th style="text-align:right;">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="saas-users-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Suscripciones -->
+                    <div class="saas-subtab-panel" id="saas-panel-subscriptions">
+                        <div class="content-card admin-form-card saas-admin-builder-card" id="saas-subscription-card">
+                            <div class="saas-admin-builder-header">
+                                <div>
+                                    <span class="plan-builder-kicker"><i class="fa-solid fa-repeat"></i> Ciclo de vida</span>
+                                    <h3><i class="fa-solid fa-credit-card"></i> Actualizar Suscripción</h3>
+                                    <p>Cambia plan y estado del cliente. Si está en trial se recalcula la fecha de vencimiento.</p>
+                                </div>
+                            </div>
+                            <form id="form-saas-update-subscription" class="saas-admin-builder-form">
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-repeat"></i> Cambiar plan</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-subscription-tenant-id">Tenant</label>
+                                    <select id="saas-subscription-tenant-id" class="form-select" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-update-plan-code">Plan</label>
+                                    <select id="saas-update-plan-code" class="form-select">
+                                        <option value="starter">Starter</option>
+                                        <option value="pro">Pro</option>
+                                        <option value="enterprise">Enterprise</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-update-status">Estado</label>
+                                    <select id="saas-update-status" class="form-select">
+                                        <option value="trial">Trial</option>
+                                        <option value="active">Activa</option>
+                                        <option value="suspended">Suspendida</option>
+                                    </select>
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-calendar-days"></i> Vigencia</legend>
+                                    <div class="plan-builder-grid">
+                                <div class="form-group">
+                                    <label for="saas-update-starts-at">Inicio</label>
+                                    <input type="date" id="saas-update-starts-at" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="saas-update-ends-at">Vencimiento</label>
+                                    <input type="date" id="saas-update-ends-at" class="form-input">
+                                    <small class="text-muted" id="saas-update-ends-help">Si está en trial, se recalcula automáticamente.</small>
+                                </div>
+                                    </div>
+                                </fieldset>
+                                <div class="plan-builder-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Actualizar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: Planes -->
+                    <div class="saas-subtab-panel" id="saas-panel-plans">
+                        <div class="admin-form-card plan-builder-card" style="margin-bottom: 1.5rem;">
+                            <div class="plan-builder-header">
+                                <div>
+                                    <span class="plan-builder-kicker"><i class="fa-solid fa-wand-magic-sparkles"></i> Constructor de planes</span>
+                                    <h4 id="plan-form-title" class="admin-form-card-title">Crear Plan</h4>
+                                    <p>Define el precio, límites operativos y módulos disponibles para cada tipo de cliente.</p>
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="startNewPlan()">
+                                    <i class="fa-solid fa-file-circle-plus"></i> Limpiar formulario
+                                </button>
+                            </div>
+                            <form id="form-saas-plan" class="plan-builder-form">
+                                <input type="hidden" id="saas-plan-edit-id" value="">
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-id-card"></i> Identidad del plan</legend>
+                                    <div class="plan-builder-grid">
+                                        <div class="form-group">
+                                            <label for="saas-plan-code-input">Código interno</label>
+                                            <input type="text" id="saas-plan-code-input" class="form-input" placeholder="ej: starter_plus" pattern="[a-z0-9_]{2,30}" maxlength="30" autocomplete="off" required>
+                                            <small class="text-muted">Usa minúsculas, números y guion bajo. No se puede cambiar al editar.</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="saas-plan-name">Nombre comercial</label>
+                                            <input type="text" id="saas-plan-name" class="form-input" placeholder="ej: Profesional Plus" maxlength="80" required>
+                                            <small class="text-muted">Este nombre se muestra en suscripciones y reportes.</small>
+                                        </div>
+                                        <div class="form-group plan-builder-span">
+                                            <label for="saas-plan-description">Descripción corta</label>
+                                            <input type="text" id="saas-plan-description" class="form-input" placeholder="Ej: Para restaurantes con delivery y control de inventario" maxlength="180">
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-tags"></i> Precio y prueba</legend>
+                                    <div class="plan-builder-grid plan-builder-grid-3">
+                                        <div class="form-group">
+                                            <label for="saas-plan-price-monthly">Precio mensual (Bs)</label>
+                                            <input type="number" id="saas-plan-price-monthly" class="form-input" min="0" step="0.01" value="0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="saas-plan-price-yearly">Precio anual (Bs)</label>
+                                            <div class="plan-input-action">
+                                                <input type="number" id="saas-plan-price-yearly" class="form-input" min="0" step="0.01" value="0">
+                                                <button type="button" class="btn btn-outline btn-sm" id="btn-suggest-yearly-price" title="Sugerir 2 meses de descuento">Sugerir</button>
+                                            </div>
+                                            <small class="text-muted" id="saas-plan-yearly-help">Sugerencia: 10 meses de pago.</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="saas-plan-trial-days">Días de trial</label>
+                                            <input type="number" id="saas-plan-trial-days" class="form-input" min="0" max="365" value="14">
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-gauge-high"></i> Límites operativos</legend>
+                                    <div class="plan-builder-grid plan-builder-grid-3">
+                                        <div class="form-group limit-field">
+                                            <label for="saas-plan-max-branches">Sucursales</label>
+                                            <input type="number" id="saas-plan-max-branches" class="form-input" min="1" value="1">
+                                            <small>Usa 999 para ilimitado.</small>
+                                        </div>
+                                        <div class="form-group limit-field">
+                                            <label for="saas-plan-max-users">Usuarios</label>
+                                            <input type="number" id="saas-plan-max-users" class="form-input" min="1" value="5">
+                                            <small>Incluye admins, cajeros y owner.</small>
+                                        </div>
+                                        <div class="form-group limit-field">
+                                            <label for="saas-plan-max-products">Productos</label>
+                                            <input type="number" id="saas-plan-max-products" class="form-input" min="1" value="50">
+                                            <small>Menús, extras y productos inventariables.</small>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="plan-builder-section">
+                                    <legend><i class="fa-solid fa-puzzle-piece"></i> Módulos incluidos</legend>
+                                    <div class="plan-feature-grid">
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-pos" checked>
+                                            <span><i class="fa-solid fa-cash-register"></i><strong>POS / Ventas</strong><small>Pedidos, mesas y caja rápida.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-inventory" checked>
+                                            <span><i class="fa-solid fa-boxes-stacked"></i><strong>Inventario</strong><small>Stock, insumos y alertas.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-caja" checked>
+                                            <span><i class="fa-solid fa-vault"></i><strong>Caja</strong><small>Aperturas, cierres y movimientos.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-reservations">
+                                            <span><i class="fa-solid fa-calendar-check"></i><strong>Reservaciones</strong><small>Reservas, pagos y comandas.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-delivery">
+                                            <span><i class="fa-solid fa-motorcycle"></i><strong>Delivery</strong><small>Pedidos para llevar y reparto.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-multi-branch">
+                                            <span><i class="fa-solid fa-store"></i><strong>Multi-sucursal</strong><small>Control de varias sucursales.</small></span>
+                                        </label>
+                                        <label class="plan-feature-card">
+                                            <input type="checkbox" id="saas-feat-priority-support">
+                                            <span><i class="fa-solid fa-headset"></i><strong>Soporte prioritario</strong><small>Atención preferente para clientes clave.</small></span>
+                                        </label>
+                                        <div class="plan-feature-card plan-report-card">
+                                            <span><i class="fa-solid fa-chart-line"></i><strong>Reportes</strong><small>Nivel de analítica disponible.</small></span>
+                                            <select id="saas-feat-reportes" class="form-select">
+                                                <option value="basicos">Básicos</option>
+                                                <option value="completos" selected>Completos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <div class="plan-builder-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> <span id="plan-form-btn-text">Crear</span> plan</button>
+                                    <button type="button" class="btn btn-outline" id="btn-cancel-plan-edit" style="display:none;">Cancelar edición</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div id="saas-plans-table-container"></div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal 1: Ticket Print Preview -->
+    <div class="modal-backdrop" id="modal-ticket-preview" role="dialog" aria-modal="true" aria-labelledby="modal-ticket-preview-title">
+        <div class="modal-content ticket-modal-width">
+            <div class="modal-header no-print">
+                <h3 id="modal-ticket-preview-title">Vista Previa de Impresión</h3>
+                <button class="btn-close-modal" id="btn-close-ticket-modal" aria-label="Cerrar modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body ticket-preview-body">
+                <div class="ticket-thermal-wrapper" id="ticket-thermal-content">
+                    <!-- Thermal layout dynamic content -->
+                </div>
+                <div class="modal-actions no-print">
+                    <button type="button" class="btn btn-outline" id="btn-close-ticket-preview">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="btn-print-ticket-trigger">
+                        <i class="fa-solid fa-print"></i> Imprimir Doble
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Report Executive Preview (Carta / Letter Size) -->
+    <div class="modal-backdrop" id="modal-report-preview" role="dialog" aria-modal="true" aria-labelledby="modal-report-preview-title">
+        <div class="modal-content modal-content--report-preview">
+            <div class="modal-header no-print">
+                <h3 id="modal-report-preview-title"><i class="fa-solid fa-file-invoice"></i> Previsualización de Reporte</h3>
+                <button class="btn-close-modal" id="btn-close-report-preview-x" aria-label="Cerrar modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body report-preview-body">
+                <div class="report-document-paper" id="report-preview-document-container">
+                    <!-- Dynamic executive letter-size report preview -->
+                </div>
+            </div>
+            <div class="modal-actions no-print" style="padding: 16px 24px; border-top: 1px solid var(--border); background: var(--bg-surface); justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-outline" id="btn-report-preview-close" onclick="closeModal('modal-report-preview')">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="btn-report-preview-pdf">
+                    <i class="fa-solid fa-file-pdf"></i> Descargar PDF
+                </button>
+                <button type="button" class="btn btn-accent" id="btn-report-preview-print">
+                    <i class="fa-solid fa-print"></i> Imprimir Reporte
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Reporte de Pedido de Refrescos -->
+    <div class="modal-backdrop" id="modal-drinks-report" role="dialog" aria-modal="true" aria-labelledby="modal-drinks-report-title">
+        <div class="modal-content modal-content--drinks">
+            <div class="modal-header">
+                <h3 id="modal-drinks-report-title">📋 Reporte de Pedido de Refrescos</h3>
+                <button class="btn-close-modal" id="btn-close-drinks-report" aria-label="Cerrar modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="panel-subtitle panel-subtitle--spaced">Lista de compras sugerida para reabastecimiento en base a las ventas de hoy.</p>
+                
+                <!-- Quick Metrics Widgets inside Modal -->
+                <div class="reports-widgets reports-widgets--compact">
+                    <div class="widget-card widget-card--compact">
+                        <div class="widget-icon widget-icon--compact accent-color"><i class="fa-solid fa-bottle-water"></i></div>
+                        <div class="widget-data">
+                            <span class="widget-title widget-title--compact">Bebidas</span>
+                            <h4 class="kpi-value--modal" id="modal-drinks-total-count">0</h4>
+                        </div>
+                    </div>
+                    <div class="widget-card widget-card--compact">
+                        <div class="widget-icon widget-icon--compact danger-color"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="widget-data">
+                            <span class="widget-title widget-title--compact">Crítico (≤5)</span>
+                            <h4 class="kpi-value--modal--primary" id="modal-drinks-critical-count">0</h4>
+                        </div>
+                    </div>
+                    <div class="widget-card widget-card--compact">
+                        <div class="widget-icon widget-icon--compact success-color"><i class="fa-solid fa-cart-shopping"></i></div>
+                        <div class="widget-data">
+                            <span class="widget-title widget-title--compact">Total a Pedir</span>
+                            <h4 class="kpi-value--modal--success" id="modal-drinks-to-order-count">0</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search box inside modal -->
+                <div class="form-group form-group--spaced">
+                    <div class="search-input-field">
+                        <span class="search-input-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" id="search-modal-drinks" class="form-input form-input--search-reset" placeholder="Buscar bebida por nombre...">
+                    </div>
+                </div>
+
+                <div class="seconds-table-container seconds-table-container--scrollable">
+                    <table class="seconds-table">
+                        <thead>
+                            <tr>
+                                <th>Bebida/Refresco</th>
+                                <th style="text-align:center; width: 100px;">Disponible</th>
+                                <th style="text-align:center; width: 130px;">Stock Visual</th>
+                                <th style="text-align:center; width: 90px;">Vendido Hoy</th>
+                                <th class="drinks-report-suggested-th">Sugerencia para pedir</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drinks-report-modal-body">
+                            <!-- Dynamic rows from JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-actions modal-actions--end">
+                    <button type="button" class="btn btn-outline" id="btn-close-drinks-report-btn">Cerrar</button>
+                    <button type="button" class="btn btn-secondary" id="btn-print-drinks-report">
+                        <i class="fa-solid fa-print"></i> Imprimir
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-download-drinks-report-pdf">
+                        <i class="fa-solid fa-file-pdf"></i> Guardar PDF
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-download-drinks-report">
+                        <i class="fa-solid fa-download"></i> Descargar CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Products Assignment Modal -->
+    <div class="modal-backdrop" id="modal-menu-products">
+        <div class="modal-content modal-content--lg">
+            <div class="modal-header modal-header--default">
+                <h3 class="modal-title" id="modal-menu-products-title">Gestionar Productos del Menú</h3>
+                <button class="btn btn-outline btn-sm" id="btn-close-menu-products"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body modal-body--scrollable">
+                <!-- Search -->
+                <div class="menu-products-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="menu-products-search-input" class="form-input" placeholder="Buscar producto..." autocomplete="off">
+                </div>
+
+                <!-- Filter tabs with counters -->
+                <div class="menu-products-filters">
+                    <button class="btn btn-sm menu-filter-btn active" data-filter="all">Todos <span class="menu-filter-count" id="count-all"></span></button>
+                    <button class="btn btn-sm menu-filter-btn" data-filter="sopa"><i class="fa-solid fa-bowl-food"></i> Sopas <span class="menu-filter-count" id="count-sopa"></span></button>
+                    <button class="btn btn-sm menu-filter-btn" data-filter="segundo"><i class="fa-solid fa-plate-wheat"></i> Segundos <span class="menu-filter-count" id="count-segundo"></span></button>
+                    <button class="btn btn-sm menu-filter-btn" data-filter="plato_extra"><i class="fa-solid fa-utensils"></i> Extras <span class="menu-filter-count" id="count-plato_extra"></span></button>
+                    <button class="btn btn-sm menu-filter-btn" data-filter="refresco"><i class="fa-solid fa-bottle-water"></i> Refrescos <span class="menu-filter-count" id="count-refresco"></span></button>
+                </div>
+
+                <!-- Bulk actions -->
+                <div class="menu-products-bulk-bar">
+                    <span id="menu-products-summary" class="menu-products-summary"></span>
+                    <div class="menu-products-bulk-actions">
+                        <button class="btn btn-sm btn-outline" onclick="bulkAssignMenuProducts(true)" title="Asignar todos los visibles"><i class="fa-solid fa-check-double"></i> Asignar todos</button>
+                        <button class="btn btn-sm btn-outline" onclick="bulkAssignMenuProducts(false)" title="Remover todos los visibles"><i class="fa-solid fa-xmark"></i> Remover todos</button>
+                    </div>
+                </div>
+
+                <!-- Products list with toggles -->
+                <div id="menu-products-list" class="menu-products-list">
+                    <!-- Dynamic product toggles -->
+                </div>
+            </div>
+            <div class="modal-actions modal-actions--default">
+                <button class="btn btn-primary" id="btn-close-menu-products-done">Listo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tables Configuration Modal -->
+    <div class="modal-backdrop" id="modal-tables-config" role="dialog" aria-modal="true" aria-labelledby="modal-tables-config-title">
+        <div class="modal-content modal-content--md">
+            <div class="modal-header modal-header--default">
+                <h3 class="modal-title" id="modal-tables-config-title"><i class="fa-solid fa-gear"></i> Configurar Mesas</h3>
+                <button class="btn-close-modal" id="btn-close-tables-config"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body modal-body--scrollable" style="max-height: 60vh;">
+                <!-- Add/Edit form -->
+                <form id="form-table-config" class="form-table-config-row">
+                    <input type="hidden" id="table-config-id" value="">
+                    <div class="form-field--flex">
+                        <label class="label-overline label-overline--block" for="table-config-name">Nombre</label>
+                        <input type="text" id="table-config-name" class="form-input" placeholder="Ej: Mesa 5, VIP..." required>
+                    </div>
+                    <div class="form-field--min">
+                        <label class="label-overline label-overline--block">Icono</label>
+                        <div class="icon-selector-grid" id="table-icon-selector">
+                            <button type="button" class="icon-option selected" data-icon="fa-chair" title="Silla"><i class="fa-solid fa-chair"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-couch" title="Sofá/Barra"><i class="fa-solid fa-couch"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-bag-shopping" title="Llevar"><i class="fa-solid fa-bag-shopping"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-user" title="Personalizado"><i class="fa-solid fa-user"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-star" title="Estrella/VIP"><i class="fa-solid fa-star"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-crown" title="Premium"><i class="fa-solid fa-crown"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-users" title="Grupo"><i class="fa-solid fa-users"></i></button>
+                            <button type="button" class="icon-option" data-icon="fa-utensils" title="Mesa comida"><i class="fa-solid fa-utensils"></i></button>
+                        </div>
+                    </div>
+                    <div class="btn-group-sm">
+                        <button type="submit" class="btn btn-primary btn-sm" id="btn-save-table-config">
+                            <i class="fa-solid fa-plus"></i> Agregar
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-table-edit" style="display: none;">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Tables list -->
+                <div id="tables-config-list" class="tables-config-list">
+                    <!-- Dynamic table rows -->
+                </div>
+
+                <p class="help-text">
+                    <i class="fa-solid fa-info-circle"></i> "Llevar" y "Personalizado" son opciones fijas que siempre aparecen en el mapa.
+                </p>
+            </div>
+            <div class="modal-actions modal-actions--default">
+                <button class="btn btn-primary" id="btn-close-tables-config-done">Listo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden native print area -->
+    <div id="ticket-print-area" class="print-only"></div>
+    <div id="report-print-area" class="print-only"></div>
+
+    <!-- Modal: Reservation Payment -->
+    <div class="modal-backdrop" id="modal-reservation-payment" role="dialog" aria-modal="true" aria-labelledby="modal-reservation-payment-title">
+        <div class="modal-content modal-content--sm">
+            <div class="modal-header">
+                <h3 id="modal-reservation-payment-title"><i class="fa-solid fa-cash-register"></i> Cobro de Reserva</h3>
+                <button class="btn-close-modal" onclick="closeReservationPaymentModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section--centered">
+                    <p class="modal-subtitle">Cliente: <strong id="res-pay-client"></strong></p>
+                    <h2 class="modal-total-value" id="res-pay-total">Bs 0.00</h2>
+                </div>
+                <div class="form-group form-group--spaced">
+                    <label class="label-overline">Método de Pago</label>
+                    <select id="res-pay-method" class="form-select" onchange="onReservationPaymentMethodChange()">
+                        <option value="efectivo">💵 Efectivo</option>
+                        <option value="qr">📱 QR / Transferencia</option>
+                        <option value="tarjeta">💳 Tarjeta</option>
+                        <option value="mixto">🔀 Mixto (Efectivo + QR)</option>
+                    </select>
+                </div>
+                <div id="res-pay-mixed" class="hidden" style="margin-bottom:12px;">
+                    <div class="mixed-payment-row">
+                        <label class="mixed-payment-label"><i class="fa-solid fa-money-bill-wave"></i> Efectivo</label>
+                        <div class="input-currency-wrapper" style="flex:1;">
+                            <span class="currency-symbol">Bs</span>
+                            <input type="number" id="res-pay-efectivo" class="form-input" min="0" step="0.50" value="0">
+                        </div>
+                    </div>
+                    <div class="mixed-payment-row">
+                        <label class="mixed-payment-label"><i class="fa-solid fa-qrcode"></i> QR / Transf.</label>
+                        <div class="input-currency-wrapper" style="flex:1;">
+                            <span class="currency-symbol">Bs</span>
+                            <input type="number" id="res-pay-qr" class="form-input" min="0" step="0.50" value="0">
+                        </div>
+                    </div>
+                    <div class="mixed-payment-total" style="margin-top:8px;">
+                        <span>Suma:</span>
+                        <span id="res-pay-sum">Bs 0.00 / Bs 0.00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeReservationPaymentModal()">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-reservation-payment" onclick="confirmReservationPayment()">
+                    <i class="fa-solid fa-check"></i> Confirmar Cobro
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Select Table for Reservation -->
+    <div class="modal-backdrop" id="modal-reservation-select-table" role="dialog" aria-modal="true" aria-labelledby="modal-reservation-select-table-title">
+        <div class="modal-content modal-content--sm" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3 id="modal-reservation-select-table-title"><i class="fa-solid fa-chair"></i> Asignar Mesa</h3>
+                <button class="btn-close-modal" onclick="closeReservationTableModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" style="margin-bottom:12px;">
+                    Reserva: <strong id="res-table-client"></strong> · Personas: <strong id="res-table-party"></strong>
+                </p>
+                <div id="res-free-tables-grid" class="free-tables-grid"></div>
+                <p id="res-no-free-tables" class="text-muted" style="text-align:center; padding:20px; display:none;">
+                    <i class="fa-solid fa-circle-info"></i> No hay mesas libres disponibles.
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeReservationTableModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Low Stock Products -->
+    <div class="modal-backdrop" id="modal-low-stock" role="dialog" aria-modal="true" aria-labelledby="modal-low-stock-title">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="modal-low-stock-title"><i class="fa-solid fa-triangle-exclamation" style="color: var(--primary);"></i> Productos con Bajo Stock</h3>
+                <button class="btn-close-modal" onclick="closeLowStockModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="low-stock-list" style="max-height: 400px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeLowStockModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Select Salsa for Product -->
+    <div class="modal-backdrop" id="modal-salsa-select" role="dialog" aria-modal="true" aria-labelledby="modal-salsa-select-title">
+        <div class="modal-content modal-content--sm" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="modal-salsa-select-title"><i class="fa-solid fa-bowl-food"></i> Seleccionar Salsas</h3>
+                <button class="btn-close-modal" onclick="closeSalsaSelectModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" style="margin-bottom:12px;">
+                    Producto: <strong id="salsa-select-product-name"></strong>
+                </p>
+                <div id="salsa-select-list" style="max-height:250px; overflow-y:auto;">
+                </div>
+                <p id="salsa-select-price-hint" style="display:none; margin-top:8px; font-size:12px; color:var(--text-muted);">
+                    Total salsas: + <span id="salsa-select-price-value"></span>
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeSalsaSelectModal()">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSalsaSelection()">
+                    <i class="fa-solid fa-check"></i> Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Append Items to Order -->
+    <div class="modal-backdrop" id="modal-append-items" role="dialog" aria-modal="true" aria-labelledby="modal-append-items-title">
+        <div class="modal-content modal-content--sm" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3 id="modal-append-items-title"><i class="fa-solid fa-cart-plus"></i> Agregar a la Comanda</h3>
+                <button class="btn-close-modal" onclick="closeAppendItemsModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" style="margin-bottom:12px;">
+                    Pedido: <strong id="append-items-customer"></strong> · Total actual: <strong id="append-items-current-total"></strong>
+                </p>
+                <div id="append-items-current-list" class="append-items-current-list"></div>
+                <hr class="divider">
+                <h4 class="section-title--compact">Agregar nuevo item</h4>
+                <div class="append-catalog-row">
+                    <select id="append-catalog-select" class="form-select" onchange="onAppendCatalogChange()">
+                        <option value="">-- Seleccionar item --</option>
+                        <optgroup label="Almuerzos">
+                            <option value="almuerzo">Almuerzo Completo</option>
+                        </optgroup>
+                        <optgroup label="Segundos"></optgroup>
+                        <optgroup label="Sopas"></optgroup>
+                        <optgroup label="Platos Extras"></optgroup>
+                        <optgroup label="Bebidas"></optgroup>
+                    </select>
+                    <select id="append-item-service-type" class="form-select form-select--narrow">
+                        <option value="servirse">Servirse</option>
+                        <option value="llevar">Llevar</option>
+                    </select>
+                    <input type="number" id="append-item-qty" class="form-input form-input--narrow" min="1" value="1">
+                    <button class="btn btn-primary btn-sm" onclick="addItemToAppendModal()"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div id="append-item-options" class="append-item-options" style="display:none;">
+                    <div class="res-option-row" id="append-option-sopa" style="display:none;">
+                        <label>Sopa:</label>
+                        <select id="append-select-sopa" class="form-select"></select>
+                    </div>
+                    <div class="res-option-row" id="append-option-segundo" style="display:none;">
+                        <label>Segundo:</label>
+                        <select id="append-select-segundo" class="form-select"></select>
+                    </div>
+                </div>
+                <div id="append-items-pending" class="append-items-pending"></div>
+                <div id="append-payment-section" style="display:none; margin:12px 0; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px;">
+                    <label style="font-weight:600; font-size:12px; display:block; margin-bottom:6px;">
+                        <i class="fa-solid fa-credit-card"></i> Método de pago:
+                    </label>
+                    <select id="append-payment-select" class="form-select" style="width:100%; padding:8px; font-size:13px;">
+                        <option value="efectivo">💵 Efectivo</option>
+                        <option value="qr">📱 QR / Transf.</option>
+                        <option value="tarjeta">💳 Tarjeta</option>
+                        <option value="mixto">🔀 Mixto</option>
+                    </select>
+                </div>
+                <div class="append-items-total-row">
+                    <span>Total nuevo:</span>
+                    <strong id="append-items-new-total">Bs 0.00</strong>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeAppendItemsModal()">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-append-items" onclick="confirmAppendItems()">
+                    <i class="fa-solid fa-check"></i> Agregar al Pedido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-card-brand">
+                <i class="fa-solid fa-utensils"></i>
+                <div>
+                    <h2>Acceso RestoCloud</h2>
+                    <p id="auth-login-message">Inicia sesión para entrar al POS.</p>
+                </div>
+            </div>
+            <form id="auth-login-form" class="auth-form">
+                <label>
+                    <span>Email</span>
+                    <input class="form-input" type="email" name="email" placeholder="email@email.com" autocomplete="username" required>
+                </label>
+                <label>
+                    <span>Contraseña</span>
+                    <div class="input-icon-wrapper">
+                        <input class="form-input form-input--icon-padded" type="password" name="password" id="auth-login-password" placeholder="Ingresa tu contraseña" autocomplete="current-password" required>
+                        <button type="button" class="btn-toggle-password" onclick="toggleLoginPassword()">
+                            <i class="fa-solid fa-eye" id="auth-login-eye"></i>
+                        </button>
+                    </div>
+                </label>
+                <button class="btn btn-primary" id="auth-login-submit" type="submit">
+                    <i class="fa-solid fa-right-to-bracket"></i> Entrar
+                </button>
+            </form>
+            <div class="auth-help" id="auth-dev-hint" style="display:none;">
+                Usuario inicial: <code>owner@legacy.restocloud.local</code><br>
+                Contraseña inicial: <code>admin12345</code>
+            </div>
+            <div style="text-align:center; margin-top:16px;">
+                <a href="landing.html" style="color:#64748b; font-size:0.85rem; text-decoration:none;">Visitar sitio → RestoCloud</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Core -->
+    <script src="js/vendor/chart.min.js" defer></script>
+    <script src="js/core/store.js" defer></script>
+    <script src="js/core/api-client.js" defer></script>
+    <script src="js/core/view-controller.js" defer></script>
+    <script src="js/core/notifications.js" defer></script>
+    <script src="js/core/auto-animate.js" defer></script>
+    <script src="js/core/websocket.js" defer></script>
+    <script src="js/core/offline-queue.js" defer></script>
+
+    <!-- Utilities (no dependencies) -->
+    <script src="js/app/helpers.js" defer></script>
+    <script src="js/ui/toast.js" defer></script>
+    <script src="js/ui/modal.js" defer></script>
+    <script src="js/core/report-renderer.js" defer></script>
+    <script src="js/core/ticket-printer.js" defer></script>
+
+    <!-- App State + Logic -->
+    <script src="js/app/state.js" defer></script>
+    <script src="js/app/auth.js" defer></script>
+    <script src="js/app/stock.js" defer></script>
+    <script src="js/app/cart.js" defer></script>
+    <script src="js/core/report-builders.js" defer></script>
+
+    <!-- Features (views + controllers) -->
+    <script src="js/views/pos-view.js" defer></script>
+    <script src="js/controllers/pos-controller.js" defer></script>
+    <script src="js/views/orders-view.js" defer></script>
+    <script src="js/controllers/orders-controller.js" defer></script>
+    <script src="js/views/menu-config-view.js" defer></script>
+    <script src="js/controllers/menu-config-controller.js" defer></script>
+    <script src="js/views/inventory-view.js" defer></script>
+    <script src="js/controllers/inventory-controller.js" defer></script>
+    <script src="js/views/reports-view.js" defer></script>
+    <script src="js/controllers/reports-controller.js" defer></script>
+    <script src="js/views/dashboard-view.js" defer></script>
+    <script src="js/controllers/dashboard-controller.js" defer></script>
+    <script src="js/views/reservations-view.js" defer></script>
+    <script src="js/controllers/reservations-controller.js" defer></script>
+    <script src="js/views/tenant-users-view.js" defer></script>
+    <script src="js/controllers/tenant-users-controller.js" defer></script>
+    <script src="js/views/saas-admin-view.js" defer></script>
+    <script src="js/controllers/saas-admin-controller.js" defer></script>
+
+    <!-- Navigation + Init (last) -->
+    <script src="js/app/navigation.js" defer></script>
+    <script src="js/app/header.js" defer></script>
+    <script src="app.js" defer></script>
+</body>
+</html>

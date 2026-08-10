@@ -1,0 +1,22 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Storage (runtime data)
+storage/logs/*.log
+storage/sessions/
+storage/rate_limits/
+
+# Tests
+__tests__/
+
+# CI/CD
+.github/
+
+# IDE
+.vscode/
+.codex/

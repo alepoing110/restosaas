@@ -1,0 +1,585 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "RestoCloud API",
+    "description": "Multi-tenant restaurant POS SaaS API",
+    "version": "2.0.0",
+    "contact": {
+      "name": "RestoCloud Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://simplefoot.ifree.page",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost/RestoCloud",
+      "description": "Local development"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "PHPSESSID",
+        "description": "Session cookie obtained after login"
+      },
+      "csrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "CSRF token returned in API responses"
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["success", "error"] },
+          "message": { "type": "string" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "user": { "$ref": "#/components/schemas/User" },
+              "csrf_token": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "role": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "branch_id": { "type": "string" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "table": { "type": "string" },
+          "customer": { "type": "string" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/OrderItem" } },
+          "total": { "type": "number" },
+          "payment_method": { "type": "string" },
+          "status": { "type": "string", "enum": ["pendiente", "completado", "anulado"] },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OrderItem": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["almuerzo", "segundo", "sopa", "plato_extra", "extra"] },
+          "name": { "type": "string" },
+          "price": { "type": "number" },
+          "quantity": { "type": "integer" },
+          "segundoId": { "type": "string" },
+          "sopaId": { "type": "string" },
+          "platoId": { "type": "string" },
+          "extraId": { "type": "string" }
+        }
+      },
+      "MenuItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "stock": { "type": "integer" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "Discount": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["percentage", "fixed", "buy_x_get_y"] },
+          "value": { "type": "number" },
+          "min_quantity": { "type": "integer" },
+          "free_quantity": { "type": "integer" },
+          "applicable_types": { "type": "array", "items": { "type": "string" } },
+          "start_date": { "type": "string", "format": "date" },
+          "end_date": { "type": "string", "format": "date" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "Reservation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "customer": { "type": "string" },
+          "phone": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "time": { "type": "string" },
+          "party_size": { "type": "integer" },
+          "table_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["pendiente", "confirmada", "cancelada"] }
+        }
+      },
+      "TableConfig": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "icon": { "type": "string" },
+          "sort_order": { "type": "integer" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["sopa", "segundo", "plato_extra", "refresco", "general"] },
+          "sort_order": { "type": "integer" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "StockHistory": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "item_type": { "type": "string" },
+          "item_id": { "type": "string" },
+          "event_type": { "type": "string", "enum": ["set", "deduct", "restore", "adjust"] },
+          "quantity_before": { "type": "integer" },
+          "quantity_change": { "type": "integer" },
+          "quantity_after": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "security": [
+    { "session": [], "csrf": [] }
+  ],
+  "paths": {
+    "/api.php?action=auth_login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with email and password",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api.php?action=auth_logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout and destroy session",
+        "responses": {
+          "200": { "description": "Logged out", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/api.php?action=auth_me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current authenticated user",
+        "responses": {
+          "200": { "description": "User info", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } }
+        }
+      }
+    },
+    "/api.php?action=get_state": {
+      "get": {
+        "tags": ["State"],
+        "summary": "Get full application state (catalog, prices, config)",
+        "responses": {
+          "200": { "description": "Full state" }
+        }
+      }
+    },
+    "/api.php?action=get_pos_state": {
+      "get": {
+        "tags": ["POS"],
+        "summary": "Get POS screen state (catalog + active orders + sales)",
+        "responses": {
+          "200": { "description": "POS state" }
+        }
+      }
+    },
+    "/api.php?action=get_active_orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Get all pending/active orders",
+        "responses": {
+          "200": { "description": "Active orders list" }
+        }
+      }
+    },
+    "/api.php?action=save_order": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Create or update an order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "table": { "type": "string" },
+                  "customer": { "type": "string" },
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/OrderItem" } },
+                  "total": { "type": "number" },
+                  "payment_method": { "type": "string" },
+                  "service_state": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order saved" }
+        }
+      }
+    },
+    "/api.php?action=complete_order": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Mark order as completed (payment received)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "payment_method": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order completed" }
+        }
+      }
+    },
+    "/api.php?action=cancel_order": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Cancel an order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order cancelled" }
+        }
+      }
+    },
+    "/api.php?action=annul_sale": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Annul a completed sale (restores stock if post-closure)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sale annulled" }
+        }
+      }
+    },
+    "/api.php?action=get_inventory": {
+      "get": {
+        "tags": ["Inventory"],
+        "summary": "Get full inventory state (menus, products, stock)",
+        "responses": {
+          "200": { "description": "Inventory data" }
+        }
+      }
+    },
+    "/api.php?action=save_item": {
+      "post": {
+        "tags": ["Inventory"],
+        "summary": "Create or update a menu item (segundo, sopa, plato_extra, extra)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "type": { "type": "string", "enum": ["segundo", "sopa", "plato_extra", "extra"] },
+                  "name": { "type": "string" },
+                  "stock": { "type": "integer" },
+                  "price": { "type": "number" },
+                  "active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Item saved" }
+        }
+      }
+    },
+    "/api.php?action=save_discount": {
+      "post": {
+        "tags": ["Discounts"],
+        "summary": "Create or update a discount",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Discount" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Discount saved" }
+        }
+      }
+    },
+    "/api.php?action=calculate_discount": {
+      "post": {
+        "tags": ["Discounts"],
+        "summary": "Calculate applicable discounts for a set of items",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/OrderItem" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Discount calculation result" }
+        }
+      }
+    },
+    "/api.php?action=get_categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "Get all categories",
+        "responses": {
+          "200": { "description": "Categories list" }
+        }
+      }
+    },
+    "/api.php?action=save_category": {
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Create or update a category",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Category" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Category saved" }
+        }
+      }
+    },
+    "/api.php?action=get_reservations": {
+      "get": {
+        "tags": ["Reservations"],
+        "summary": "Get reservations for a date",
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": { "description": "Reservations list" }
+        }
+      }
+    },
+    "/api.php?action=save_reservation": {
+      "post": {
+        "tags": ["Reservations"],
+        "summary": "Create or update a reservation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Reservation" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reservation saved" }
+        }
+      }
+    },
+    "/api.php?action=get_daily_report": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get daily cash report",
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": { "description": "Daily report data" }
+        }
+      }
+    },
+    "/api.php?action=get_stock_history": {
+      "get": {
+        "tags": ["Stock"],
+        "summary": "Get stock change history",
+        "parameters": [
+          { "name": "item_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": { "description": "Stock history" }
+        }
+      }
+    },
+    "/api.php?action=get_stock_report": {
+      "get": {
+        "tags": ["Stock"],
+        "summary": "Get stock daily snapshots report",
+        "parameters": [
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": { "description": "Stock report" }
+        }
+      }
+    },
+    "/api.php?action=export_tenant_data": {
+      "get": {
+        "tags": ["Export"],
+        "summary": "Export tenant data as JSON backup",
+        "responses": {
+          "200": { "description": "JSON backup file" }
+        }
+      }
+    },
+    "/api.php?action=import_tenant_data": {
+      "post": {
+        "tags": ["Export"],
+        "summary": "Import tenant data from JSON backup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": { "type": "object" },
+                  "confirm": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Import result" }
+        }
+      }
+    },
+    "/api.php?action=get_saas_admin": {
+      "get": {
+        "tags": ["SaaS Admin"],
+        "summary": "Get SaaS admin data (tenants, branches, users)",
+        "responses": {
+          "200": { "description": "SaaS admin data" }
+        }
+      }
+    },
+    "/api.php?action=save_table": {
+      "post": {
+        "tags": ["Tables"],
+        "summary": "Create or update a table configuration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TableConfig" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Table saved" }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Auth", "description": "Authentication and session management" },
+    { "name": "State", "description": "Application state queries" },
+    { "name": "POS", "description": "Point of sale operations" },
+    { "name": "Orders", "description": "Order CRUD and lifecycle" },
+    { "name": "Inventory", "description": "Menu items and stock management" },
+    { "name": "Discounts", "description": "Discount rules and calculation" },
+    { "name": "Categories", "description": "Product categories" },
+    { "name": "Reservations", "description": "Table reservations" },
+    { "name": "Reports", "description": "Cash reports and analytics" },
+    { "name": "Stock", "description": "Stock history and tracking" },
+    { "name": "Export", "description": "Data backup and import" },
+    { "name": "SaaS Admin", "description": "Multi-tenant administration" },
+    { "name": "Tables", "description": "Table configuration" }
+  ]
+}

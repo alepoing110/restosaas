@@ -1,0 +1,639 @@
+/* ==========================================================================
+   MODAL DIALOGS
+   ========================================================================== */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.modal-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-content {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-backdrop.open .modal-content {
+    transform: translateY(0);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.btn-close-modal {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.btn-close-modal:hover {
+    color: var(--text-main);
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.modal-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.ticket-modal-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ticket-modal-actions .ticket-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.ticket-modal-actions .ticket-payment-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.ticket-modal-actions .ticket-payment-row label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.ticket-modal-actions .ticket-mixed-inputs {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: 6px;
+}
+
+.ticket-modal-actions .ticket-mixed-inputs.visible {
+    display: flex;
+}
+
+.ticket-modal-actions .ticket-mixed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ticket-modal-actions .ticket-mixed-row label {
+    font-size: 11px;
+    min-width: 60px;
+}
+
+/* ==========================================================================
+   TICKET THERMAL LAYOUT (DOUBLE PRINT COMBO)
+   ========================================================================== */
+.ticket-modal-width {
+    max-width: 480px !important;
+}
+
+.ticket-preview-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+    padding: 20px !important;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.ticket-thermal-wrapper {
+    width: 100%;
+    background-color: #f7f7f9;
+    color: #111116;
+    font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+    padding: 24px 18px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05), var(--shadow-sm);
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.ticket-header {
+    text-align: center;
+    margin-bottom: 14px;
+}
+
+.ticket-logo {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+}
+
+.ticket-divider {
+    border-top: 1px dashed #666;
+    margin: 8px 0;
+}
+
+.ticket-scissors {
+    text-align: center;
+    font-size: 13px;
+    margin: 18px 0;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.ticket-scissors::before {
+    content: '✂- - - - - - - - - - - - - - - - - - - - - - -';
+    letter-spacing: 1px;
+}
+
+.ticket-meta {
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+
+.ticket-meta-row {
+    display: flex;
+    justify-content: space-between;
+}
+
+.ticket-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+}
+
+.ticket-table th {
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 1px dashed #666;
+    padding-bottom: 6px;
+    font-size: 11px;
+}
+
+.ticket-table td {
+    padding: 5px 0;
+    font-size: 11px;
+    vertical-align: top;
+}
+
+.ticket-qty-col { width: 12%; text-align: left; }
+.ticket-desc-col { width: 58%; text-align: left; }
+.ticket-total-col { width: 30%; text-align: right; }
+
+.ticket-totals-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-end;
+    margin-top: 6px;
+}
+
+.ticket-total-row {
+    display: flex;
+    justify-content: space-between;
+    width: 180px;
+    font-size: 12px;
+}
+
+.ticket-total-row.grand-total {
+    font-size: 14px;
+    font-weight: 700;
+    border-top: 1px dashed #666;
+    padding-top: 4px;
+    margin-top: 4px;
+}
+
+.ticket-footer {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 11px;
+}
+
+/* Wider drinks restock report modal. Kept here because this file owns the
+   base .modal-content sizing and is loaded after report-specific styles. */
+#modal-drinks-report .modal-content.modal-content--drinks {
+    width: min(1180px, calc(100vw - 32px)) !important;
+    max-width: min(1180px, calc(100vw - 32px)) !important;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#modal-drinks-report .modal-header {
+    flex: 0 0 auto;
+    padding: 18px 22px;
+}
+
+#modal-drinks-report .modal-header h3 {
+    min-width: 0;
+    line-height: 1.2;
+}
+
+#modal-drinks-report .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(260px, 1fr) auto;
+    gap: 14px;
+    padding: 18px 22px 16px;
+}
+
+#modal-drinks-report .panel-subtitle--spaced,
+#modal-drinks-report .form-group--spaced {
+    margin: 0;
+}
+
+#modal-drinks-report .reports-widgets--compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+}
+
+#modal-drinks-report .widget-card--compact {
+    min-width: 0;
+    padding: 12px 14px;
+    gap: 10px;
+}
+
+#modal-drinks-report .widget-data {
+    min-width: 0;
+}
+
+#modal-drinks-report .widget-title--compact {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#modal-drinks-report .kpi-value--modal,
+#modal-drinks-report .kpi-value--modal--primary,
+#modal-drinks-report .kpi-value--modal--success {
+    margin: 2px 0 0;
+    font-size: 20px;
+    line-height: 1;
+}
+
+#modal-drinks-report .search-input-field {
+    width: 100%;
+}
+
+#modal-drinks-report .seconds-table-container--scrollable {
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-main);
+    -webkit-overflow-scrolling: touch;
+}
+
+#modal-drinks-report .seconds-table {
+    min-width: 980px;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+#modal-drinks-report .seconds-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-surface);
+    box-shadow: 0 1px 0 var(--border);
+    white-space: nowrap;
+}
+
+#modal-drinks-report .seconds-table th,
+#modal-drinks-report .seconds-table td {
+    vertical-align: middle;
+    padding: 10px 12px;
+}
+
+#modal-drinks-report .seconds-table th:first-child,
+#modal-drinks-report .seconds-table td:first-child {
+    width: 310px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#modal-drinks-report .seconds-table th:nth-child(2),
+#modal-drinks-report .seconds-table td:nth-child(2) {
+    width: 120px !important;
+}
+
+#modal-drinks-report .seconds-table th:nth-child(3),
+#modal-drinks-report .seconds-table td:nth-child(3) {
+    width: 180px !important;
+}
+
+#modal-drinks-report .seconds-table th:nth-child(4),
+#modal-drinks-report .seconds-table td:nth-child(4) {
+    width: 120px !important;
+}
+
+#modal-drinks-report .drinks-report-suggested-th,
+#modal-drinks-report .drinks-report-suggested-cell {
+    width: 230px !important;
+    min-width: 230px !important;
+    text-align: right;
+}
+
+#modal-drinks-report .drinks-report-suggested-input {
+    width: 190px !important;
+    min-height: 44px;
+    font-size: 16px;
+}
+
+#modal-drinks-report .modal-actions {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    justify-content: flex-end;
+    background: var(--bg-surface);
+}
+
+#modal-drinks-report .modal-actions .btn {
+    min-width: 132px;
+}
+
+@media (max-width: 860px) {
+    #modal-drinks-report .modal-content.modal-content--drinks {
+        width: calc(100vw - 12px) !important;
+        max-width: calc(100vw - 12px) !important;
+        max-height: calc(100vh - 12px);
+    }
+
+    #modal-drinks-report .modal-header {
+        padding: 14px 16px;
+    }
+
+    #modal-drinks-report .modal-body {
+        grid-template-rows: auto auto auto minmax(220px, 1fr) auto;
+        gap: 10px;
+        padding: 14px;
+    }
+
+    #modal-drinks-report .reports-widgets--compact {
+        grid-template-columns: 1fr;
+    }
+
+    #modal-drinks-report .widget-card--compact {
+        padding: 10px 12px;
+    }
+
+    #modal-drinks-report .seconds-table {
+        min-width: 940px;
+    }
+
+    #modal-drinks-report .modal-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    #modal-drinks-report .modal-actions .btn {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    #modal-drinks-report .modal-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .modal-backdrop {
+        padding: 8px;
+    }
+    .modal-content {
+        width: 100% !important;
+        max-width: calc(100vw - 16px) !important;
+        max-height: calc(100dvh - 16px) !important;
+        border-radius: var(--radius-md);
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-header {
+        padding: 14px 16px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--bg-surface);
+    }
+    .modal-header h3 {
+        font-size: 16px;
+    }
+    .modal-body {
+        padding: 16px !important;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto;
+    }
+    .modal-actions {
+        flex-direction: column-reverse;
+        gap: 8px;
+        width: 100%;
+        margin-top: 16px;
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        background: var(--bg-surface);
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+    }
+    .modal-actions .btn {
+        width: 100% !important;
+        min-height: 44px;
+    }
+    .ticket-modal-actions .ticket-actions-row {
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+    }
+    .ticket-modal-actions .ticket-actions-row .btn {
+        width: 100% !important;
+        min-height: 44px;
+    }
+    .toast-container {
+        left: 12px;
+        right: 12px;
+        bottom: 16px;
+    }
+    .toast {
+        min-width: 0;
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 12px;
+    }
+
+    .ticket-preview-body {
+        padding: 12px !important;
+    }
+
+    .ticket-thermal-wrapper {
+        padding: 16px 12px;
+        font-size: 12px;
+    }
+
+    .ticket-logo {
+        font-size: 16px;
+    }
+
+    .ticket-table {
+        font-size: 10px;
+    }
+
+    .ticket-total-row {
+        width: 150px;
+        font-size: 11px;
+    }
+
+    .ticket-total-row.grand-total {
+        font-size: 13px;
+    }
+}
+
+/* ==========================================================================
+   TOAST NOTIFICATIONS (BASE STYLES FOR ALL SCREEN SIZES)
+   ========================================================================== */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 99999;
+    pointer-events: none;
+}
+
+.toast {
+    position: relative;
+    pointer-events: auto;
+    background-color: var(--bg-surface, #1e293b);
+    border: 1px solid var(--border, #334155);
+    border-left: 4px solid var(--primary, #6366f1);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-main, #f8fafc);
+    padding: 14px 20px;
+    min-width: 280px;
+    max-width: 440px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateY(20px) scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.toast i {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.toast.success {
+    border-left-color: var(--success, #10b981);
+    background: #064e3b;
+    color: #ecfdf5;
+}
+.toast.success i { color: #34d399; }
+
+.toast.warning {
+    border-left-color: var(--warning, #f59e0b);
+    background: #78350f;
+    color: #fffbeb;
+}
+.toast.warning i { color: #fbbf24; }
+
+.toast.error {
+    border-left-color: var(--danger, #ef4444);
+    background: #7f1d1d;
+    color: #fef2f2;
+}
+.toast.error i { color: #f87171; }
+
+.toast.info {
+    border-left-color: var(--accent, #3b82f6);
+    background: #1e3a8a;
+    color: #eff6ff;
+}
+.toast.info i { color: #60a5fa; }

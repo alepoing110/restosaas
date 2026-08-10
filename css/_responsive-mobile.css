@@ -1,0 +1,1390 @@
+/* ==========================================================================
+   RESPONSIVE DESIGN (MEDIA QUERIES) & PRINT CSS
+   ========================================================================== */
+.print-only {
+    display: none;
+}
+
+@media print {
+    /* Hide everything on the page except the printable area */
+    body * {
+        visibility: hidden;
+    }
+    
+    .sidebar, .main-header, .toast-container {
+        display: none !important;
+    }
+
+    .modal-backdrop {
+        background: transparent !important;
+        backdrop-filter: none !important;
+    }
+    
+    #ticket-print-area, #report-print-area {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    body.rc-ticket-printing #ticket-print-area,
+    body.rc-ticket-printing #ticket-print-area * {
+        display: block !important;
+        visibility: visible !important;
+    }
+    
+    body.rc-ticket-printing #ticket-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 80mm;
+        background-color: #fff !important;
+        color: #000 !important;
+        padding: 4mm 2mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+
+    #ticket-print-area {
+        font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+        font-size: 12px;
+        line-height: 1.3;
+        width: 100%;
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+    
+    #ticket-print-area th {
+        border-bottom: 1px dashed #000 !important;
+        color: #000 !important;
+    }
+    
+    #ticket-print-area td {
+        color: #000 !important;
+    }
+    
+    #ticket-print-area .ticket-divider {
+        border-top: 1px dashed #000 !important;
+    }
+
+    #ticket-print-area .grand-total {
+        border-top: 1px dashed #000 !important;
+    }
+
+    #ticket-print-area .ticket-scissors {
+        border-top: 1px dashed #000 !important;
+        color: #000 !important;
+        margin: 16px 0 !important;
+        font-size: 12px !important;
+    }
+    #ticket-print-area .ticket-scissors::before {
+        content: '✂- - - - - - - - - - - - - - - - - - - - - - -';
+    }
+
+    .print-only.letter-print-area {
+        width: 100% !important;
+        min-height: auto !important;
+        padding: 0 !important;
+    }
+
+    .print-only.letter-print-area #ticket-print-area,
+    #ticket-print-area.letter-print-area {
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 10px !important;
+        line-height: 1.35 !important;
+    }
+
+    #ticket-print-area.letter-print-area .rc-letter-report {
+        width: 100% !important;
+        min-height: auto !important;
+        box-shadow: none !important;
+        border: 0 !important;
+        padding: 0 !important;
+    }
+
+    #ticket-print-area.letter-print-area .rc-report-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+    }
+
+    @page {
+        margin: 0;
+        size: auto;
+    }
+}
+
+.rc-report-export-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 216mm;
+    background: #fff;
+    color: #1f2937;
+    z-index: 2147483647;
+    pointer-events: none;
+}
+
+.rc-letter-report {
+    width: 216mm;
+    min-height: 279mm;
+    padding: 14mm;
+    background: #fff;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+    box-sizing: border-box;
+}
+
+.rc-report-header {
+    display: grid;
+    grid-template-columns: 1fr 230px;
+    gap: 18px;
+    align-items: stretch;
+    padding: 0 0 12px;
+    border-bottom: 3px solid #1f2937;
+    position: relative;
+}
+
+.rc-report-header::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -6px;
+    height: 2px;
+    background: #ef4444;
+}
+
+.rc-report-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.rc-report-logo {
+    width: 54px;
+    height: 54px;
+    border-radius: 10px;
+    background: #1f2937;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    flex: 0 0 auto;
+}
+
+.rc-report-company {
+    min-width: 0;
+}
+
+.rc-report-kicker {
+    margin: 0 0 4px;
+    color: #ef4444;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.rc-report-company h1 {
+    margin: 0 0 5px;
+    color: #111827;
+    font-size: 21px;
+    line-height: 1.1;
+}
+
+.rc-report-company p,
+.rc-report-doc-meta span {
+    margin: 2px 0;
+    display: block;
+    color: #4b5563;
+    font-size: 10px;
+}
+
+.rc-report-doc-meta {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: right;
+    font-size: 10px;
+}
+
+.rc-report-doc-meta .rc-report-doc-label {
+    display: block;
+    color: #ef4444;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.rc-report-doc-meta strong {
+    display: block;
+    margin: 3px 0 6px;
+    color: #111827;
+    font-size: 13px;
+}
+
+.rc-report-title {
+    display: grid;
+    grid-template-columns: 1fr 230px;
+    gap: 18px;
+    align-items: start;
+    padding: 18px 0 12px;
+}
+
+.rc-report-title h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.rc-report-title p {
+    margin: 5px 0 0;
+    color: #374151;
+    font-size: 11px;
+}
+
+.rc-report-title aside {
+    background: #f3f4f6;
+    border-left: 4px solid #ef4444;
+    padding: 8px 10px;
+    color: #374151;
+    font-size: 10px;
+}
+
+.rc-report-title aside span {
+    display: block;
+    color: #6b7280;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 3px;
+}
+
+.rc-report-title aside strong {
+    display: block;
+    color: #1f2937;
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.rc-report-section {
+    margin-top: 10px;
+    break-inside: avoid;
+}
+
+.rc-report-section h3 {
+    margin: 0 0 8px;
+    color: #111827;
+    font-size: 12px;
+}
+
+.rc-report-detail-grid,
+.rc-report-totals {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.rc-report-detail-grid div,
+.rc-report-total {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px;
+    background: #f9fafb;
+}
+
+.rc-report-detail-grid span,
+.rc-report-total span {
+    display: block;
+    color: #6b7280;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.rc-report-detail-grid strong,
+.rc-report-total strong {
+    display: block;
+    margin-top: 2px;
+    color: #111827;
+    font-size: 13px;
+}
+
+.rc-report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+}
+
+.rc-report-table th {
+    padding: 7px 6px;
+    color: #111827;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.rc-report-table td {
+    padding: 6px;
+    border: 1px solid #edf0f3;
+    color: #1f2937;
+    vertical-align: top;
+}
+
+.rc-report-table tr {
+    break-inside: avoid;
+}
+
+.rc-report-right { text-align: right; }
+.rc-report-center { text-align: center; }
+.rc-report-left { text-align: left; }
+.rc-report-empty { text-align: center; color: #6b7280; }
+
+.rc-report-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid #d1d5db;
+    color: #6b7280;
+    font-size: 9px;
+}
+
+@media (max-width: 1024px) {
+    .pos-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: visible;
+    }
+    
+    .pos-catalog {
+        height: auto;
+        overflow-y: visible;
+    }
+    
+    .pos-cart {
+        height: auto;
+        max-height: 600px;
+    }
+    
+    .config-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reports-grid-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Menu Products Modal Styles */
+.menu-products-search {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.menu-products-search i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 13px;
+    pointer-events: none;
+}
+
+.menu-products-search .form-input {
+    padding-left: 36px;
+}
+
+.menu-products-filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.menu-filter-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.menu-filter-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-main);
+}
+
+.menu-filter-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.menu-filter-count {
+    font-size: 10px;
+    opacity: 0.8;
+    font-weight: 700;
+}
+
+.menu-products-bulk-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.menu-products-summary {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.menu-products-bulk-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.menu-products-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.menu-products-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-top: 4px;
+}
+
+.menu-products-group-header i {
+    font-size: 11px;
+    width: 16px;
+    text-align: center;
+}
+
+.menu-products-group-count {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.menu-products-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+}
+
+.menu-products-empty i {
+    font-size: 28px;
+    margin-bottom: 8px;
+    opacity: 0.4;
+}
+
+.menu-products-empty p {
+    margin: 0;
+    font-size: 13px;
+}
+
+.menu-product-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.menu-product-item:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.menu-product-item.assigned {
+    border-color: var(--success);
+    background: rgba(76, 189, 107, 0.05);
+}
+
+.menu-product-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.menu-product-name {
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.menu-product-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.menu-product-type-badge {
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.menu-product-type-badge.sopa { background: rgba(255, 107, 53, 0.15); color: var(--primary); }
+.menu-product-type-badge.segundo { background: rgba(46, 196, 182, 0.15); color: var(--accent); }
+.menu-product-type-badge.plato_extra { background: rgba(255, 182, 39, 0.15); color: var(--secondary); }
+.menu-product-type-badge.refresco { background: rgba(76, 189, 107, 0.15); color: var(--success); }
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border);
+    transition: var(--transition);
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-main);
+    transition: var(--transition);
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.mobile-hamburger {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1100;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 18px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: var(--transition);
+}
+.mobile-hamburger:active { transform: scale(0.92); }
+
+.mobile-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1050;
+    backdrop-filter: blur(2px);
+}
+.mobile-overlay.active { display: block; }
+
+.mobile-cart-toggle {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    z-index: 900;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(255,107,53,0.35);
+    transition: var(--transition);
+}
+.mobile-cart-toggle:active { transform: scale(0.9); }
+
+.mobile-cart-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--danger, #ef4444);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+}
+
+body.no-scroll { overflow: hidden; }
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    .catalog-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .catalog-card:active {
+        transform: scale(0.97);
+        border-color: var(--primary);
+    }
+
+    .drink-minimal-btn:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .drink-minimal-btn:active {
+        transform: scale(0.97);
+        border-color: var(--accent);
+    }
+
+    .table-node:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .table-node:active {
+        transform: scale(0.97);
+    }
+
+    .order-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .reservation-catalog-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .reservation-catalog-card:active {
+        transform: scale(0.97);
+    }
+
+    .kpi-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .kpi-card:active {
+        transform: scale(0.97);
+    }
+
+    .widget-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .btn:active {
+        transform: scale(0.95);
+    }
+
+    .btn-sm:active {
+        transform: scale(0.93);
+    }
+
+    .btn-table-action:active {
+        transform: scale(0.9);
+    }
+
+    .nav-item:active {
+        transform: scale(0.97);
+    }
+
+    .subnav-btn:active {
+        transform: scale(0.97);
+    }
+
+    .reports-subtab:active {
+        transform: scale(0.97);
+    }
+
+    .reservation-subtab:active {
+        transform: scale(0.97);
+    }
+
+    .reservation-catalog-tab:active {
+        transform: scale(0.97);
+    }
+
+    .free-table-btn:active {
+        transform: scale(0.95);
+    }
+
+    .icon-option:active {
+        transform: scale(0.9);
+    }
+
+    .table-config-row:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Touch action optimization - eliminates 300ms tap delay */
+.subnav-btn,
+.reports-subtab,
+.reservation-subtab,
+.reservation-catalog-tab,
+.catalog-tab-btn,
+.nav-item,
+.btn,
+.btn-sm,
+.btn-icon,
+.btn-table-action,
+.btn-close-modal,
+.btn-toggle-password,
+.btn-remove-item,
+.btn-clear-cart,
+.btn-add-cart,
+.btn-state-step,
+.free-table-btn,
+.icon-option,
+.table-config-row,
+.catalog-card,
+.drink-minimal-btn,
+.table-node,
+.order-card,
+.reservation-catalog-card,
+.kpi-card,
+.widget-card,
+.radio-toggle label,
+.form-check {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Horizontal scroll containers - improve touch handling */
+.catalog-tabs,
+.menu-config-subnav,
+.reports-subnav,
+.reservation-subtabs,
+.reservation-catalog-tabs,
+.saas-subtabs,
+.orders-summary-metrics {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+/* Improved touch targets for all interactive elements */
+@media (max-width: 768px) {
+    .btn-close-modal {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-toggle-password {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-table-action {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-remove-item {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-clear-cart {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-icon {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .radio-toggle label {
+        min-height: 44px;
+    }
+
+    .form-check {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .mobile-hamburger { display: flex; }
+
+    .app-container { flex-direction: column; }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        width: 270px;
+        height: 100dvh;
+        z-index: 1100;
+        padding: 16px;
+        transition: left 0.25s ease;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+    .sidebar.mobile-open { left: 0; }
+    .sidebar .sidebar-toggle { display: none; }
+
+    .brand {
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+
+    .nav-menu {
+        flex-direction: column;
+        gap: 2px;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-item {
+        padding: 12px 14px;
+        font-size: 14px;
+        white-space: nowrap;
+        min-height: 44px;
+        border-radius: var(--radius-md);
+        flex-shrink: 0;
+    }
+    .nav-item i { font-size: 16px; width: 22px; text-align: center; }
+
+    .nav-item.active::before {
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        height: auto;
+        border-radius: 0 4px 4px 0;
+    }
+
+    .sidebar.mobile-open .nav-item span,
+    .sidebar.mobile-open .brand-text,
+    .sidebar.mobile-open .sidebar-footer p,
+    .sidebar.mobile-open .sidebar-footer-actions .status-indicator,
+    .sidebar.collapsed .nav-item span,
+    .sidebar.collapsed .brand-text,
+    .sidebar.collapsed .sidebar-footer p,
+    .sidebar.collapsed .sidebar-footer-actions .status-indicator {
+        display: inline-block !important;
+        opacity: 1 !important;
+        width: auto !important;
+        visibility: visible !important;
+    }
+
+    .sidebar-footer {
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+
+    .main-content { margin-left: 0; }
+
+    .main-header {
+        padding: 14px 16px 14px 60px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        min-height: auto;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .auth-summary { min-width: 0; flex: 1; }
+    .auth-summary-text strong { font-size: 12px; }
+    .auth-summary-text span { font-size: 10px; }
+    .header-date { font-size: 11px; padding: 4px 8px; }
+    .menu-summary-pill { padding: 4px 8px; font-size: 11px; }
+
+    .screen-container { padding: 10px; }
+    .screen-section { min-width: 0; }
+
+    .menu-config-subnav,
+    .reports-subnav,
+    .reservation-subtabs,
+    .reservation-catalog-tabs {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        padding: 6px !important;
+        margin-bottom: 16px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        scrollbar-width: none;
+        scroll-behavior: smooth;
+        -webkit-tap-highlight-color: transparent;
+        z-index: 5;
+        position: relative;
+    }
+    .menu-config-subnav::-webkit-scrollbar,
+    .reports-subnav::-webkit-scrollbar,
+    .reservation-subtabs::-webkit-scrollbar,
+    .reservation-catalog-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .menu-config-subnav .subnav-btn,
+    .reports-subnav .reports-subtab,
+    .reservation-subtabs .reservation-subtab,
+    .reservation-catalog-tabs .reservation-catalog-tab {
+        flex: 0 0 auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        padding: 8px 14px !important;
+        font-size: 12.5px !important;
+        min-height: 44px !important;
+        white-space: nowrap !important;
+        touch-action: manipulation !important;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none !important;
+        cursor: pointer !important;
+    }
+
+    /* Scroll gradient hint for subnav */
+    .menu-config-subnav {
+        position: relative;
+    }
+    .menu-config-subnav::after {
+        content: '';
+        position: sticky;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 32px;
+        min-height: 100%;
+        background: linear-gradient(to left, var(--bg-surface), transparent);
+        pointer-events: none;
+        flex-shrink: 0;
+        z-index: 2;
+    }
+
+    .pos-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        height: auto;
+        overflow: visible;
+    }
+    .pos-catalog { height: auto; overflow: visible; padding-right: 0; min-width: 0; }
+
+    .pos-cart {
+        display: none;
+        height: auto;
+        max-height: none;
+        border-top: 2px solid var(--border);
+        padding-top: 12px;
+        margin-top: 12px;
+    }
+    .pos-grid.show-cart .pos-catalog { display: none; }
+    .pos-grid.show-cart .pos-cart { display: block; }
+
+    .mobile-cart-toggle {
+        display: flex;
+    }
+    .pos-grid.show-cart .mobile-cart-toggle { display: none !important; }
+
+    .catalog-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .catalog-tab-btn { padding: 8px 10px; font-size: 11px; flex: 0 0 auto; min-height: 44px; }
+
+    .menu-selector-bar { padding: 6px 10px !important; margin-bottom: 8px !important; }
+    .menu-selector-bar label { font-size: 10px !important; }
+    .menu-selector-bar .form-select { padding: 4px 8px !important; font-size: 12px !important; }
+
+    .catalog-cards { gap: 8px; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); }
+
+    .drinks-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; gap: 6px !important; }
+    .drink-minimal-btn { padding: 8px 6px !important; min-height: 44px; }
+    .drink-minimal-name { font-size: 11px !important; }
+
+    .active-orders-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+    .active-orders-controls .search-box { width: 100%; }
+    .active-orders-controls,
+    .active-orders-board {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+
+    .order-card { margin-bottom: 10px; }
+    .order-card-header, .order-card-body, .order-card-footer { padding: 10px 12px; }
+    .order-card-actions { flex-direction: column; gap: 6px; }
+    .order-card-actions .btn { width: 100%; min-height: 40px; }
+
+    .form-row-three { grid-template-columns: 1fr; gap: 10px; }
+    .form-row-three .btn-spacer { display: none; }
+    .form-group-row { grid-template-columns: 1fr; gap: 10px; }
+    .form-group { margin-bottom: 10px; }
+
+    .form-control, .form-input, .form-select {
+        padding: 10px 12px;
+        font-size: 16px;
+        min-height: 44px;
+    }
+
+    .btn { padding: 10px 16px; font-size: 14px; min-height: 44px; }
+    .btn-sm { padding: 8px 12px; font-size: 12px; min-height: 38px; }
+    .btn-table-action { min-width: 38px; min-height: 38px; }
+
+    .config-grid { grid-template-columns: 1fr; gap: 12px; }
+    .config-card-panel,
+    .sales-history-panel,
+    .dashboard-chart-card,
+    .widget-card {
+        padding: 14px !important;
+        border-radius: 8px;
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    .panel-header-actions {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 10px;
+    }
+    .panel-header-actions > div {
+        width: 100%;
+    }
+    .panel-header-actions .btn {
+        flex: 1 1 140px;
+    }
+
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-md); }
+    .data-table, .sales-table { min-width: 500px; }
+    .seconds-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .seconds-table { min-width: 0; width: 100%; }
+
+    .modal-content { width: calc(100vw - 24px); max-height: 90vh; margin: 12px auto; }
+    .modal-body { padding: 16px !important; }
+    .modal-content--drinks {
+        width: calc(100vw - 16px) !important;
+        max-width: none !important;
+        max-height: calc(100vh - 16px);
+        margin: 8px;
+    }
+    .modal-content--drinks .modal-body {
+        max-height: calc(100vh - 92px);
+    }
+    .modal-content--drinks .seconds-table {
+        min-width: 100%;
+    }
+    .drinks-report-suggested-th,
+    .drinks-report-suggested-cell {
+        min-width: 180px;
+        width: 180px;
+    }
+    .drinks-report-suggested-input {
+        width: 150px;
+        min-height: 44px;
+    }
+
+    /* Menu Products Modal - Mobile */
+    .menu-products-bulk-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px;
+    }
+    .menu-products-bulk-actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .menu-products-filters {
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    .menu-filter-btn {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        min-height: 38px;
+    }
+    .menu-products-search .form-input {
+        min-height: 44px;
+        font-size: 16px;
+    }
+    .menu-product-item {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .menu-product-name {
+        font-size: 12px;
+    }
+    .menu-product-type {
+        font-size: 10px;
+    }
+
+    .ticket-client-copy, .ticket-kitchen-copy { padding: 8px; }
+    .ticket-table { font-size: 10px; }
+
+    .table-node { padding: 10px; min-width: 80px; }
+    .table-node-icon { font-size: 18px; }
+    .table-node-name { font-size: 10px; }
+
+    .reports-widgets,
+    .dashboard-kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+    .dashboard-charts-grid { grid-template-columns: 1fr; }
+    .dashboard-filters { flex-direction: column; align-items: stretch; }
+    .dashboard-filter-group,
+    .dashboard-custom-dates {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .kpi-value { font-size: 18px; }
+
+    .reports-grid,
+    .reports-grid-layout { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .financial-left-column,
+    .financial-right-column {
+        gap: 12px !important;
+    }
+
+    .reservations-layout { grid-template-columns: 1fr; }
+    .reservations-sidebar { display: none; }
+    .reservation-form-layout { grid-template-columns: 1fr; }
+    .reservation-form-customer { border-right: none; padding-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    .reservation-form-grid { grid-template-columns: 1fr; }
+    .reservations-toolbar { flex-direction: column; align-items: stretch; }
+    .reservation-catalog-cards { grid-template-columns: 1fr !important; }
+
+    .floor-plan-panel { padding: 12px; margin-bottom: 16px; }
+    .tables-map-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+
+    .saas-summary-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .saas-admin-forms { grid-template-columns: 1fr; }
+    .saas-admin-table-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .main-header { padding: 12px 12px 12px 56px; }
+    .header-title-container h2 { font-size: 15px; }
+    .header-subtitle { font-size: 11px; }
+    .auth-summary { display: none; }
+    .menu-summary-pill { padding: 3px 6px; font-size: 10px; }
+    .pill-label { display: none; }
+    .header-date { font-size: 10px; padding: 3px 6px; }
+    .catalog-tabs { gap: 2px; }
+    .catalog-tab-btn { padding: 6px 8px; font-size: 10px; }
+    .catalog-tab-btn i { display: none; }
+    .drinks-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important; }
+    .reports-widgets,
+    .dashboard-kpi-grid { grid-template-columns: 1fr !important; }
+    .config-grid { gap: 10px; }
+    .mobile-cart-toggle { width: 50px; height: 50px; font-size: 20px; bottom: 16px; right: 16px; }
+    .table-responsive::after {
+        content: '';
+        position: absolute;
+        top: 0; right: 0; bottom: 0;
+        width: 24px;
+        background: linear-gradient(to left, var(--bg-surface), transparent);
+        pointer-events: none;
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    }
+
+    .tables-map-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; }
+    .table-node { min-width: 70px; min-height: 80px; padding: 8px; }
+    .table-node-icon { font-size: 16px; }
+    .table-node-name { font-size: 9px; }
+    .table-node-status { font-size: 8px; }
+
+    .catalog-cards { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+    .catalog-card { padding: 10px; }
+    .card-icon-wrapper { width: 32px; height: 32px; font-size: 14px; margin-bottom: 6px; }
+    .card-details h4 { font-size: 12px; }
+    .card-price { font-size: 14px; }
+    .card-description { font-size: 10px; display: none; }
+
+    .order-card { border-radius: var(--radius-md); }
+    .order-card-header { padding: 8px 10px; }
+    .order-card-title { font-size: 13px; }
+    .order-card-body { padding: 8px 10px; }
+    .order-item-detail { font-size: 12px; }
+    .order-card-footer { padding: 10px 12px; }
+    .order-card-total-row span:last-child { font-size: 14px; }
+
+    .btn-state-step { min-width: 60px; font-size: 9px !important; padding: 5px 6px !important; }
+
+    .reservation-catalog-cards { gap: 8px; }
+    .reservation-catalog-card { padding: 10px; }
+    .reservation-card-title-row h4 { font-size: 13px; }
+    .reservation-card-meta strong { font-size: 15px; }
+    .reservation-card-actions { grid-template-columns: 60px 1fr; gap: 6px; }
+
+    .widget-card { padding: 10px !important; gap: 10px; }
+    .widget-icon { width: 36px; height: 36px; font-size: 14px; }
+    .widget-title { font-size: 10px; }
+    .widget-value { font-size: 16px; }
+
+    .kpi-card { padding: 12px; gap: 10px; }
+    .kpi-icon { width: 38px; height: 38px; font-size: 14px; }
+    .kpi-label { font-size: 10px; }
+    .kpi-value { font-size: 16px; }
+
+    .chart-container { height: 200px; }
+
+    .saas-summary-grid { grid-template-columns: 1fr; }
+
+    .admin-form-card { padding: 16px; }
+
+    .stat-card { padding: 12px; }
+    .stat-value { font-size: 22px; }
+    .stat-label { font-size: 10px; }
+
+    .modal-content { border-radius: var(--radius-md); }
+    .modal-header { padding: 12px 14px; }
+    .modal-header h3 { font-size: 15px; }
+    .modal-body { padding: 12px !important; }
+    .modal-actions .btn { min-height: 44px; }
+
+    .screen-container { padding: 8px; }
+    .floor-plan-panel { padding: 10px; margin-bottom: 12px; }
+    .panel-title { font-size: 14px; margin-bottom: 12px; }
+    .panel-subtitle { font-size: 11px; }
+
+    /* Menu selector bar - small phones */
+    .menu-selector-bar {
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 4px 8px !important;
+    }
+    .menu-selector-bar label {
+        font-size: 9px !important;
+    }
+    .menu-selector-bar .form-select {
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+        min-width: 0;
+    }
+
+    /* Subnav buttons - small phones: shorter labels */
+    .menu-config-subnav .subnav-btn {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        gap: 4px !important;
+    }
+    .menu-config-subnav .subnav-btn i {
+        font-size: 10px;
+    }
+    .menu-config-subnav .subnav-btn .subnav-label-full {
+        display: none;
+    }
+
+    /* Config tables on small phones */
+    .config-card-panel { padding: 10px !important; }
+    .panel-title { font-size: 13px; }
+    .panel-subtitle { font-size: 10px; }
+}

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RestoCloud - Sistema POS para Restaurantes</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; background: #f8fafc; }
+        .hero { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 80px 20px 60px; text-align: center; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { font-size: 1.15rem; opacity: 0.9; max-width: 600px; margin: 0 auto 30px; }
+        .hero .btn-hero { background: #f59e0b; color: #1a1a2e; padding: 14px 36px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+        .hero .btn-hero:hover { background: #d97706; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .plans-section { padding: 60px 20px; }
+        .plans-section h2 { text-align: center; font-size: 2rem; margin-bottom: 8px; }
+        .plans-section .subtitle { text-align: center; color: #64748b; margin-bottom: 40px; }
+        .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+        .plan-card { background: white; border-radius: 12px; padding: 32px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 2px solid #e2e8f0; transition: transform 0.2s, box-shadow 0.2s; }
+        .plan-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        .plan-card.featured { border-color: #2563eb; position: relative; }
+        .plan-card.featured::before { content: 'MAS POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #2563eb; color: white; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 20px; }
+        .plan-card h3 { font-size: 1.4rem; margin-bottom: 4px; }
+        .plan-card .plan-desc { color: #64748b; font-size: 0.9rem; margin-bottom: 20px; }
+        .plan-card .price { font-size: 2rem; font-weight: 800; margin-bottom: 4px; }
+        .plan-card .price span { font-size: 0.9rem; font-weight: 400; color: #64748b; }
+        .plan-card .yearly-note { font-size: 0.8rem; color: #64748b; margin-bottom: 20px; }
+        .plan-card .features-list { list-style: none; margin-bottom: 24px; }
+        .plan-card .features-list li { padding: 6px 0; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+        .plan-card .features-list li .icon-yes { color: #16a34a; }
+        .plan-card .features-list li .icon-no { color: #dc2626; }
+        .plan-card .btn-plan { width: 100%; padding: 12px; border: 2px solid #2563eb; background: white; color: #2563eb; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .plan-card .btn-plan:hover { background: #2563eb; color: white; }
+        .plan-card.featured .btn-plan { background: #2563eb; color: white; }
+        .plan-card.featured .btn-plan:hover { background: #1d4ed8; }
+        .features-section { padding: 60px 20px; background: white; }
+        .features-section h2 { text-align: center; font-size: 2rem; margin-bottom: 40px; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto; }
+        .feature-item { text-align: center; padding: 24px 16px; }
+        .feature-item .feat-icon { font-size: 2rem; margin-bottom: 12px; }
+        .feature-item h4 { margin-bottom: 6px; }
+        .feature-item p { font-size: 0.9rem; color: #64748b; }
+        .register-section { padding: 60px 20px; background: #f1f5f9; }
+        .register-section h2 { text-align: center; font-size: 2rem; margin-bottom: 8px; }
+        .register-section .subtitle { text-align: center; color: #64748b; margin-bottom: 30px; }
+        .register-form { max-width: 480px; margin: 0 auto; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .btn-register { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 700; cursor: pointer; }
+        .btn-register:hover { background: #1d4ed8; }
+        .btn-register:disabled { opacity: 0.6; cursor: not-allowed; }
+        .register-note { text-align: center; font-size: 0.8rem; color: #64748b; margin-top: 12px; }
+        .error-msg { color: #dc2626; font-size: 0.85rem; margin-top: 8px; display: none; }
+        footer { text-align: center; padding: 30px 20px; color: #94a3b8; font-size: 0.85rem; }
+        @media (max-width: 640px) { .hero h1 { font-size: 1.8rem; } .plans-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <h1>RestoCloud</h1>
+        <p>Sistema POS completo para la gestión de tu restaurante. Ventas, inventario, reservaciones y reportes en una sola plataforma.</p>
+        <a href="#register" class="btn-hero">Empezar Trial Gratis</a>
+    </section>
+
+    <section class="plans-section">
+        <div class="container">
+            <h2>Planes y Precios</h2>
+            <p class="subtitle">Elige el plan que mejor se adapte a tu negocio. Todos incluyen 14 días de trial gratuito.</p>
+            <div class="plans-grid">
+                <div class="plan-card">
+                    <h3>Starter</h3>
+                    <p class="plan-desc">Para negocios pequeños que empiezan</p>
+                    <div class="price">Bs 29 <span>/mes</span></div>
+                    <p class="yearly-note">o Bs 290/año (ahorra 2 meses)</p>
+                    <ul class="features-list">
+                        <li><span class="icon-yes">✅</span> POS / Ventas</li>
+                        <li><span class="icon-yes">✅</span> Reportes Básicos</li>
+                        <li><span class="icon-yes">✅</span> Inventario</li>
+                        <li><span class="icon-yes">✅</span> Caja</li>
+                        <li><span class="icon-no">❌</span> Reservaciones</li>
+                        <li><span class="icon-no">❌</span> Delivery</li>
+                        <li><span class="icon-no">❌</span> Multi-sucursal</li>
+                        <li><span class="icon-no">❌</span> Soporte Prioritario</li>
+                        <li>1 Sucursal · 5 Usuarios · 50 Productos</li>
+                    </ul>
+                    <button class="btn-plan" onclick="selectPlan('starter')">Empezar Trial</button>
+                </div>
+                <div class="plan-card featured">
+                    <h3>Pro</h3>
+                    <p class="plan-desc">Para negocios en crecimiento</p>
+                    <div class="price">Bs 79 <span>/mes</span></div>
+                    <p class="yearly-note">o Bs 790/año (ahorra 2 meses)</p>
+                    <ul class="features-list">
+                        <li><span class="icon-yes">✅</span> POS / Ventas</li>
+                        <li><span class="icon-yes">✅</span> Reportes Completos</li>
+                        <li><span class="icon-yes">✅</span> Inventario</li>
+                        <li><span class="icon-yes">✅</span> Caja</li>
+                        <li><span class="icon-yes">✅</span> Reservaciones</li>
+                        <li><span class="icon-yes">✅</span> Delivery</li>
+                        <li><span class="icon-no">❌</span> Multi-sucursal</li>
+                        <li><span class="icon-no">❌</span> Soporte Prioritario</li>
+                        <li>3 Sucursales · 15 Usuarios · 200 Productos</li>
+                    </ul>
+                    <button class="btn-plan" onclick="selectPlan('pro')">Empezar Trial</button>
+                </div>
+                <div class="plan-card">
+                    <h3>Enterprise</h3>
+                    <p class="plan-desc">Para cadenas y franquicias</p>
+                    <div class="price">Bs 199 <span>/mes</span></div>
+                    <p class="yearly-note">o Bs 1990/año (ahorra 2 meses)</p>
+                    <ul class="features-list">
+                        <li><span class="icon-yes">✅</span> POS / Ventas</li>
+                        <li><span class="icon-yes">✅</span> Reportes Completos</li>
+                        <li><span class="icon-yes">✅</span> Inventario</li>
+                        <li><span class="icon-yes">✅</span> Caja</li>
+                        <li><span class="icon-yes">✅</span> Reservaciones</li>
+                        <li><span class="icon-yes">✅</span> Delivery</li>
+                        <li><span class="icon-yes">✅</span> Multi-sucursal</li>
+                        <li><span class="icon-yes">✅</span> Soporte Prioritario</li>
+                        <li>Sucursales ilimitadas · Usuarios ilimitados · Productos ilimitados</li>
+                    </ul>
+                    <button class="btn-plan" onclick="selectPlan('enterprise')">Empezar Trial</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features-section">
+        <div class="container">
+            <h2>Todo lo que necesitas</h2>
+            <div class="features-grid">
+                <div class="feature-item">
+                    <div class="feat-icon">🖥️</div>
+                    <h4>Punto de Venta</h4>
+                    <p>Interfaz rápida e intuitiva para cobrar en mesa, llevar y delivery.</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feat-icon">📊</div>
+                    <h4>Reportes</h4>
+                    <p>Ventas diarias, cierre de caja, productos más vendidos y más.</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feat-icon">📦</div>
+                    <h4>Inventario</h4>
+                    <p>Control de stock por producto con alertas de stock bajo.</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feat-icon">📅</div>
+                    <h4>Reservaciones</h4>
+                    <p>Gestión de mesas y reservaciones con asignación automática.</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feat-icon">🚗</div>
+                    <h4>Delivery</h4>
+                    <p>Gestión de pedidos para delivery con seguimiento.</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feat-icon">💰</div>
+                    <h4>Caja</h4>
+                    <p>Apertura, cierre y arqueo de caja con reporte de movimientos.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="register-section" id="register">
+        <h2>Empieza Gratis</h2>
+        <p class="subtitle">Crea tu cuenta en 2 minutos. Sin tarjeta de crédito. 14 días de trial.</p>
+        <form class="register-form" id="form-register" onsubmit="handleRegister(event)">
+            <div class="form-group">
+                <label for="reg-business-name">Nombre del Restaurante *</label>
+                <input type="text" id="reg-business-name" placeholder="Ej: Mi Restaurante" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-owner-name">Tu Nombre *</label>
+                <input type="text" id="reg-owner-name" placeholder="Nombre completo" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-email">Email *</label>
+                <input type="email" id="reg-email" placeholder="tu@email.com" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-password">Contraseña *</label>
+                <input type="password" id="reg-password" placeholder="Mínimo 8 caracteres" minlength="8" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-country">País</label>
+                <select id="reg-country">
+                    <option value="Bolivia">🇧🇴 Bolivia</option>
+                    <option value="Perú">🇵🇪 Perú</option>
+                    <option value="Colombia">🇨🇴 Colombia</option>
+                    <option value="Ecuador">🇪🇨 Ecuador</option>
+                    <option value="Argentina">🇦🇷 Argentina</option>
+                    <option value="Chile">🇨🇱 Chile</option>
+                    <option value="Venezuela">🇻🇪 Venezuela</option>
+                    <option value="Brasil">🇧🇷 Brasil</option>
+                    <option value="Paraguay">🇵🇾 Paraguay</option>
+                    <option value="Uruguay">🇺🇾 Uruguay</option>
+                    <option value="México">🇲🇽 México</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-register" id="btn-register">Crear Mi Cuenta</button>
+            <div class="error-msg" id="register-error"></div>
+            <p class="register-note">Al registrarte, aceptas los términos de servicio. Plan Starter incluido en el trial.</p>
+        </form>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 RestoCloud. Sistema POS para Restaurantes.</p>
+    </footer>
+
+    <script>
+        let selectedPlanCode = 'starter';
+
+        function selectPlan(code) {
+            selectedPlanCode = code;
+            document.getElementById('register').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-register');
+            const errEl = document.getElementById('register-error');
+            errEl.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Creando cuenta...';
+
+            const payload = {
+                nombre_restaurante: document.getElementById('reg-business-name').value.trim(),
+                name: document.getElementById('reg-owner-name').value.trim(),
+                email: document.getElementById('reg-email').value.trim(),
+                password: document.getElementById('reg-password').value,
+                pais: document.getElementById('reg-country').value,
+                plan_code: selectedPlanCode
+            };
+
+            try {
+                const res = await fetch('api.php?action=public_register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if (data.subscription_status === 'pending_payment') {
+                        localStorage.setItem('pending_business_name', payload.nombre_restaurante);
+                        localStorage.setItem('pending_email', payload.email);
+                        localStorage.setItem('pending_password', payload.password);
+                        window.location.href = 'pago.html?plan=' + encodeURIComponent(data.plan_code);
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                } else {
+                    errEl.textContent = data.message || 'Error al crear la cuenta.';
+                    errEl.style.display = 'block';
+                }
+            } catch (err) {
+                errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Crear Mi Cuenta';
+            }
+        }
+    </script>
+</body>
+</html>

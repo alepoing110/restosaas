@@ -1,0 +1,15 @@
+{
+  "name": "restocloud",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:syntax": "node -e \"const fs=require('fs'),path=require('path');const {execSync}=require('child_process');function walk(d){let r=[];for(const e of fs.readdirSync(d,{withFileTypes:true})){const fp=path.join(d,e.name);if(e.isDirectory())r.push(...walk(fp));else if(e.name.endsWith('.js'))r.push(fp);}return r;}const files=walk('js');let fail=false;for(const f of files){try{execSync('node --check '+f,{stdio:'pipe'});}catch(e){console.error(f+': '+e.stderr.toString().trim().split('\\n')[0]);fail=true;}}if(fail)process.exit(1);console.log('All '+files.length+' JS files syntax OK');\"",
+    "lint:php": "php -l api.php && php -l db.php && php -l db_migrations.php && php -l migrate.php && php -l health.php && php -l create-admin.php && php -l backend/auth.php && php -l backend/api/auth.php && php -l backend/api/cash.php && php -l backend/api/categories.php && php -l backend/api/dashboard.php && php -l backend/api/discounts.php && php -l backend/api/export.php && php -l backend/api/helpers.php && php -l backend/api/inventory.php && php -l backend/api/orders.php && php -l backend/api/reservations.php && php -l backend/api/saas.php && php -l backend/api/stock.php && php -l backend/api/tables.php && php -l backend/api/ws-broadcast.php"
+  },
+  "devDependencies": {
+    "@formkit/auto-animate": "^0.10.0",
+    "vitest": "^3.2.1"
+  }
+}
