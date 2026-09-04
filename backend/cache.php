@@ -26,7 +26,8 @@ function cacheGetOrSet(string $namespace, string $key, int $ttlSeconds, callable
     $file = _cacheKey($namespace, $key);
     
     if (is_file($file)) {
-        $data = json_decode(file_get_contents($file), true);
+        $raw = @file_get_contents($file);
+        $data = $raw !== false ? json_decode($raw, true) : null;
         if ($data && isset($data['expires_at']) && $data['expires_at'] > time()) {
             return $data['value'];
         }
@@ -40,7 +41,7 @@ function cacheGetOrSet(string $namespace, string $key, int $ttlSeconds, callable
         'created_at' => date('c'),
         'value' => $value
     ];
-    file_put_contents($file, json_encode($cacheData, JSON_UNESCAPED_UNICODE), LOCK_EX);
+    @file_put_contents($file, json_encode($cacheData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
     
     return $value;
 }

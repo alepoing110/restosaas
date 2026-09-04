@@ -33,13 +33,17 @@ chmod -R 775 storage/ 2>/dev/null || true
 mkdir -p storage/logs
 mkdir -p storage/sessions
 mkdir -p storage/rate_limits
+mkdir -p storage/cache
+mkdir -p storage/ws
+mkdir -p storage/outbox
 
 # 3. Ejecutar migraciones
 echo "[3/5] Ejecutando migraciones de base de datos..."
 if command -v php &> /dev/null; then
-    php migrate.php --force 2>&1 || echo "  ⚠ Algunas migraciones fallaron (puede ser normal si ya existen)"
+    php migrate.php 2>&1
 else
-    echo "  ⚠ PHP CLI no disponible. Las migraciones se ejecutarán al primer request."
+    echo "  ✗ PHP CLI no disponible. Ejecuta migrate.php antes de habilitar el sitio."
+    exit 1
 fi
 
 # 4. Verificar sintaxis PHP
@@ -72,9 +76,6 @@ echo ""
 echo "Admin Panel:"
 echo "  https://simplefoot.ifree.page/admin.html"
 echo ""
-echo "Credenciales por defecto:"
-echo "  Email:    owner@legacy.restocloud.local"
-echo "  Password: admin12345"
-echo ""
-echo "⚠ IMPORTANTE: Cambia la contraseña por defecto después del primer login"
+echo "Verifica las credenciales, secretos y configuración de WhatsApp antes de habilitar producción."
+echo "Configura un cron para ejecutar: php whatsapp-worker.php --limit=10"
 echo ""

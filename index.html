@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
     <link rel="stylesheet" href="styles.css">
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <!-- html2pdf.js library (loaded async, only needed for PDF export) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
 </head>
@@ -71,6 +72,11 @@
                     <span>Dashboard</span>
                     <span class="nav-tooltip">Dashboard</span>
                 </button>
+                <button class="nav-item" data-tab="financial" id="nav-financial" data-role="super_admin,owner" data-permission="financial_reports">
+                    <i class="fa-solid fa-sack-dollar"></i>
+                    <span>Finanzas del Dueño</span>
+                    <span class="nav-tooltip">Finanzas del Dueño</span>
+                </button>
                 <button class="nav-item" data-tab="reservations" id="nav-reservations" data-role="super_admin,owner,admin" data-permission="settings">
                     <i class="fa-solid fa-calendar-check"></i>
                     <span>Reservas</span>
@@ -115,6 +121,7 @@
                             <strong id="header-auth-user">Sin sesión</strong>
                             <span id="header-auth-meta">Inicia sesión para continuar</span>
                         </div>
+                        <select id="header-branch-switcher" class="form-select auth-branch-switcher" hidden aria-label="Cambiar sucursal"></select>
                         <button class="btn btn-outline btn-sm" id="btn-auth-logout" type="button">
                             <i class="fa-solid fa-right-from-bracket"></i> Salir
                         </button>
@@ -185,34 +192,51 @@
                                 </button>
                             </div>
                             
-                            <!-- Table Selector and Customer Name -->
+                            <!-- Order Location and Customer -->
                             <div class="customer-info-group">
-                                <div class="form-group" style="margin-bottom: 8px;">
-                                    <label class="label-overline" for="order-table-select">Ubicar Pedido (Mesa / Llevar):</label>
+                                <div class="order-meta-grid">
+                                <div class="form-group order-field" style="margin-bottom: 0;">
+                                    <label class="label-overline" for="order-table-select">Ubicación del pedido</label>
                                     <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
                                         <i class="fa-solid fa-chair input-icon--abs"></i>
                                         <select id="order-table-select" class="form-select" style="padding-left: 40px;">
                                             <option value="Llevar">Llevar</option>
                                         </select>
                                     </div>
+                                    <div id="order-service-summary" class="order-service-summary" aria-live="polite"></div>
                                 </div>
-                                <div class="input-icon-wrapper input-icon-wrapper--compact" id="custom-customer-name-wrapper" style="display: none;">
+                                <div class="form-group order-field" id="custom-customer-name-wrapper" style="margin-bottom: 0;">
+                                    <label class="label-overline" for="order-customer-name">Nombre del cliente</label>
+                                    <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
                                     <i class="fa-solid fa-user input-icon--abs"></i>
-                                    <input type="text" id="order-customer-name" placeholder="Escriba el nombre del cliente..." class="form-input">
+                                    <input type="text" id="order-customer-name" placeholder="Escriba el nombre del cliente..." class="form-input" required maxlength="150" autocomplete="name">
+                                    </div>
+                                    <small class="form-help-text">Cliente obligatorio</small>
+                                </div>
                                 </div>
 
                                 <!-- Payment Method Selector -->
-                                <div class="form-group" style="margin-bottom: 8px;">
+                                <div class="order-payment-row">
+                                <div class="form-group order-payment-field" style="margin-bottom: 0;">
                                     <label class="label-overline" for="order-payment-select">Método de Pago:</label>
                                     <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
-                                        <i class="fa-solid fa-credit-card input-icon--abs"></i>
+                                         <i class="fa-solid fa-money-bill-wave input-icon--abs" id="order-payment-icon" aria-hidden="true"></i>
                                         <select id="order-payment-select" class="form-select" style="padding-left: 40px;">
                                             <option value="efectivo" selected>💵 Efectivo</option>
                                             <option value="qr">📱 QR / Transferencia</option>
-                                            <option value="tarjeta">💳 Tarjeta (Crédito/Débito)</option>
-                                            <option value="mixto">🔀 Mixto (Efectivo + QR)</option>
-                                        </select>
-                                    </div>
+                                             <option value="tarjeta">💳 Tarjeta (Crédito/Débito)</option>
+                                             <option value="mixto">🔀 Mixto (Efectivo + QR)</option>
+                                             <option value="credito">📒 Venta a crédito</option>
+                                         </select>
+                                     </div>
+                                 </div>
+
+                                   <div id="credit-payment-section" class="mixed-payment-section order-credit-field" style="display:none;">
+                                      <label class="label-overline" for="credit-due-date">Fecha de vencimiento:</label>
+                                      <input type="date" id="credit-due-date" class="form-input" required>
+                                      <label class="label-overline" for="credit-override-reason" style="margin-top:8px;">Motivo de excepción (solo si supera límite)</label>
+                                      <input type="text" id="credit-override-reason" class="form-input" maxlength="255" placeholder="Autorización del propietario">
+                                   </div>
                                 </div>
 
                                 <!-- Mixed Payment Inputs (hidden by default) -->
@@ -252,11 +276,44 @@
                                 </div>
                             </div>
 
+                            <!-- Promo Section -->
+                            <div id="cart-promo-section" class="cart-promo-section" style="display:none;">
+                                <div class="cart-promo-header">
+                                    <i class="fa-solid fa-tags"></i>
+                                    <span>Promociones disponibles</span>
+                                    <button class="btn btn-ghost btn-sm" id="btn-toggle-promos" title="Ver/ocultar promociones">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                                <div id="cart-promo-list" class="cart-promo-list" style="display:none;">
+                                </div>
+                                <div class="cart-coupon-row">
+                                    <input type="text" id="cart-coupon-input" class="form-input" placeholder="Código de cupón..." maxlength="100">
+                                    <button class="btn btn-accent btn-sm" id="btn-apply-coupon">
+                                        <i class="fa-solid fa-ticket"></i> Aplicar
+                                    </button>
+                                </div>
+                                <div id="cart-applied-promo" class="cart-applied-promo" style="display:none;">
+                                    <div class="cart-applied-promo-info">
+                                        <i class="fa-solid fa-check-circle" style="color:var(--success);"></i>
+                                        <span id="cart-applied-promo-name"></span>
+                                        <span id="cart-applied-promo-desc" class="text-muted" style="font-size:11px;"></span>
+                                    </div>
+                                    <button class="btn btn-ghost btn-sm" id="btn-remove-promo" title="Quitar descuento">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Cart Footer Summary -->
                             <div class="cart-totals">
                                 <div class="total-row">
                                     <span>Subtotal</span>
                                     <span id="cart-subtotal">Bs 0.00</span>
+                                </div>
+                                <div class="total-row" id="cart-discount-row" style="display:none;">
+                                    <span style="color:var(--success);"><i class="fa-solid fa-tag"></i> <span id="cart-discount-label">Descuento</span></span>
+                                    <span id="cart-discount-amount" style="color:var(--success); font-weight:600;">-Bs 0.00</span>
                                 </div>
                                 <div class="total-row main-total">
                                     <span>Total a Pagar</span>
@@ -321,6 +378,31 @@
 
                 <!-- SCREEN 3: MENU & PLATOS CONFIG (Platos y Menú - CRUDs por Submenús) -->
                 <section class="screen-section" id="screen-menu-config">
+                    <div class="catalog-filter-toolbar" id="catalog-filter-toolbar">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input id="catalog-filter-search" type="search" placeholder="Buscar producto..." oninput="setCatalogFilter('search', this.value)">
+                        </div>
+                        <select class="form-select" onchange="setCatalogFilter('type', this.value)">
+                            <option value="all">Todos los tipos</option>
+                            <option value="segundo">Segundos</option>
+                            <option value="sopa">Sopas</option>
+                            <option value="plato_extra">Platos extras</option>
+                            <option value="extra">Bebidas</option>
+                            <option value="salsa">Salsas</option>
+                        </select>
+                        <select class="form-select" onchange="setCatalogFilter('status', this.value)">
+                            <option value="all">Todos los estados</option>
+                            <option value="active">Activos</option>
+                            <option value="inactive">Inactivos</option>
+                        </select>
+                        <select class="form-select" onchange="setCatalogFilter('stock', this.value)">
+                            <option value="all">Todo el stock</option>
+                            <option value="available">Con stock</option>
+                            <option value="out">Sin stock</option>
+                        </select>
+                        <button class="btn btn-outline btn-sm" type="button" onclick="clearCatalogFilters()"><i class="fa-solid fa-rotate-left"></i> Limpiar</button>
+                    </div>
                     <!-- Sub-navigation tabs -->
                     <div class="menu-config-subnav">
                         <button type="button" class="subnav-btn active" data-subtab="menu-dia">
@@ -340,6 +422,9 @@
                         </button>
                         <button type="button" class="subnav-btn" data-subtab="establecimiento">
                             <i class="fa-solid fa-store"></i> Datos del Local
+                        </button>
+                        <button type="button" class="subnav-btn" data-subtab="descuentos">
+                            <i class="fa-solid fa-tags"></i> Promociones y Ofertas
                         </button>
                     </div>
 
@@ -677,12 +762,80 @@
                                             <option value="México">🇲🇽 México</option>
                                         </select>
                                     </div>
-                                    <div class="form-group"></div>
+                                    <div class="form-group">
+                                        <label for="biz-whatsapp-input"><i class="fa-brands fa-whatsapp"></i> WhatsApp Business:</label>
+                                        <input type="text" id="biz-whatsapp-input" class="form-input" placeholder="Ej: +59171234567">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="biz-whatsapp-phone-id-input"><i class="fa-solid fa-id-card"></i> WhatsApp Phone ID:</label>
+                                    <input type="text" id="biz-whatsapp-phone-id-input" class="form-input" placeholder="Ej: 106540352242922">
                                 </div>
                                 <button type="submit" class="btn btn-primary w-full">
                                     <i class="fa-solid fa-save"></i> Guardar Establecimiento
                                 </button>
                             </form>
+                        </div>
+                    </div>
+
+                    <!-- Subtab: Promociones y Ofertas -->
+                    <div class="menu-config-panel" id="subtab-descuentos" style="display:none;">
+                        <div class="config-card-panel" style="margin-bottom:16px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                                <div>
+                                    <h3 class="panel-title"><i class="fa-solid fa-tags"></i> Promociones y Ofertas</h3>
+                                    <p class="panel-subtitle">Crea y gestiona promociones automáticas, cupones y ofertas especiales.</p>
+                                </div>
+                                <button class="btn btn-primary btn-sm" id="btn-create-promo-plan">
+                                    <i class="fa-solid fa-plus"></i> Nueva Promoción
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:16px;">
+                            <div class="widget-card" style="padding:14px;">
+                                <div class="widget-icon primary-color"><i class="fa-solid fa-tags"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size:11px;">Promociones activas</span>
+                                    <h4 class="widget-value" id="promo-kpi-active" style="font-size:18px;">0</h4>
+                                </div>
+                            </div>
+                            <div class="widget-card" style="padding:14px;">
+                                <div class="widget-icon accent-color"><i class="fa-solid fa-ticket"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size:11px;">Cupones</span>
+                                    <h4 class="widget-value" id="promo-kpi-coupons" style="font-size:18px;">0</h4>
+                                </div>
+                            </div>
+                            <div class="widget-card" style="padding:14px;">
+                                <div class="widget-icon success-color"><i class="fa-solid fa-percent"></i></div>
+                                <div class="widget-data">
+                                    <span class="widget-title" style="font-size:11px;">Automáticos</span>
+                                    <h4 class="widget-value" id="promo-kpi-auto" style="font-size:18px;">0</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="seconds-table-container">
+                            <table class="seconds-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Tipo</th>
+                                        <th>Valor</th>
+                                        <th>Canales</th>
+                                        <th>Vigencia</th>
+                                        <th>Estado</th>
+                                        <th style="width:100px; text-align:right;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="promo-plans-body">
+                                </tbody>
+                            </table>
+                            <div class="empty-table-state" id="promo-empty-plans">
+                                <i class="fa-solid fa-tags icon--xl"></i>
+                                <p>No hay promociones creadas aún.</p>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -861,6 +1014,9 @@
                         </button>
                         <button class="reports-subtab" data-report-tab="historico" type="button" role="tab" aria-selected="false">
                             <i class="fa-solid fa-folder-open"></i> Historial
+                        </button>
+                        <button class="reports-subtab" data-report-tab="devoluciones" type="button" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-rotate-left"></i> Devoluciones
                         </button>
                     </div>
 
@@ -1054,7 +1210,8 @@
                                     <input type="text" id="sales-filter-text" class="form-input" placeholder="Buscar por cliente o producto..." style="flex:1; min-width:180px; padding:6px 10px; font-size:12px;" oninput="applySalesHistoryFilters()">
                                     <select id="sales-filter-status" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applySalesHistoryFilters()">
                                         <option value="">Todos los estados</option>
-                                        <option value="completado">Cobrado</option>
+                                        <option value="cobrado">Cobrado</option>
+                                        <option value="pendiente_pagado">Cobrado - En preparación</option>
                                         <option value="anulado">Anulado</option>
                                     </select>
                                     <select id="sales-filter-payment" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applySalesHistoryFilters()">
@@ -1198,6 +1355,185 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Devoluciones Panel -->
+                    <div class="sales-history-panel sales-history-panel--padded" data-report-panel="devoluciones" style="margin-top: 24px;">
+                        <div class="panel-header-actions panel-header-actions--spaced">
+                            <div>
+                                <h3 class="panel-title"><i class="fa-solid fa-rotate-left"></i> Historial de Devoluciones</h3>
+                                <p class="panel-subtitle" style="margin-bottom: 0;">Registro completo de devoluciones, anulaciones y reembolsos con motivo y usuario responsable.</p>
+                            </div>
+                            <div class="btn-group-wrap">
+                                <button class="btn btn-accent btn-sm" id="btn-export-refunds-csv">
+                                    <i class="fa-solid fa-file-excel"></i> Exportar CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="refunds-filters" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; padding:10px 14px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+                            <input type="text" id="refunds-filter-text" class="form-input" placeholder="Buscar por cliente, producto o motivo..." style="flex:1; min-width:180px; padding:6px 10px; font-size:12px;" oninput="applyRefundsFilters()">
+                            <select id="refunds-filter-scope" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applyRefundsFilters()">
+                                <option value="">Todos los tipos</option>
+                                <option value="producto_parcial">Producto parcial</option>
+                                <option value="producto_total">Producto total</option>
+                                <option value="pedido_completo">Pedido completo</option>
+                                <option value="venta_completa">Venta completa</option>
+                            </select>
+                            <select id="refunds-filter-method" class="form-input" style="width:auto; padding:6px 8px; font-size:12px;" onchange="applyRefundsFilters()">
+                                <option value="">Todos los métodos</option>
+                                <option value="efectivo">Efectivo</option>
+                                <option value="qr">QR</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="clearRefundsFilters()" title="Limpiar filtros">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div id="refunds-kpi-bar" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+                            <span class="badge-status" style="background:rgba(239,68,68,0.12);color:var(--danger);font-weight:600;">
+                                <i class="fa-solid fa-rotate-left"></i> <span id="refunds-kpi-total">0</span> devoluciones
+                            </span>
+                            <span class="badge-status" style="background:rgba(239,68,68,0.12);color:var(--danger);font-weight:600;">
+                                <i class="fa-solid fa-coins"></i> Total devuelto: <span id="refunds-kpi-amount">Bs 0.00</span>
+                            </span>
+                            <span class="badge-status" style="background:rgba(16,185,129,0.12);color:var(--success);font-weight:600;">
+                                <i class="fa-solid fa-money-bill-wave"></i> Efectivo: <span id="refunds-kpi-cash">Bs 0.00</span>
+                            </span>
+                            <span class="badge-status" style="background:rgba(245,158,11,0.12);color:var(--warning);font-weight:600;">
+                                <i class="fa-solid fa-credit-card"></i> Digitales: <span id="refunds-kpi-digital">Bs 0.00</span>
+                            </span>
+                        </div>
+
+                        <div class="refund-report-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:16px;">
+                            <div class="config-card-panel" style="margin-bottom:0;">
+                                <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-chart-pie"></i> Por tipo de devolución</h4>
+                                <div id="refunds-by-scope" class="financial-breakdown-list"></div>
+                                <div id="refunds-empty-scope" class="empty-table-state"><p>No hay datos.</p></div>
+                            </div>
+                            <div class="config-card-panel" style="margin-bottom:0;">
+                                <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-money-bill-wave"></i> Por método de reembolso</h4>
+                                <div id="refunds-by-method" class="financial-breakdown-list"></div>
+                                <div id="refunds-empty-method" class="empty-table-state"><p>No hay datos.</p></div>
+                            </div>
+                            <div class="config-card-panel" style="margin-bottom:0;">
+                                <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-arrow-rotate-left"></i> Productos más devueltos</h4>
+                                <div id="refunds-top-products" class="financial-breakdown-list"></div>
+                                <div id="refunds-empty-products" class="empty-table-state"><p>No hay datos.</p></div>
+                            </div>
+                            <div class="config-card-panel" style="margin-bottom:0;">
+                                <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-comment-dots"></i> Motivos más frecuentes</h4>
+                                <div id="refunds-top-reasons" class="financial-breakdown-list"></div>
+                                <div id="refunds-empty-reasons" class="empty-table-state"><p>No hay datos.</p></div>
+                            </div>
+                        </div>
+
+                        <div class="config-card-panel" style="margin-bottom:16px;">
+                            <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-chart-line"></i> Devoluciones por día</h4>
+                            <div id="refunds-daily-table" class="financial-daily-list"></div>
+                            <div id="refunds-empty-daily" class="empty-table-state"><p>No hay datos diarios.</p></div>
+                        </div>
+
+                        <div class="config-card-panel" style="margin-bottom:16px;">
+                            <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-code-branch"></i> Por sucursal</h4>
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th style="text-align:right">Devoluciones</th>
+                                            <th style="text-align:right">Total devuelto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="refunds-by-branch-body"></tbody>
+                                </table>
+                                <div id="refunds-empty-branch" class="empty-table-state"><p>No hay datos por sucursal.</p></div>
+                            </div>
+                        </div>
+
+                        <div class="config-card-panel">
+                            <h4 class="panel-title" style="font-size:14px;"><i class="fa-solid fa-list"></i> Detalle de devoluciones</h4>
+                            <div class="seconds-table-container">
+                                <table class="seconds-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha/Hora</th>
+                                            <th>Venta</th>
+                                            <th>Cliente</th>
+                                            <th>Productos</th>
+                                            <th>Tipo</th>
+                                            <th style="text-align:right">Monto</th>
+                                            <th>Método</th>
+                                            <th>Motivo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="refunds-detail-body"></tbody>
+                                </table>
+                                <div id="refunds-empty-detail" class="empty-table-state">
+                                    <i class="fa-solid fa-rotate-left icon--xl"></i>
+                                    <p>No hay devoluciones registradas en este período.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN: CUSTOMERS CRM -->
+                <section class="screen-section" id="screen-customers">
+                    <div class="config-card-panel"><div class="panel-header-actions"><div><h3 class="panel-title"><i class="fa-solid fa-address-book"></i> Clientes CRM</h3><p class="panel-subtitle">Ficha 360°, historial, crédito y seguimiento.</p></div><button class="btn btn-primary btn-sm" onclick="openCustomerForm()"><i class="fa-solid fa-user-plus"></i> Nuevo cliente</button></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div class="search-input-wrapper" style="flex:1;min-width:240px;max-width:420px"><i class="fa-solid fa-search"></i><input id="customers-search" class="form-input" placeholder="Buscar por nombre, teléfono o WhatsApp" oninput="searchCustomers()"></div><button class="btn btn-sm btn-outline" onclick="filterCustomerSegment('all')">Todos</button><button class="btn btn-sm btn-outline" onclick="filterCustomerSegment('recurrentes')">Recurrentes</button><button class="btn btn-sm btn-outline" onclick="filterCustomerSegment('inactivos')">Inactivos</button><button class="btn btn-sm btn-outline" onclick="filterCustomerSegment('deudores')">Con deuda</button></div><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Cliente</th><th>Contacto</th><th>Compras</th><th style="text-align:right">Gasto acumulado</th><th style="text-align:right">Saldo pendiente</th><th>Última compra</th><th></th></tr></thead><tbody id="customers-table-body"></tbody></table><div id="customers-empty" class="empty-table-state"><i class="fa-solid fa-address-book"></i><p>No hay clientes registrados.</p></div></div></div>
+                    <div id="customer-profile" class="config-card-panel" style="display:none;margin-top:16px"></div>
+                    <div class="financial-grid" style="margin-top:16px"><div class="config-card-panel"><div class="panel-header-actions"><div><h3 class="panel-title"><i class="fa-brands fa-whatsapp"></i> Bandeja de atención</h3><p class="panel-subtitle">Toma una conversación para detener el bot y atender personalmente.</p></div><button class="btn btn-sm btn-outline" onclick="refreshCrmConversations()"><i class="fa-solid fa-rotate"></i></button></div><div id="crm-conversations-list"></div></div><div class="config-card-panel"><div id="crm-conversation-messages" class="financial-breakdown-list"></div><div id="crm-human-reply" style="display:none;margin-top:12px"><textarea id="crm-human-reply-content" class="form-input" rows="3" placeholder="Responder como atención humana"></textarea><button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="sendCrmHumanReply()"><i class="fa-solid fa-paper-plane"></i> Enviar respuesta</button></div></div></div>
+                </section>
+                <div id="modal-customer-form" class="modal-backdrop" role="dialog" aria-modal="true"><div class="modal-content"><div class="modal-header"><h3 id="customer-form-title">Cliente</h3><button type="button" class="btn-close-modal" onclick="closeCustomerForm()"><i class="fa-solid fa-xmark"></i></button></div><form id="form-customer" onsubmit="saveCustomer(event)"><div class="modal-body config-form"><input type="hidden" id="customer-form-id"><div class="form-group"><label>Nombre *</label><input id="customer-form-name" class="form-input" maxlength="150" required></div><div class="form-group"><label>Teléfono</label><input id="customer-form-phone" class="form-input" maxlength="40"></div><div class="form-group"><label>WhatsApp</label><input id="customer-form-whatsapp" class="form-input" maxlength="30"></div><div class="form-group"><label>Correo</label><input id="customer-form-email" class="form-input" type="email"></div><div class="form-group"><label>Dirección</label><input id="customer-form-address" class="form-input"></div><div class="form-group"><label>Límite de crédito</label><input id="customer-form-credit" class="form-input" type="number" min="0" step="0.01"></div><div class="form-group"><label>Notas</label><textarea id="customer-form-notes" class="form-input"></textarea></div><label><input id="customer-form-marketing" type="checkbox"> Autoriza promociones</label></div><div class="modal-footer"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-outline" type="button" onclick="closeCustomerForm()">Cancelar</button></div></form></div></div>
+
+                <!-- SCREEN 6: DASHBOARD -->
+                <!-- SCREEN: OWNER FINANCIALS -->
+                <section class="screen-section" id="screen-financial">
+                    <div class="financial-toolbar">
+                        <div class="financial-range-buttons">
+                            <button class="btn btn-sm btn-outline active" data-financial-range="7d">7 días</button>
+                            <button class="btn btn-sm btn-outline" data-financial-range="30d">30 días</button>
+                            <button class="btn btn-sm btn-outline" data-financial-range="month">Mes actual</button>
+                            <button class="btn btn-sm btn-outline" data-financial-range="custom">Personalizado</button>
+                        </div>
+                        <div id="financial-custom-dates" style="display:none;" class="financial-custom-dates">
+                            <label class="sr-only" for="financial-start-date">Fecha inicio</label>
+                            <input type="date" id="financial-start-date" class="form-input">
+                            <span>a</span>
+                            <label class="sr-only" for="financial-end-date">Fecha fin</label>
+                            <input type="date" id="financial-end-date" class="form-input">
+                            <button class="btn btn-sm btn-primary" id="btn-apply-financial-range">Aplicar</button>
+                        </div>
+                        <select id="financial-branch-filter" class="form-select" aria-label="Sucursal financiera"></select>
+                        <button class="btn btn-sm btn-outline" id="btn-print-financial"><i class="fa-solid fa-print"></i> Imprimir / PDF</button>
+                        <button class="btn btn-sm btn-outline" id="btn-export-financial-csv"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                    </div>
+                    <div class="financial-heading">
+                        <div><span class="eyebrow-label">CONTROL DEL DUEÑO</span><h3>Resultado operativo</h3><p id="financial-period-label">Cargando período...</p><button type="button" class="btn btn-sm btn-outline" id="financial-retry" style="display:none;margin-top:8px;">Reintentar carga</button></div>
+                        <button class="btn btn-primary" id="btn-open-expense-form"><i class="fa-solid fa-plus"></i> Registrar gasto</button>
+                    </div>
+                    <div class="financial-kpi-grid" role="group" aria-label="Resumen financiero">
+                        <div class="financial-kpi financial-kpi--sales"><span>Ventas netas</span><strong id="financial-net-sales">Bs 0.00</strong><small id="financial-sales-count">0 ventas</small></div>
+                        <div class="financial-kpi financial-kpi--expense"><span>Gastos totales</span><strong id="financial-total-expenses">Bs 0.00</strong><small id="financial-expense-count">Caja + registrados</small></div>
+                        <div class="financial-kpi financial-kpi--profit"><span>Ganancia operativa</span><strong id="financial-operating-profit">Bs 0.00</strong><small>Ventas netas - gastos</small></div>
+                        <div class="financial-kpi"><span>Ticket promedio</span><strong id="financial-average-ticket">Bs 0.00</strong><small id="financial-annulled">0 anulados</small></div>
+                    </div>
+                     <div class="config-card-panel financial-branch-comparison"><h3 class="panel-title"><i class="fa-solid fa-code-branch"></i> Comparativo por sucursal</h3><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Sucursal</th><th style="text-align:right">Ventas</th><th style="text-align:right">Gastos</th><th style="text-align:right">Utilidad</th><th style="text-align:right">Ticket promedio</th><th style="text-align:right">Anulados</th></tr></thead><tbody id="financial-branch-comparison-body"></tbody></table><div id="financial-empty-branch-comparison" class="empty-table-state"><i class="fa-solid fa-code-branch"></i><p>No hay datos comparativos para este período.</p></div></div></div>
+                      <div class="config-card-panel financial-cash-flow"><h3 class="panel-title"><i class="fa-solid fa-money-bill-transfer"></i> Flujo de caja</h3><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Fecha</th><th style="text-align:right">Apertura</th><th style="text-align:right">Ventas efectivo</th><th style="text-align:right">Egresos efectivo</th><th style="text-align:right">Esperado</th><th style="text-align:right">Contado</th><th style="text-align:right">Diferencia</th></tr></thead><tbody id="financial-cash-flow-body"></tbody></table><div id="financial-empty-cash-flow" class="empty-table-state"><i class="fa-solid fa-money-bill-transfer"></i><p>No hay movimientos de caja para este período.</p></div></div></div>
+                      <div class="config-card-panel financial-receivables"><div class="panel-header-actions"><div><h3 class="panel-title"><i class="fa-solid fa-file-invoice-dollar"></i> Cuentas por cobrar</h3><p class="panel-subtitle" id="financial-receivables-summary">Cargando saldos pendientes...</p></div></div><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Cliente</th><th>Pedido</th><th>Vencimiento</th><th>Estado</th><th style="text-align:right">Saldo</th><th style="width:100px"></th></tr></thead><tbody id="financial-receivables-body"></tbody></table><div id="financial-empty-receivables" class="empty-table-state"><i class="fa-solid fa-file-invoice-dollar"></i><p>No hay cuentas por cobrar.</p></div></div></div>
+                      <div class="config-card-panel financial-control-report"><div class="panel-header-actions"><div><h3 class="panel-title"><i class="fa-solid fa-shield-halved"></i> Control de descuentos y anulaciones</h3><p class="panel-subtitle" id="financial-control-summary">Cargando controles...</p></div></div><div class="financial-grid"><div><h4 class="panel-title">Descuentos aplicados</h4><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Descuento</th><th style="text-align:right">Monto</th></tr></thead><tbody id="financial-discounts-body"></tbody></table><div id="financial-empty-discounts" class="empty-table-state"><p>No hay descuentos aplicados.</p></div></div></div><div><h4 class="panel-title">Anulaciones</h4><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th style="text-align:right">Monto</th></tr></thead><tbody id="financial-annulled-body"></tbody></table><div id="financial-empty-annulled" class="empty-table-state"><p>No hay anulaciones.</p></div></div></div></div></div>
+                     <div class="financial-grid">
+                        <div class="config-card-panel"><h3 class="panel-title"><i class="fa-solid fa-chart-line"></i> Ventas y gastos por día</h3><div id="financial-daily-table" class="financial-daily-list"></div></div>
+                        <div class="config-card-panel"><h3 class="panel-title"><i class="fa-solid fa-layer-group"></i> Gastos por categoría</h3><div id="financial-category-list" class="financial-breakdown-list"></div><h3 class="panel-title financial-section-title"><i class="fa-solid fa-credit-card"></i> Gastos por pago</h3><div id="financial-payment-list" class="financial-breakdown-list"></div></div>
+                    </div>
+                    <div class="financial-grid">
+                        <div class="config-card-panel"><h3 class="panel-title"><i class="fa-solid fa-credit-card"></i> Ventas por método de pago</h3><div id="financial-sales-payment-list" class="financial-breakdown-list"></div></div>
+                        <div class="config-card-panel"><h3 class="panel-title"><i class="fa-solid fa-trophy"></i> Productos más vendidos</h3><div id="financial-top-products" class="financial-breakdown-list"></div></div>
+                    </div>
+                    <div class="config-card-panel financial-expense-card"><div class="panel-header-actions"><div><h3 class="panel-title"><i class="fa-solid fa-receipt"></i> Gastos registrados</h3><p class="panel-subtitle">Incluye egresos de caja heredados y gastos financieros categorizados.</p></div></div><div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Pago</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody id="financial-expenses-body"></tbody></table><div id="financial-empty-expenses" class="empty-table-state"><i class="fa-solid fa-receipt"></i><p>No hay gastos en este período.</p></div></div></div>
+                     <div id="modal-financial-expense" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="financial-expense-title"><div class="modal-content financial-expense-modal"><div class="modal-header"><h3 id="financial-expense-title"><i class="fa-solid fa-receipt"></i> Registrar gasto</h3><button type="button" class="btn-close-modal" id="btn-close-expense"><i class="fa-solid fa-xmark"></i></button></div><div class="modal-body"><form id="form-financial-expense" class="financial-form-grid"><label>Fecha<input type="date" id="expense-date" class="form-input" required></label><label>Descripción<input type="text" id="expense-description" class="form-input" maxlength="255" required></label><label>Categoría<select id="expense-category" class="form-select"><option value="compras">Compras</option><option value="sueldos">Sueldos</option><option value="alquiler">Alquiler</option><option value="servicios">Servicios</option><option value="transporte">Transporte</option><option value="impuestos">Impuestos</option><option value="marketing">Marketing</option><option value="mantenimiento">Mantenimiento</option><option value="otros">Otros</option></select></label><label>Monto (Bs)<input type="number" id="expense-amount" class="form-input" min="0.01" step="0.01" required></label><label>Método de pago<select id="expense-payment" class="form-select"><option value="efectivo">Efectivo</option><option value="qr">QR</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="otro">Otro</option></select></label><label>Sucursal<select id="expense-branch" class="form-select" required></select></label><label>Referencia (opcional)<input type="text" id="expense-reference" class="form-input" maxlength="120"></label><div id="expense-sueldo-fields" style="display:none;grid-column:1/-1;"><label>Nombre del empleado<input type="text" id="expense-employee-name" class="form-input" maxlength="150" placeholder="Nombre completo del empleado"></label><label>Periodo pagado<input type="text" id="expense-payment-period" class="form-input" maxlength="50" placeholder="Ej: Agosto 2026"></label></div><div class="financial-form-actions"><button type="button" class="btn btn-outline" id="btn-cancel-expense">Cancelar</button><button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Guardar gasto</button></div></form></div></div></div>
                 </section>
 
                 <!-- SCREEN 6: DASHBOARD -->
@@ -1378,6 +1714,10 @@
                                                     <input type="tel" id="reservation-form-phone" class="form-input" placeholder="Ej: 71234567">
                                                 </div>
                                                 <div class="form-group">
+                                                    <label for="reservation-form-customer-id">Ficha CRM</label>
+                                                    <select id="reservation-form-customer-id" class="form-select"><option value="">Sin vincular</option></select>
+                                                </div>
+                                                <div class="form-group">
                                                     <label for="reservation-form-party">Personas *</label>
                                                     <input type="number" id="reservation-form-party" class="form-input" min="1" max="50" value="1" required>
                                                 </div>
@@ -1473,14 +1813,24 @@
                                 <button class="reservation-subtab active" onclick="filterReservations('activas')" id="res-subtab-activas">
                                     <i class="fa-solid fa-clock"></i> Activas
                                 </button>
+                                <button class="reservation-subtab" onclick="filterReservations('bot')" id="res-subtab-bot">
+                                    <i class="fa-brands fa-whatsapp"></i> Bot por verificar
+                                </button>
                                 <button class="reservation-subtab" onclick="filterReservations('entregadas')" id="res-subtab-entregadas">
                                     <i class="fa-solid fa-check-double"></i> Entregadas
+                                </button>
+                            </div>
+                            <div id="bot-reservations-batch-actions" style="display:none; margin:0 0 12px; justify-content:flex-end; gap:8px; align-items:center;">
+                                <span id="bot-reservations-selection-count" class="text-muted" style="font-size:12px;"></span>
+                                <button class="btn btn-sm btn-primary" onclick="verifyAndPrintBotReservations()">
+                                    <i class="fa-solid fa-print"></i> Verificar e imprimir seleccionadas
                                 </button>
                             </div>
                             <div class="config-card-panel">
                                 <table class="seconds-table">
                                     <thead>
                                         <tr>
+                                            <th id="bot-reservations-select-header" style="display:none; width:38px; text-align:center;"><input type="checkbox" onchange="toggleAllBotReservations(this.checked)" title="Seleccionar todas"></th>
                                             <th>Cliente</th>
                                             <th style="width:70px; text-align:center;">Hora</th>
                                             <th style="width:65px; text-align:center;">Pers.</th>
@@ -1489,6 +1839,7 @@
                                             <th>Pedido</th>
                                             <th style="width:85px; text-align:right;">Total</th>
                                             <th style="width:85px; text-align:center;">Estado</th>
+                                            <th id="bot-reservations-verification-header" style="display:none; width:105px; text-align:center;">Verificación</th>
                                             <th style="width:180px; text-align:center;">Acciones</th>
                                         </tr>
                                     </thead>
@@ -1597,6 +1948,9 @@
                         <button class="saas-subtab" data-saas-tab="plans" onclick="switchSaasSubtab('plans')" type="button">
                             <i class="fa-solid fa-layer-group"></i> Planes
                         </button>
+                        <button class="saas-subtab" data-saas-tab="chatbot" onclick="switchSaasSubtab('chatbot')" type="button">
+                            <i class="fa-solid fa-comments"></i> Chatbot
+                        </button>
                     </div>
 
                     <!-- Sub-tab: Resumen -->
@@ -1628,8 +1982,12 @@
                     <!-- Sub-tab: Pagos Pendientes -->
                     <div class="saas-subtab-panel" id="saas-panel-pending-payments">
                         <div class="content-card">
-                            <div class="content-card-header">
+                            <div class="content-card-header saas-list-header">
                                 <h3><i class="fa-solid fa-clock"></i> Pagos Pendientes de Verificación</h3>
+                                <div class="saas-list-filters">
+                                    <input class="form-input" type="search" placeholder="Buscar tenant o plan" oninput="setSaasListFilter('payments', 'search', this.value)">
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="clearSaasListFilters('payments')">Limpiar</button>
+                                </div>
                             </div>
                             <div id="saas-pending-payments">
                                 <p class="text-muted" style="text-align:center; padding:20px;">No hay pagos pendientes.</p>
@@ -1772,8 +2130,13 @@
                         </div>
 
                         <div class="content-card">
-                            <div class="content-card-header">
+                            <div class="content-card-header saas-list-header">
                                 <h3><i class="fa-solid fa-code-branch"></i> Sucursales Registradas</h3>
+                                <div class="saas-list-filters">
+                                    <input class="form-input" type="search" placeholder="Buscar sucursal o tenant" oninput="setSaasListFilter('branches', 'search', this.value)">
+                                    <select class="form-select" onchange="setSaasListFilter('branches', 'status', this.value)"><option value="all">Todos</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="clearSaasListFilters('branches')">Limpiar</button>
+                                </div>
                             </div>
                             <div class="table-responsive">
                                 <table class="crud-table">
@@ -1854,8 +2217,14 @@
                         </div>
 
                         <div class="content-card">
-                            <div class="content-card-header">
+                            <div class="content-card-header saas-list-header">
                                 <h3><i class="fa-solid fa-users"></i> Usuarios SaaS</h3>
+                                <div class="saas-list-filters">
+                                    <input class="form-input" type="search" placeholder="Buscar usuario, email o tenant" oninput="setSaasListFilter('users', 'search', this.value)">
+                                    <select class="form-select" onchange="setSaasListFilter('users', 'role', this.value)"><option value="all">Todos los roles</option><option value="owner">Owner</option><option value="admin">Admin</option><option value="cajero">Cajero</option></select>
+                                    <select class="form-select" onchange="setSaasListFilter('users', 'status', this.value)"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="clearSaasListFilters('users')">Limpiar</button>
+                                </div>
                             </div>
                             <div class="table-responsive">
                                 <table class="crud-table">
@@ -2059,6 +2428,54 @@
                             </form>
                         </div>
                         <div id="saas-plans-table-container"></div>
+                    </div>
+
+                    <div class="saas-subtab-panel" id="saas-panel-chatbot">
+                        <div class="content-card">
+                            <div class="content-card-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                                <h3><i class="fa-solid fa-comments"></i> Conversaciones del Chatbot</h3>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="reloadChatbotConversations()">
+                                    <i class="fa-solid fa-rotate"></i> Recargar
+                                </button>
+                            </div>
+                            <div style="display:grid; grid-template-columns: minmax(280px, 360px) 1fr; gap:16px; align-items:start;">
+                                <div>
+                                    <div id="saas-chatbot-conversations-list"></div>
+                                </div>
+                                <div>
+                                    <div id="saas-chatbot-messages-panel"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="content-card" style="margin-top:16px; border:2px dashed var(--brand-primary, #6c63ff);">
+                            <div class="content-card-header">
+                                <h3><i class="fa-solid fa-flask"></i> Simulador Local</h3>
+                            </div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                                <div>
+                                    <label class="form-label" for="chatbot-sim-phone">Teléfono simulado</label>
+                                    <input type="text" class="form-input" id="chatbot-sim-phone" placeholder="+59170001234" value="">
+                                </div>
+                                <div>
+                                    <label class="form-label" for="chatbot-sim-name">Nombre del cliente</label>
+                                    <input type="text" class="form-input" id="chatbot-sim-name" placeholder="Cliente Simulado" value="">
+                                </div>
+                            </div>
+                            <div id="chatbot-sim-messages" style="max-height:400px; overflow-y:auto; margin-bottom:12px;"></div>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" class="form-input" id="chatbot-sim-input" placeholder="Escribe un mensaje para simular..." style="flex:1;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendSimulatedMessage();}">
+                                <button type="button" class="btn btn-primary" id="chatbot-sim-send" onclick="sendSimulatedMessage()">
+                                    <i class="fa-solid fa-paper-plane"></i> Enviar
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="clearSimulatorChat()" title="Limpiar chat y empezar de cero">
+                                    <i class="fa-solid fa-trash"></i> Limpiar
+                                </button>
+                            </div>
+                            <div class="saas-muted-line" style="margin-top:8px; font-size:12px;">
+                                <i class="fa-solid fa-info-circle"></i> Simula mensajes de WhatsApp sin necesidad del webhook real.
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -2469,6 +2886,221 @@
         </div>
     </div>
 
+    <!-- Modal: Promo Plan Create/Edit -->
+    <div class="modal-backdrop" id="modal-promo-plan" role="dialog" aria-modal="true" aria-labelledby="modal-promo-plan-title">
+        <div class="modal-content modal-content--lg">
+            <div class="modal-header modal-header--default">
+                <h3 class="modal-title" id="modal-promo-plan-title"><i class="fa-solid fa-tags"></i> Nueva Promoción</h3>
+                <button class="btn btn-outline btn-sm" onclick="closePromoPlanModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body modal-body--scrollable">
+                <form id="form-promo-plan">
+                    <input type="hidden" id="promo-plan-id" value="">
+
+                    <!-- Sección: Información básica -->
+                    <div class="form-group">
+                        <label class="label-overline" for="promo-plan-name">Nombre de la promoción</label>
+                        <input type="text" id="promo-plan-name" class="form-input" maxlength="255" required placeholder="Ej: 2x1 en almuerzos, Happy Hour...">
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-type">Tipo de promoción</label>
+                            <select id="promo-plan-type" class="form-select" required>
+                                <option value="percentage">Porcentaje (%)</option>
+                                <option value="fixed">Monto fijo (Bs)</option>
+                                <option value="buy_x_get_y">Compra X lleva Y</option>
+                                <option value="menu_price">Precio de menú</option>
+                            </select>
+                        </div>
+
+                        <!-- percentage -->
+                        <div class="form-group" id="promo-field-percentage">
+                            <label class="label-overline" for="promo-plan-percentage">Porcentaje de descuento</label>
+                            <input type="number" id="promo-plan-percentage" class="form-input" min="1" max="100" step="0.01" placeholder="Ej: 10 = 10% off">
+                        </div>
+
+                        <!-- fixed -->
+                        <div class="form-group" id="promo-field-fixed" style="display:none;">
+                            <label class="label-overline" for="promo-plan-fixed-amount">Monto de descuento (Bs)</label>
+                            <input type="number" id="promo-plan-fixed-amount" class="form-input" min="0.01" step="0.01" placeholder="Ej: 5 = descuento de Bs 5">
+                        </div>
+
+                        <!-- buy_x_get_y -->
+                        <div class="form-group" id="promo-field-buyx-min" style="display:none;">
+                            <label class="label-overline" for="promo-plan-min-qty">Compra mínimo (cant.)</label>
+                            <input type="number" id="promo-plan-min-qty" class="form-input" min="1" step="1" value="2" placeholder="Ej: 2">
+                        </div>
+                        <div class="form-group" id="promo-field-buyx-free" style="display:none;">
+                            <label class="label-overline" for="promo-plan-free-qty">Llévate gratis (cant.)</label>
+                            <input type="number" id="promo-plan-free-qty" class="form-input" min="1" step="1" value="1" placeholder="Ej: 1">
+                        </div>
+
+                        <!-- menu_price -->
+                        <div class="form-group" id="promo-field-menu-price" style="display:none;">
+                            <label class="label-overline" for="promo-plan-menu-price">Precio promocional (Bs)</label>
+                            <input type="number" id="promo-plan-menu-price" class="form-input" min="0" step="0.01" placeholder="Ej: 12.00">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px;">
+                            <div>
+                                <label class="label-overline" style="margin-bottom:2px;">Productos de la promoción</label>
+                                <p class="form-help-text" style="margin:0;">Selecciona los productos o familias que deben cumplir la oferta.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-add-promo-group"><i class="fa-solid fa-plus"></i> Agregar grupo</button>
+                        </div>
+                        <div id="promo-groups-container"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="label-overline" for="promo-plan-description">Descripción</label>
+                        <textarea id="promo-plan-description" class="form-input" rows="2" maxlength="500" placeholder="Describe la promoción para los clientes y el equipo..."></textarea>
+                    </div>
+
+                    <!-- Sección: Canales aplicables -->
+                    <div class="form-group">
+                        <label class="label-overline">Canales aplicables</label>
+                        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                            <label style="font-weight:400; font-size:13px;"><input type="checkbox" id="promo-ch-pos" value="pos" checked> POS</label>
+                            <label style="font-weight:400; font-size:13px;"><input type="checkbox" id="promo-ch-mesa" value="mesa" checked> Mesa</label>
+                            <label style="font-weight:400; font-size:13px;"><input type="checkbox" id="promo-ch-llevar" value="llevar" checked> Llevar</label>
+                            <label style="font-weight:400; font-size:13px;"><input type="checkbox" id="promo-ch-delivery" value="delivery" checked> Delivery</label>
+                            <label style="font-weight:400; font-size:13px;"><input type="checkbox" id="promo-ch-reserva" value="reserva" checked> Reserva</label>
+                        </div>
+                    </div>
+
+                    <!-- Sección: Vigencia -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-start-date">Fecha de inicio</label>
+                            <input type="date" id="promo-plan-start-date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-end-date">Fecha de fin</label>
+                            <input type="date" id="promo-plan-end-date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-start-hour">Hora de inicio</label>
+                            <input type="time" id="promo-plan-start-hour" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-end-hour">Hora de fin</label>
+                            <input type="time" id="promo-plan-end-hour" class="form-input">
+                        </div>
+                    </div>
+
+                    <!-- Sección: Cupón y límites -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-coupon">Código de cupón</label>
+                            <input type="text" id="promo-plan-coupon" class="form-input" maxlength="100" placeholder="Dejar vacío si no es cupón">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-priority">Prioridad (mayor = primero)</label>
+                            <input type="number" id="promo-plan-priority" class="form-input" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-min-subtotal">Subtotal mínimo (Bs)</label>
+                            <input type="number" id="promo-plan-min-subtotal" class="form-input" min="0" step="0.01" placeholder="0 = sin mínimo">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-max-global">Usos máximos globales</label>
+                            <input type="number" id="promo-plan-max-global" class="form-input" min="0" placeholder="0 = ilimitado">
+                        </div>
+                        <div class="form-group">
+                            <label class="label-overline" for="promo-plan-max-customer">Usos máximos por cliente</label>
+                            <input type="number" id="promo-plan-max-customer" class="form-input" min="0" placeholder="0 = ilimitado">
+                        </div>
+                    </div>
+
+                    <!-- Sección: Comportamiento avanzado -->
+                    <div class="form-group">
+                        <label class="label-overline">Comportamiento</label>
+                        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                            <label style="font-weight:400; font-size:13px; display:flex; align-items:center; gap:6px;"><input type="checkbox" id="promo-plan-active" checked> Activa</label>
+                            <label style="font-weight:400; font-size:13px; display:flex; align-items:center; gap:6px;"><input type="checkbox" id="promo-plan-stackable"> Acumulable con otras promociones</label>
+                            <label style="font-weight:400; font-size:13px; display:flex; align-items:center; gap:6px;"><input type="checkbox" id="promo-plan-respect-open"> Respetar cotizaciones abiertas</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closePromoPlanModal()">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-save-promo-plan"><i class="fa-solid fa-save"></i> Guardar Promoción</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Process Refund -->
+    <div class="modal-backdrop" id="modal-refund" role="dialog" aria-modal="true" aria-labelledby="modal-refund-title">
+        <div class="modal-content modal-content--md">
+            <div class="modal-header modal-header--default">
+                <h3 class="modal-title" id="modal-refund-title"><i class="fa-solid fa-rotate-left"></i> Registrar devolución</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeRefundModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" id="refund-order-summary"></p>
+                <form id="form-refund">
+                    <input type="hidden" id="refund-order-id">
+                    <div class="form-group">
+                        <label class="label-overline" for="refund-scope">Tipo de devolución</label>
+                        <select id="refund-scope" class="form-select">
+                            <option value="producto_parcial">Producto parcial</option>
+                            <option value="producto_total">Producto total</option>
+                            <option value="pedido_completo">Pedido completo</option>
+                            <option value="venta_completa">Venta completa</option>
+                        </select>
+                    </div>
+                    <div id="refund-items-picker" class="form-group"></div>
+                    <div class="form-group">
+                        <label class="label-overline" for="refund-method">Método de reembolso</label>
+                        <select id="refund-method" class="form-select">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="qr">QR / Transferencia</option>
+                            <option value="tarjeta">Tarjeta</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="label-overline" for="refund-reason">Motivo</label>
+                        <textarea id="refund-reason" class="form-input" rows="2" maxlength="255" required placeholder="Indique el motivo de la devolución"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeRefundModal()">Cancelar</button>
+                <button type="button" class="btn btn-outline-danger" id="btn-submit-refund"><i class="fa-solid fa-rotate-left"></i> Aplicar devolución</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cancel Order Items -->
+    <div class="modal-backdrop" id="modal-cancel-order" role="dialog" aria-modal="true" aria-labelledby="modal-cancel-order-title">
+        <div class="modal-content modal-content--md">
+            <div class="modal-header modal-header--default">
+                <h3 class="modal-title" id="modal-cancel-order-title"><i class="fa-solid fa-ban"></i> Cancelar productos</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeCancelOrderModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" id="cancel-order-summary"></p>
+                <div class="form-group">
+                    <label class="label-overline">Productos de la comanda</label>
+                    <div id="cancel-order-items" class="cancel-order-items"></div>
+                </div>
+                <div class="form-group">
+                    <label class="label-overline" for="cancel-order-reason">Motivo</label>
+                    <textarea id="cancel-order-reason" class="form-input" rows="2" maxlength="255" required placeholder="Indique el motivo de la cancelación"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeCancelOrderModal()">Cancelar</button>
+                <button type="button" class="btn btn-outline-danger" id="btn-confirm-cancel-order"><i class="fa-solid fa-ban"></i> Confirmar cancelación</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -2540,12 +3172,20 @@
     <script src="js/controllers/orders-controller.js" defer></script>
     <script src="js/views/menu-config-view.js" defer></script>
     <script src="js/controllers/menu-config-controller.js" defer></script>
+    <script src="js/views/promos-view.js" defer></script>
+    <script src="js/controllers/promos-controller.js" defer></script>
     <script src="js/views/inventory-view.js" defer></script>
     <script src="js/controllers/inventory-controller.js" defer></script>
     <script src="js/views/reports-view.js" defer></script>
     <script src="js/controllers/reports-controller.js" defer></script>
     <script src="js/views/dashboard-view.js" defer></script>
     <script src="js/controllers/dashboard-controller.js" defer></script>
+    <script src="js/views/financial-view.js" defer></script>
+    <script src="js/controllers/financial-controller.js" defer></script>
+    <script src="js/views/customers-view.js" defer></script>
+    <script src="js/controllers/customers-controller.js" defer></script>
+    <script src="js/views/refunds-view.js" defer></script>
+    <script src="js/controllers/refunds-controller.js" defer></script>
     <script src="js/views/reservations-view.js" defer></script>
     <script src="js/controllers/reservations-controller.js" defer></script>
     <script src="js/views/tenant-users-view.js" defer></script>

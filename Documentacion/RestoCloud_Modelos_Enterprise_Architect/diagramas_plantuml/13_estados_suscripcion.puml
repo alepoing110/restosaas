@@ -1,0 +1,10 @@
+@startuml
+[*] --> Prueba : registrar tenant
+Prueba --> Activa : aprobar pago
+Prueba --> Suspendida : vencer prueba
+Activa --> Suspendida : falta de pago
+Suspendida --> Activa : regularizar pago
+Activa --> Cancelada : cancelar
+Suspendida --> Cancelada : cancelar
+Cancelada --> [*]
+@enduml

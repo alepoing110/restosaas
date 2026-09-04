@@ -10,6 +10,9 @@ node_modules/
 storage/logs/*.log
 storage/sessions/
 storage/rate_limits/
+storage/cache/
+storage/ws/
+storage/outbox/
 
 # Tests
 __tests__/

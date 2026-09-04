@@ -8,11 +8,85 @@ const tabs = {
     'menu-config': { title: 'Platos y Menu', desc: 'Configura platos del dia, platos extras, gaseosas y precios base.' },
     'inventory': { title: 'Control Stock', desc: 'Verifica y ajusta las cantidades en stock del dia.' },
     'reports': { title: 'Ventas e Historial', desc: 'Metricas de recaudacion e impresion de recibos.' },
+    'financial': { title: 'Finanzas del Dueño', desc: 'Ventas, gastos y ganancia operativa por período y sucursal.' },
+    'customers': { title: 'Clientes CRM', desc: 'Gestiona clientes, historial comercial y saldo de crédito.' },
     'dashboard': { title: 'Dashboard', desc: 'Resumen ejecutivo del rendimiento del restaurante.' },
     'reservations': { title: 'Reservas', desc: 'Gestiona las reservaciones de mesas del restaurante.' },
     'users': { title: 'Usuarios', desc: 'Gestiona los usuarios de tu negocio.' },
     'saas-admin': { title: 'SaaS Admin', desc: 'Gestion central de tenants, sucursales y usuarios del plataforma.' }
 };
+
+const UI_CONTEXT_KEY = 'restocloud_ui_context_v1';
+
+function readUiContext() {
+    try {
+        const value = JSON.parse(localStorage.getItem(UI_CONTEXT_KEY) || '{}');
+        return value && typeof value === 'object' ? value : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveUiContext(patch = {}) {
+    const current = readUiContext();
+    try {
+        localStorage.setItem(UI_CONTEXT_KEY, JSON.stringify({ ...current, ...patch, savedAt: Date.now() }));
+    } catch (e) {}
+}
+
+function restoreUiContext(tabId) {
+    const context = readUiContext();
+    const subtab = context.subtabs?.[tabId];
+
+    if (tabId === 'menu-config' && subtab && typeof window.switchMenuConfigSubtab === 'function') {
+        window.switchMenuConfigSubtab(subtab);
+    } else if (tabId === 'reports' && subtab && typeof window.switchReportsSubtab === 'function') {
+        window.switchReportsSubtab(subtab);
+    } else if (tabId === 'reservations') {
+        if (context.reservationsDate) state.reservationsDate = context.reservationsDate;
+        if (context.reservationFilter && typeof window.filterReservations === 'function') {
+            window.filterReservations(context.reservationFilter);
+        }
+        if (context.reservationSearch) {
+            const input = document.getElementById('reservation-search-input');
+            if (input) input.value = context.reservationSearch;
+            state.reservationSearch = context.reservationSearch;
+        }
+        if (context.reservationCatalogTab && typeof window.switchReservationCatalogTab === 'function') {
+            window.switchReservationCatalogTab(context.reservationCatalogTab);
+        }
+        if (context.reservationCatalogSearch && typeof window.setReservationCatalogSearch === 'function') {
+            const catalogInput = document.getElementById('reservation-catalog-search');
+            if (catalogInput) catalogInput.value = context.reservationCatalogSearch;
+            window.setReservationCatalogSearch(context.reservationCatalogSearch);
+        }
+    } else if (tabId === 'saas-admin' && subtab && typeof window.switchSaasSubtab === 'function') {
+        window.switchSaasSubtab(subtab);
+    }
+
+    requestAnimationFrame(() => {
+        if (Number.isFinite(context.scrollY)) window.scrollTo(0, context.scrollY);
+    });
+}
+
+function persistCurrentUiContext() {
+    const current = readUiContext();
+    saveUiContext({
+        tab: currentTabId,
+        scrollY: window.scrollY,
+        subtabs: {
+            ...(current.subtabs || {}),
+            ...(window.activeMenuConfigSubtab ? { 'menu-config': window.activeMenuConfigSubtab } : {}),
+            ...(window.activeReportsSubtab ? { reports: window.activeReportsSubtab } : {}),
+            ...(window.activeSaasSubtab ? { 'saas-admin': window.activeSaasSubtab } : {})
+        },
+        reservationsDate: state.reservationsDate,
+        reservationFilter: state.reservationFilter,
+        reservationSearch: state.reservationSearch || '',
+        reservationCatalogTab: state.reservationCatalogTab,
+        reservationCatalogSearch: state.reservationCatalogSearch || ''
+    });
+}
 
 if (window.AppViewController) {
     AppViewController.register('pos', () => {
@@ -29,6 +103,8 @@ if (window.AppViewController) {
     AppViewController.register('menu-config', renderMenuConfig);
     AppViewController.register('inventory', renderInventoryTab);
     AppViewController.register('reports', renderReports);
+    AppViewController.register('financial', renderFinancial);
+    AppViewController.register('customers', renderCustomers);
     AppViewController.register('dashboard', () => {
         renderDashboard();
         DashboardController.init();
@@ -55,13 +131,17 @@ function renderCurrentTab(tabId) {
     }
 }
 
-async function switchTab(tabId) {
+async function switchTab(tabId, options = {}) {
     if (window.AppAuth && !window.AppAuth.isAuthenticated()) {
         window.AppAuth.showLogin();
         return;
     }
 
     currentTabId = tabId;
+    localStorage.setItem('restocloud_active_tab', tabId);
+    if (window.location.hash !== '#' + tabId) {
+        history.replaceState(null, '', '#' + tabId);
+    }
 
     const sidebar = document.getElementById('app-sidebar');
     const overlay = document.getElementById('mobile-overlay');
@@ -92,14 +172,17 @@ async function switchTab(tabId) {
         }
     }
 
-    let stateLoaded = false;
-    if (typeof loadStateForTab === 'function') {
-        stateLoaded = await loadStateForTab(tabId);
-    } else {
-        stateLoaded = await loadStateFromServer();
+    if (!options.skipLoad) {
+        if (typeof loadStateForTab === 'function') {
+            await loadStateForTab(tabId);
+        } else {
+            await loadStateFromServer();
+        }
     }
 
     renderCurrentTab(tabId);
+    if (options.restoreContext !== false) restoreUiContext(tabId);
+    persistCurrentUiContext();
 }
 
 function applyRoleVisibility() {
@@ -257,3 +340,9 @@ function initKeyboardShortcuts() {
 window.switchTab = switchTab;
 window.renderCurrentTab = renderCurrentTab;
 window.applyRoleVisibility = applyRoleVisibility;
+window.saveUiContext = saveUiContext;
+window.getUiContext = readUiContext;
+window.persistCurrentUiContext = persistCurrentUiContext;
+
+window.addEventListener('pagehide', persistCurrentUiContext);
+window.addEventListener('beforeunload', persistCurrentUiContext);

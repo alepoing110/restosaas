@@ -66,7 +66,7 @@
     function reportDay() {
         const appState = window.state || {};
         const timestamps = [
-            ...(appState.salesHistory || []).map(sale => sale.timestamp),
+            ...(appState.salesHistory || []).map(sale => getSaleTime(sale) || sale.timestamp),
             ...(appState.cajaMovimientos || []).map(mov => mov.timestamp)
         ].filter(Boolean);
 
@@ -79,7 +79,7 @@
     }
 
     function completedSales() {
-        return ((window.state && window.state.salesHistory) || []).filter(sale => sale.status === 'completado');
+        return ((window.state && window.state.salesHistory) || []).filter(sale => sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid));
     }
 
     function differenceLabel(amount) {
@@ -244,7 +244,11 @@
     function buildSalesHistory(input = {}) {
         const appState = window.state || {};
         const salesSource = input.filteredSales || appState.salesHistory || [];
-        const sortedSales = [...salesSource].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const sortedSales = [...salesSource].sort((a, b) => {
+            const ta = getSaleTime(a) || a.timestamp || '';
+            const tb = getSaleTime(b) || b.timestamp || '';
+            return new Date(tb) - new Date(ta);
+        });
         const summary = summarizeCashDay();
         const date = reportDay();
         const hasFilter = !!input.filteredSales;
@@ -272,16 +276,16 @@
                 return {
                     number: index + 1,
                     id: sale.id ? sale.id.slice(-8).toUpperCase() : '',
-                    time: time(sale.timestamp),
+                    time: time(getSaleTime(sale) || sale.timestamp),
                     customer: sale.customer,
                     items: describeSaleItems(sale.items),
                     payment: pm.label,
-                    status: sale.status === 'completado' ? 'COBRADO' : 'ANULADO',
+                    status: (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) ? 'COBRADO' : 'ANULADO',
                     total: money(sale.total)
                 };
             }),
             totals: [
-                { label: 'Ventas cobradas', value: money(sortedSales.filter(s => s.status === 'completado').reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) },
+                { label: 'Ventas cobradas', value: money(sortedSales.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid)).reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) },
                 { label: 'Anulado', value: money(sortedSales.filter(s => s.status === 'anulado').reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) },
                 { label: 'Registros', value: sortedSales.length },
                 { label: 'Pago total', value: money(sortedSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) }
@@ -291,9 +295,9 @@
                     title: 'Resumen de ventas',
                     items: [
                         { label: 'Total registros', value: sortedSales.length },
-                        { label: 'Ventas cobradas', value: sortedSales.filter(s => s.status === 'completado').length },
+                        { label: 'Ventas cobradas', value: sortedSales.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid)).length },
                         { label: 'Ventas anuladas', value: sortedSales.filter(s => s.status === 'anulado').length },
-                        { label: 'Total cobrado', value: money(sortedSales.filter(s => s.status === 'completado').reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) }
+                        { label: 'Total cobrado', value: money(sortedSales.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid)).reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0)) }
                     ]
                 }
             ]
@@ -447,13 +451,14 @@
         const buckets = weekdayNames.map((name, idx) => ({ name, idx, qty: 0, total: 0, dates: new Set() }));
 
         sales.forEach(sale => {
-            if (!sale.timestamp) return;
-            const d = new Date(sale.timestamp);
+            const saleTs = getSaleTime(sale) || sale.timestamp;
+            if (!saleTs) return;
+            const d = new Date(saleTs);
             if (isNaN(d.getTime())) return;
             const bucket = buckets[d.getDay()];
             bucket.qty += 1;
             bucket.total += parseFloat(sale.total) || 0;
-            bucket.dates.add(sale.timestamp.slice(0, 10));
+            bucket.dates.add(saleTs.slice(0, 10));
         });
 
         const maxBucket = buckets.reduce((max, b) => b.total > max.total ? b : max, buckets[0]);

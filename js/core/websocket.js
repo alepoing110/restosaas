@@ -34,10 +34,12 @@ const AppWebSocket = (function() {
             connected = true;
             reconnectAttempts = 0;
 
+            const sessionData = window.AppStore ? window.AppStore.get('session') : (window.state?.session || null);
             ws.send(JSON.stringify({
                 type: 'auth',
                 tenant_id: tenantId,
-                branch_id: branchId
+                branch_id: branchId,
+                session_token: sessionData?.id || ''
             }));
 
             emit('connected', {});

@@ -36,6 +36,13 @@ $modules = [
     'backend/api/export.php',
     'backend/api/stock.php',
     'backend/api/discounts.php',
+    'backend/agent/whatsapp.php',
+    'backend/agent/conversation.php',
+    'backend/agent/recommendations.php',
+    'backend/agent/tools.php',
+    'backend/agent/chatbot.php',
+    'webhook.php',
+    'whatsapp-worker.php',
 ];
 
 foreach ($modules as $module) {
@@ -58,6 +65,12 @@ assert_test('api.php includes auth.php', str_contains($apiContent, 'backend/auth
 assert_test('api.php has CORS headers', str_contains($apiContent, 'Access-Control-Allow-Origin'));
 assert_test('api.php has CSRF validation', str_contains($apiContent, 'requireCsrfToken'));
 assert_test('api.php has action router', str_contains($apiContent, 'actionHandlers'));
+assert_test('api.php enforces centralized HTTP methods', str_contains($apiContent, '$readActions') && str_contains($apiContent, 'Método HTTP no permitido'));
+assert_test('api.php protects every authenticated POST with CSRF', str_contains($apiContent, '!in_array($action, $publicPostActions, true)'));
+assert_test('api.php rate limits every authenticated POST', str_contains($apiContent, "'mutating:' . \$authContext['user_id']"));
+$openApiContent = file_get_contents(__DIR__ . '/../openapi.json');
+$openApi = json_decode($openApiContent, true);
+assert_test('openapi.json is valid JSON', is_array($openApi));
 
 // ==========================================================================
 // Test 3: Handler functions are defined
@@ -68,10 +81,15 @@ echo "\n[3] Handler Functions Defined\n";
 preg_match_all("/'(\w+)'\s*=>\s*'handle_(\w+)'/", $apiContent, $matches);
 $handlerCount = count($matches[1]);
 assert_test("Router has $handlerCount action handlers", $handlerCount >= 40);
+assert_test('openapi contract documents every routed action', is_array($openApi)
+    && empty(array_diff($matches[1], array_merge(
+        $openApi['x-restocloud-action-contract']['read_get'] ?? [],
+        $openApi['x-restocloud-action-contract']['operation_post'] ?? []
+    ))));
 
 // Verify key handlers exist
 $keyHandlers = [
-    'auth_login', 'auth_logout', 'auth_me',
+    'auth_login', 'auth_logout', 'auth_me', 'switch_branch',
     'save_order', 'complete_order', 'cancel_order',
     'save_item', 'delete_item',
     'save_caja_movimiento', 'reset_data',
@@ -87,6 +105,39 @@ foreach ($keyHandlers as $handler) {
     assert_test("Handler '$handler' is registered", in_array($handler, $matches[1]));
 }
 
+// ===========================================================================
+// Test 3b: WhatsApp webhook and reservation-agent safeguards
+// ===========================================================================
+echo "\n[3b] WhatsApp and Reservation Agent Safeguards\n";
+
+if (!function_exists('rc_env')) {
+    function rc_env($key, $default = '') {
+        return $_ENV[$key] ?? $default;
+    }
+}
+require_once __DIR__ . '/../backend/agent/whatsapp.php';
+
+$_ENV['WHATSAPP_APP_SECRET'] = 'test-secret';
+$_SERVER['HTTP_X_HUB_SIGNATURE_256'] = 'sha256=' . hash_hmac('sha256', 'payload', 'test-secret');
+assert_test('WhatsApp accepts a valid signature', whatsapp_validate_signature('payload'));
+$_SERVER['HTTP_X_HUB_SIGNATURE_256'] = '';
+assert_test('WhatsApp rejects a missing signature', !whatsapp_validate_signature('payload'));
+$_ENV['WHATSAPP_APP_SECRET'] = '';
+assert_test('WhatsApp rejects requests without an app secret', !whatsapp_validate_signature('payload'));
+
+$webhookContent = file_get_contents(__DIR__ . '/../webhook.php');
+$toolsAgentContent = file_get_contents(__DIR__ . '/../backend/agent/tools.php');
+assert_test('Webhook enqueues events for asynchronous processing', str_contains($webhookContent, 'whatsapp_enqueue_event'));
+assert_test('Webhook rejects unknown WhatsApp numbers', str_contains($webhookContent, 'Número de WhatsApp no configurado'));
+$whatsappContent = file_get_contents(__DIR__ . '/../backend/agent/whatsapp.php');
+assert_test('WhatsApp parser iterates all entries and changes', str_contains($whatsappContent, 'foreach (($payload[\'entry\'] ?? []) as $entry)') && str_contains($whatsappContent, 'foreach (($entry[\'changes\'] ?? []) as $change)'));
+assert_test('Reservation tool requires delivery type and items', str_contains($toolsAgentContent, "'delivery_type', 'items'"));
+assert_test('Reservation prices are read from canonical product data', str_contains($toolsAgentContent, 'SELECT `id`, `name`, `type`, `price`, `stock` FROM `products`'));
+assert_test('Reservation stock update is conditional', str_contains($toolsAgentContent, 'AND `stock` >= :qty'));
+assert_test('Reservation creation uses a transaction', str_contains($toolsAgentContent, '$pdo->beginTransaction()') && str_contains($toolsAgentContent, '$pdo->rollBack()'));
+$workerContent = file_get_contents(__DIR__ . '/../whatsapp-worker.php');
+assert_test('Worker retries failed WhatsApp events', str_contains($workerContent, "'received', 'failed', 'ready'") && str_contains($workerContent, 'next_attempt_at'));
+
 // ==========================================================================
 // Test 4: CSRF protection
 // ==========================================================================
@@ -97,6 +148,22 @@ assert_test('generateCsrfToken function exists', str_contains($authContent, 'fun
 assert_test('validateCsrfToken function exists', str_contains($authContent, 'function validateCsrfToken'));
 assert_test('requireCsrfToken function exists', str_contains($authContent, 'function requireCsrfToken'));
 assert_test('CSRF token in auth payload', str_contains($authContent, 'csrf_token'));
+assert_test('multi-branch access helper exists', str_contains($authContent, 'function getAuthorizedBranches'));
+assert_test('auth payload includes authorized branches', str_contains($authContent, 'authorizedBranches'));
+
+echo "\n[4b] SaaS Isolation and Catalog\n";
+$saasContent = file_get_contents(__DIR__ . '/../backend/api/saas.php');
+$inventoryContent = file_get_contents(__DIR__ . '/../backend/api/inventory.php');
+$helpersApiContent = file_get_contents(__DIR__ . '/../backend/api/helpers.php');
+assert_test('branch access migration exists', str_contains(file_get_contents(__DIR__ . '/../db_migrations.php'), 'user_branch_access'));
+assert_test('branch switch handler exists', str_contains(file_get_contents(__DIR__ . '/../backend/api/auth.php'), 'function handle_switch_branch'));
+assert_test('tenant onboarding initializes template', str_contains($saasContent, 'initializeBranchTemplate'));
+assert_test('catalog save uses a transaction', str_contains($inventoryContent, '$pdo->beginTransaction()'));
+assert_test('catalog save enforces product limits', str_contains($inventoryContent, 'checkPlanLimits($pdo, $tid, \'products\')'));
+assert_test('product menu association is scoped', str_contains($inventoryContent, 'El menú no pertenece a la sucursal activa'));
+assert_test('branch template helper exists', str_contains($helpersApiContent, 'function initializeBranchTemplate'));
+assert_test('public registration grants branch access', str_contains($saasContent, 'INSERT INTO `user_branch_access`'));
+assert_test('public registration initializes branch template', str_contains($saasContent, 'initializeBranchTemplate($pdo, $tenantId, $branchId, $nombreRestaurante)'));
 
 // ==========================================================================
 // Test 5: JS modules deduplication
@@ -126,6 +193,11 @@ assert_test('api-client sends X-CSRF-Token header', str_contains($apiClientConte
 assert_test('api-client auto-saves csrf_token from response', str_contains($apiClientContent, 'csrf_token'));
 assert_test('api-client has getStockHistory', str_contains($apiClientContent, 'getStockHistory'));
 assert_test('api-client has getStockReport', str_contains($apiClientContent, 'getStockReport'));
+assert_test('api-client supports branch switching', str_contains($apiClientContent, 'switchBranch'));
+assert_test('read requests with filters use GET query parameters', str_contains($apiClientContent, "getReports: (startDate, endDate) => request('get_reports', null, { method: 'GET'"));
+assert_test('catalog filters are available', str_contains(file_get_contents(__DIR__ . '/../js/views/menu-config-view.js'), 'setCatalogFilter'));
+assert_test('SaaS list filters are available', str_contains(file_get_contents(__DIR__ . '/../js/controllers/saas-admin-controller.js'), 'setSaasListFilter'));
+assert_test('SaaS views apply filters locally', str_contains(file_get_contents(__DIR__ . '/../js/views/saas-admin-view.js'), 'state.saasAdmin?.filters'));
 
 // ==========================================================================
 // Summary

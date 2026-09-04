@@ -2,7 +2,7 @@
 // Cash register (caja) action handlers
 
 function _countOrderItems(PDO $pdo, string $tid, string $bid, string $date): array {
-    $ordCountStmt = $pdo->prepare("SELECT `items` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `status` = 'completado' AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
+    $ordCountStmt = $pdo->prepare("SELECT `items` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
     $ordCountStmt->execute(['tid' => $tid, 'bid' => $bid, 'date' => $date]);
     $almuerzos = 0; $segs = 0; $sopas = 0; $extras = 0;
     while ($row = $ordCountStmt->fetch()) {
@@ -16,6 +16,12 @@ function _countOrderItems(PDO $pdo, string $tid, string $bid, string $date): arr
         }
     }
     return ['almuerzos' => $almuerzos, 'segs' => $segs, 'sopas' => $sopas, 'extras' => $extras];
+}
+
+function _financialCashExpenseForDate(PDO $pdo, string $tenantId, string $branchId, string $date): float {
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(`amount`), 0) FROM `gastos_financieros` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `fecha` = :date AND `payment_method` = 'efectivo'");
+    $stmt->execute(['tid' => $tenantId, 'bid' => $branchId, 'date' => $date]);
+    return (float)$stmt->fetchColumn();
 }
 
 function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): void {
@@ -34,8 +40,8 @@ function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): v
 
     $stmt = $pdo->prepare("
         SELECT 
-            COUNT(CASE WHEN `status` = 'completado' THEN 1 END) AS total_orders,
-            COALESCE(SUM(CASE WHEN `status` = 'completado' THEN `total` ELSE 0 END), 0) AS total_revenue,
+            COUNT(CASE WHEN `status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1) THEN 1 END) AS total_orders,
+            COALESCE(SUM(CASE WHEN `status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1) THEN `total` ELSE 0 END), 0) AS total_revenue,
             COUNT(CASE WHEN `status` = 'anulado' THEN 1 END) AS annulled_orders,
             COALESCE(SUM(CASE WHEN `status` = 'anulado' THEN `total` ELSE 0 END), 0) AS annulled_amount
         FROM `pedidos`
@@ -47,7 +53,7 @@ function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): v
     $stmt = $pdo->prepare("
         SELECT `payment_method`, `total`
         FROM `pedidos`
-        WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
+        WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `timestamp` BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
     ");
     $stmt->execute($params);
     $paymentBreakdown = ['efectivo' => 0, 'qr' => 0, 'tarjeta' => 0];
@@ -82,14 +88,10 @@ function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): v
             $egresosList[] = ['description' => $mov['description'], 'amount' => (float)$mov['amount']];
         }
     }
-
-    $categoryCounts = [];
-    while ($row = $stmt->fetch()) {
-        $items = json_decode($row['items'], true) ?? [];
-        foreach ($items as $item) {
-            $type = $item['type'] ?? 'otro';
-            $categoryCounts[$type] = ($categoryCounts[$type] ?? 0) + 1;
-        }
+    $registeredCashExpenses = _financialCashExpenseForDate($pdo, $tid, $bid, $date);
+    if ($registeredCashExpenses > 0) {
+        $egresos += $registeredCashExpenses;
+        $egresosList[] = ['description' => 'Gastos financieros pagados en efectivo', 'amount' => $registeredCashExpenses];
     }
 
     $counts = _countOrderItems($pdo, $tid, $bid, $date);
@@ -118,7 +120,7 @@ function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): v
         ],
         "payment_breakdown" => $paymentBreakdown,
         "egresos_list" => $egresosList,
-        "category_counts" => $categoryCounts
+        "category_counts" => $counts
     ]);
 }
 
@@ -196,8 +198,9 @@ function handle_save_caja_cierre(PDO $pdo, ?array $authContext, array $input): v
         if ($mov['type'] === 'apertura') $aperturaDb += (float)$mov['amount'];
         if ($mov['type'] === 'egreso') $egresosDb += (float)$mov['amount'];
     }
+    $egresos += _financialCashExpenseForDate($pdo, $tenantId, $branchId, $fecha);
 
-    $orderStmt = $pdo->prepare("SELECT `total`, `payment_method` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `status` = 'completado' AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
+    $orderStmt = $pdo->prepare("SELECT `total`, `payment_method` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
     $orderStmt->execute(['tid' => $tenantId, 'bid' => $branchId, 'date' => $fecha]);
     $ingresosEfectivo = 0;
     $totalRevenue = 0;
@@ -256,8 +259,9 @@ function _collectResetData(PDO $pdo, array $authContext, string $today): array {
         if ($mov['type'] === 'apertura') $apertura += (float)$mov['amount'];
         if ($mov['type'] === 'egreso') $egresos += (float)$mov['amount'];
     }
+    $egresos += _financialCashExpenseForDate($pdo, $tid, $bid, $today);
 
-    $orderStmt = $pdo->prepare("SELECT `total`, `payment_method` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `status` = 'completado' AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
+    $orderStmt = $pdo->prepare("SELECT `total`, `payment_method` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
     $orderStmt->execute(['tid' => $tid, 'bid' => $bid, 'date' => $today]);
     $totalRevenue = 0;
     $ingresosEfectivo = 0;
@@ -383,6 +387,11 @@ function _deductStockFromOrders(PDO $pdo, array $authContext, array $completedOr
 
 function handle_reset_data(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'settings');
+    $confirm = $input['confirm'] ?? false;
+    if (!$confirm) {
+        echo json_encode(["status" => "error", "message" => "Se eliminarán todos los pedidos pendientes. Envíe confirm: true para proceder."]);
+        return;
+    }
     $pdo->beginTransaction();
     $closureId = $input['closure_id'] ?? null;
     $today = date('Y-m-d');
@@ -398,14 +407,14 @@ function handle_reset_data(PDO $pdo, ?array $authContext, array $input): void {
         }
     }
 
-    $stmt = $pdo->prepare("SELECT * FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'completado' AND `closure_id` IS NULL");
+    $stmt = $pdo->prepare("SELECT * FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL");
     $stmt->execute(tenantParams($authContext));
     $completedOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     _deductStockFromOrders($pdo, $authContext, $completedOrders);
 
     if ($closureId) {
-        $stmtArchivePedidos = $pdo->prepare("UPDATE `pedidos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `status` IN ('completado', 'anulado')");
+        $stmtArchivePedidos = $pdo->prepare("UPDATE `pedidos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND (`status` IN ('completado', 'anulado') OR (`status` = 'pendiente' AND `paid` = 1))");
         $stmtArchivePedidos->execute(['closure_id' => $closureId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
 
         $stmtArchiveMovimientos = $pdo->prepare("UPDATE `caja_movimientos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL");

@@ -1,0 +1,16 @@
+@startuml
+actor Cliente
+boundary "Página de registro" as UI
+control "API SaaS" as API
+database MySQL
+Cliente -> UI: completa registro
+UI -> API: public_register(datos)
+API -> API: validar tenant, propietario y plan
+API -> MySQL: BEGIN
+API -> MySQL: crear tenant
+API -> MySQL: crear sucursal inicial
+API -> MySQL: crear usuario propietario
+API -> MySQL: crear suscripción
+API -> MySQL: COMMIT
+API --> UI: restaurante registrado
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+component "Navegador / PWA" as Browser
+component "Frontend JavaScript" as Front
+component "API PHP" as API
+component "Autenticación" as Auth
+component "Pedidos" as Orders
+component "Inventario" as Inventory
+component "Caja y Finanzas" as Cash
+component "Reservas" as Reservations
+component "Administración SaaS" as SaaS
+component "Chatbot" as Bot
+component WebSocket as WS
+component "Caché y sesiones" as Cache
+database MySQL
+cloud WhatsApp
+cloud "Proveedor LLM" as LLM
+Browser --> Front
+Front --> API
+Front --> WS
+API --> Auth
+API --> Orders
+API --> Inventory
+API --> Cash
+API --> Reservations
+API --> SaaS
+API --> Bot
+Auth --> Cache
+Orders --> MySQL
+Inventory --> MySQL
+Cash --> MySQL
+Reservations --> MySQL
+SaaS --> MySQL
+Bot --> MySQL
+Bot --> WhatsApp
+Bot --> LLM
+@enduml

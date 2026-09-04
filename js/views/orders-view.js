@@ -65,10 +65,13 @@ function renderFloorPlan() {
                 window.openTicketModal(activeOrder);
             } else {
                 const selectElement = document.getElementById('order-table-select');
-                if (selectElement) selectElement.value = table.name;
+                if (selectElement) {
+                    selectElement.value = table.name;
+                    selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+                }
                 const wrapper = document.getElementById('custom-customer-name-wrapper');
-                const needsName = table.name === 'Personalizado' || table.name === 'Delivery';
-                if (wrapper) wrapper.style.display = needsName ? 'block' : 'none';
+                if (wrapper) wrapper.style.display = '';
+                document.getElementById('order-customer-name')?.focus();
                 switchTab('pos');
                 showToast(`${table.name === 'Delivery' ? 'Delivery' : 'Mesa'} pre-seleccionada: ${table.name}`, 'info');
             }
@@ -257,9 +260,11 @@ function renderActiveOrders() {
                             <i class="fa-solid fa-check-double"></i> Cerrar
                         </button>
                     ` : ''}
-                    <button class="btn btn-outline-danger btn-sm" onclick="cancelActiveOrder('${order.id}')">
-                        <i class="fa-solid fa-ban"></i> Cancelar
-                    </button>
+                    ${!order.paid ? `
+                        <button class="btn btn-outline-danger btn-sm" onclick="cancelActiveOrder('${order.id}')">
+                            <i class="fa-solid fa-ban"></i> Cancelar
+                        </button>
+                    ` : '<span class="text-muted" style="font-size:10px; text-align:center; max-width:100px;">Cobrado: usar Devoluciones</span>'}
                     <button class="btn btn-primary btn-sm" onclick="openTicketModalById('${order.id}')">
                         <i class="fa-solid fa-receipt"></i> ${(order.paid || (order.items || []).every(i => i.paid)) ? 'Imprimir' : 'Cobrar / Ticket'}
                     </button>
@@ -580,7 +585,9 @@ function openTicketModal(order, mode = 'auto') {
         selectPaymentMethodEl.addEventListener('change', (e) => {
             mixedSection.classList.toggle('visible', e.target.value === 'mixto');
             orderSnapshot.paymentMethod = e.target.value === 'mixto' ? { efectivo: 0, qr: 0 } : e.target.value;
-            const updatedHtml = generateTicketHtml(orderSnapshot);
+            const updatedHtml = window.TicketPrinter
+                ? window.TicketPrinter.generateHtml(orderSnapshot, mode)
+                : generateTicketHtml(orderSnapshot, mode);
             content.innerHTML = updatedHtml;
             printArea.innerHTML = updatedHtml;
         });

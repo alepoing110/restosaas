@@ -3,9 +3,13 @@
 // ==========================================================================
 
 function switchReportsSubtab(tabId = 'resumen') {
-    const allowedTabs = ['resumen', 'caja', 'ventas', 'ranking', 'historico'];
+    const allowedTabs = ['resumen', 'caja', 'ventas', 'ranking', 'historico', 'devoluciones'];
     const activeTab = allowedTabs.includes(tabId) ? tabId : 'resumen';
     window.activeReportsSubtab = activeTab;
+    if (typeof window.saveUiContext === 'function') {
+        const context = typeof window.getUiContext === 'function' ? window.getUiContext() : {};
+        window.saveUiContext({ subtabs: { ...(context.subtabs || {}), reports: activeTab } });
+    }
 
     document.querySelectorAll('.reports-subtab').forEach(button => {
         const isActive = button.dataset.reportTab === activeTab;
@@ -26,7 +30,7 @@ function switchReportsSubtab(tabId = 'resumen') {
 
     const panelsGrid = document.getElementById('reports-panels-grid');
     if (panelsGrid) {
-        panelsGrid.classList.toggle('reports-grid--hidden', activeTab === 'historico');
+        panelsGrid.classList.toggle('reports-grid--hidden', activeTab === 'historico' || activeTab === 'devoluciones');
         panelsGrid.classList.toggle('reports-grid--single', activeTab === 'ventas' || activeTab === 'ranking' || activeTab === 'resumen');
     }
 }
@@ -194,6 +198,9 @@ window.annulCompletedSale = async function(saleId) {
     const sale = state.salesHistory.find(s => s.id === saleId);
     if (!sale) return;
 
+    const reason = prompt('Indique el motivo de la anulación:');
+    if (reason === null || !reason.trim()) return showToast('El motivo es obligatorio.', 'warning');
+
     const confirmed = await window.ConfirmDialog.show(
         `¿Anular la venta cobrada de Bs ${sale.total.toFixed(2)}?`,
         { title: 'Anular Venta', confirmText: 'Sí, anular', type: 'danger' }
@@ -202,7 +209,7 @@ window.annulCompletedSale = async function(saleId) {
     if (confirmed) {
         _annullingSales.add(saleId);
         try {
-            const data = await AppApi.request('annul_sale', { id: saleId });
+            const data = await AppApi.request('annul_sale', { id: saleId, reason: reason.trim() });
             if (data.status === 'success') {
                 showToast('Venta anulada correctamente.', 'info');
                 await loadStateForTab('reports');
@@ -217,7 +224,7 @@ window.annulCompletedSale = async function(saleId) {
 };
 
 async function saveCajaCierreBeforeReset(closureId = null) {
-    const completedSales = state.salesHistory.filter(s => s.status === 'completado');
+    const completedSales = state.salesHistory.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid));
     const apertura = state.cajaMovimientos.find(m => m.type === 'apertura');
 
     let totalRevenue = 0;
@@ -355,17 +362,19 @@ function exportSalesToCSV() {
     csvContent += "ID,Hora,Cliente,Items,Metodo,Total,Estado\n";
     filteredSales.forEach(sale => {
         let itemsText = sale.items.map(item => {
+            const qty = item.qty || item.quantity || 1;
             let desc = item.name;
             if (item.segundoName) desc += ` (${item.segundoName})`;
             desc += ` [${item.serviceType}]`;
-            return desc;
+            return `${qty}x ${desc}`;
         }).join(" | ");
-        const timeStr = formatTime(sale.timestamp);
+        const timeStr = formatTime(getSaleTime(sale) || sale.timestamp);
         const pm = parsePaymentMethod(sale.paymentMethod, sale.total);
         const method = pm.label || 'EFECTIVO';
         const client = escapeHtml(sale.customer);
         itemsText = itemsText.replace(/"/g, '""');
-        csvContent += `${sale.id.slice(-6).toUpperCase()},${timeStr},"${client}","${itemsText}",${method},${sale.total.toFixed(2)},${sale.status.toUpperCase()}\n`;
+        const statusLabel = sale.status === 'anulado' ? 'ANULADO' : 'COBRADO';
+        csvContent += `${sale.id.slice(-6).toUpperCase()},${timeStr},"${client}","${itemsText}",${method},${sale.total.toFixed(2)},${statusLabel}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -391,8 +400,7 @@ async function resetAllData() {
     if (confirmed) {
         try {
             const closureId = generateId();
-            await saveCajaCierreBeforeReset(closureId);
-            const data = await AppApi.request('reset_data', { closure_id: closureId });
+            const data = await AppApi.request('reset_data', { confirm: true, closure_id: closureId });
             if (data.status === 'success') {
                 if (window.AppStore) {
                     window.AppStore.set({ cart: [] });
@@ -633,7 +641,12 @@ function getFilteredSales() {
     }
 
     if (statusFilter) {
-        filtered = filtered.filter(sale => sale.status === statusFilter);
+        filtered = filtered.filter(sale => {
+            if (statusFilter === 'cobrado') return sale.status === 'completado';
+            if (statusFilter === 'pendiente_pagado') return sale.status === 'pendiente' && sale.paid;
+            if (statusFilter === 'anulado') return sale.status === 'anulado';
+            return sale.status === statusFilter;
+        });
     }
 
     if (paymentFilter) {
@@ -665,8 +678,9 @@ function updateSalesHistoryKPIs(filteredSales) {
     const revenueEl = document.getElementById('sales-kpi-revenue');
     const avgEl = document.getElementById('sales-kpi-avg');
 
-    const total = filteredSales.length;
-    const revenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+    const paidSales = filteredSales.filter(s => s.status !== 'anulado');
+    const total = paidSales.length;
+    const revenue = paidSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
     const avg = total > 0 ? revenue / total : 0;
 
     if (totalEl) totalEl.textContent = total;

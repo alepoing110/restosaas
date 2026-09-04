@@ -1,6 +1,7 @@
 (function (window) {
     function render() {
         renderCatalog();
+        if (window.PosController?.syncServiceModeFromLocation) window.PosController.syncServiceModeFromLocation();
         renderCart();
     }
 
@@ -314,6 +315,8 @@
             const totalEl = document.getElementById('cart-total');
             if (subtotalEl) subtotalEl.textContent = formatCurrency(0);
             if (totalEl) totalEl.textContent = formatCurrency(0);
+            renderOrderServiceSummary();
+            renderPromoSection();
             return;
         }
 
@@ -376,8 +379,104 @@
 
         const subtotalEl = document.getElementById('cart-subtotal');
         const totalEl = document.getElementById('cart-total');
+        const discount = appState.cartDiscountAmount || 0;
+        const total = Math.max(0, subtotal - discount);
         if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
-        if (totalEl) totalEl.textContent = formatCurrency(subtotal);
+        if (totalEl) totalEl.textContent = formatCurrency(total);
+
+        renderOrderServiceSummary();
+        renderPromoSection();
+    }
+
+    function renderOrderServiceSummary() {
+        const summary = document.getElementById('order-service-summary');
+        if (!summary) return;
+        const cart = window.state?.cart || [];
+        const quantities = cart.reduce((result, item) => {
+            const key = item.serviceType === 'llevar' ? 'llevar' : 'servirse';
+            result[key] += Number(item.qty || item.quantity || 1);
+            return result;
+        }, { servirse: 0, llevar: 0 });
+        if (!cart.length) {
+            summary.innerHTML = '<span class="text-muted"><i class="fa-solid fa-circle-info"></i> Seleccione Servir o Llevar en cada tarjeta.</span>';
+            return;
+        }
+        const parts = [];
+        if (quantities.servirse) parts.push(`<span class="service-summary-badge servirse"><i class="fa-solid fa-plate-wheat"></i> Servirse: ${quantities.servirse}</span>`);
+        if (quantities.llevar) parts.push(`<span class="service-summary-badge llevar"><i class="fa-solid fa-bag-shopping"></i> Llevar: ${quantities.llevar}</span>`);
+        const mixed = quantities.servirse > 0 && quantities.llevar > 0;
+        summary.innerHTML = `${parts.join(' ')}${mixed ? '<small class="service-summary-note">Pedido mixto: se respeta la modalidad de cada producto.</small>' : ''}`;
+    }
+
+    function renderPromoSection() {
+        const appState = window.state;
+        const section = document.getElementById('cart-promo-section');
+        if (!section) return;
+
+        if (appState.cart.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = '';
+
+        const listEl = document.getElementById('cart-promo-list');
+        const appliedEl = document.getElementById('cart-applied-promo');
+        const appliedNameEl = document.getElementById('cart-applied-promo-name');
+        const appliedDescEl = document.getElementById('cart-applied-promo-desc');
+        const discountRow = document.getElementById('cart-discount-row');
+        const discountLabel = document.getElementById('cart-discount-label');
+        const discountAmount = document.getElementById('cart-discount-amount');
+        const couponInput = document.getElementById('cart-coupon-input');
+
+        const suggested = appState.cartSuggestedPromos || [];
+        const applied = appState.cartPromo;
+        const discount = appState.cartDiscountAmount || 0;
+
+        if (listEl) {
+            listEl.innerHTML = '';
+            if (!applied && suggested.length > 0) {
+                suggested.forEach((promo, idx) => {
+                    const item = document.createElement('div');
+                    item.className = 'cart-promo-item';
+                    item.innerHTML = `
+                        <i class="fa-solid fa-tag" style="color:var(--accent);font-size:10px;"></i>
+                        <span class="cart-promo-item-name">${escapeHtml(promo.plan_name || promo.name || 'Promo')}</span>
+                        <span class="cart-promo-item-discount">-${formatCurrency(promo.discount_amount || promo.discount || 0)}</span>
+                    `;
+                    item.addEventListener('click', () => {
+                        if (window.PosController) window.PosController.applyPromo(idx);
+                    });
+                    listEl.appendChild(item);
+                });
+                document.getElementById('btn-toggle-promos')?.style.setProperty('display', '');
+            } else {
+                document.getElementById('btn-toggle-promos')?.style.setProperty('display', 'none');
+            }
+        }
+
+        if (appliedEl) {
+            if (applied) {
+                appliedEl.style.display = '';
+                if (appliedNameEl) appliedNameEl.textContent = applied.plan_name || applied.name || 'Promoción aplicada';
+                if (appliedDescEl) appliedDescEl.textContent = applied.description || '';
+            } else {
+                appliedEl.style.display = 'none';
+            }
+        }
+
+        if (discountRow) {
+            if (discount > 0) {
+                discountRow.style.display = '';
+                if (discountLabel) discountLabel.textContent = appState.cartDiscountLabel || 'Descuento';
+                if (discountAmount) discountAmount.textContent = `-${formatCurrency(discount)}`;
+            } else {
+                discountRow.style.display = 'none';
+            }
+        }
+
+        if (couponInput) {
+            couponInput.value = appState.cartCouponCode || '';
+        }
     }
 
     function buildEmptyCartState() {

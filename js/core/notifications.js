@@ -87,7 +87,9 @@
     // Update notification badge on sidebar
     function updateBadge() {
         const badge = document.getElementById('active-orders-count');
-        const pendingOrders = window.state ? window.state.activeOrders.filter(o => o.status === 'pendiente').length : 0;
+        const currentState = window.AppStore ? window.AppStore.get() : window.state;
+        const orders = currentState?.activeOrders || [];
+        const pendingOrders = orders.filter(o => o.status === 'pendiente').length;
         if (badge) {
             badge.textContent = pendingOrders;
             badge.style.display = pendingOrders > 0 ? 'inline-block' : 'none';

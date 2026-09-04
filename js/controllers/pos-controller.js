@@ -7,7 +7,6 @@
         const catalogContainer = document.getElementById('pos-catalog-cards');
         if (catalogContainer) {
             catalogContainer.addEventListener('click', handleCatalogClick);
-            catalogContainer.addEventListener('click', handleDrinkQtyBtn);
         }
 
         const cartContainer = document.getElementById('cart-items-container');
@@ -19,10 +18,16 @@
         const paymentSelect = document.getElementById('order-payment-select');
         if (paymentSelect) {
             paymentSelect.addEventListener('change', (e) => {
-                const section = document.getElementById('mixed-payment-section');
-                if (section) section.style.display = e.target.value === 'mixto' ? 'flex' : 'none';
+                 updatePaymentMethodIcon(e.target.value);
+                 const section = document.getElementById('mixed-payment-section');
+                 if (section) section.style.display = e.target.value === 'mixto' ? 'flex' : 'none';
+                 const creditSection = document.getElementById('credit-payment-section');
+                 if (creditSection) creditSection.style.display = e.target.value === 'credito' ? 'flex' : 'none';
+                 const dueDate = document.getElementById('credit-due-date');
+                 if (dueDate) dueDate.required = e.target.value === 'credito';
                 if (e.target.value === 'mixto') updateMixedPaymentSum();
             });
+            updatePaymentMethodIcon(paymentSelect.value);
         }
 
         // Mixed payment auto-calculate
@@ -35,9 +40,7 @@
         const tableSelect = document.getElementById('order-table-select');
         if (tableSelect) {
             tableSelect.addEventListener('change', (e) => {
-                const wrapper = document.getElementById('custom-customer-name-wrapper');
-                if (wrapper) wrapper.style.display = 'block';
-
+                syncCatalogServiceDefaults(e.target.value);
                 if (e.target.value !== 'Llevar' && e.target.value !== 'Delivery' && e.target.value !== 'Personalizado') {
                     const occupiedTables = new Set(
                         (window.state.activeOrders || [])
@@ -58,12 +61,52 @@
                         });
                         showToast(`La mesa "${e.target.value}" ya tiene un pedido activo (Bs ${existingOrder ? existingOrder.total.toFixed(2) : '0'}). Use "Agregar Ítems" desde el board.`, 'warning');
                         e.target.value = 'Llevar';
+                        syncCatalogServiceDefaults('Llevar');
                     }
                 }
             });
+            syncCatalogServiceDefaults(tableSelect.value);
         }
 
+        // Promo section: toggle, apply coupon, remove promo
+        document.getElementById('btn-toggle-promos')?.addEventListener('click', () => {
+            const list = document.getElementById('cart-promo-list');
+            if (list) list.style.display = list.style.display === 'none' ? '' : 'none';
+        });
+        document.getElementById('btn-apply-coupon')?.addEventListener('click', () => {
+            const input = document.getElementById('cart-coupon-input');
+            if (input && input.value.trim()) applyCouponCode(input.value.trim());
+        });
+        document.getElementById('cart-coupon-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const input = document.getElementById('cart-coupon-input');
+                if (input && input.value.trim()) applyCouponCode(input.value.trim());
+            }
+        });
+        document.getElementById('btn-remove-promo')?.addEventListener('click', () => removePromo());
+
         initialized = true;
+    }
+
+    function syncCatalogServiceDefaults(locationName) {
+        const serviceType = ['Llevar', 'Delivery', 'Personalizado'].includes(locationName) ? 'llevar' : 'servirse';
+        document.querySelectorAll('#pos-catalog-cards input[type="radio"][value="servirse"], #pos-catalog-cards input[type="radio"][value="llevar"]').forEach(input => {
+            input.checked = input.value === serviceType;
+        });
+    }
+
+    function updatePaymentMethodIcon(method) {
+        const icon = document.getElementById('order-payment-icon');
+        if (!icon) return;
+        const icons = {
+            efectivo: 'fa-money-bill-wave',
+            qr: 'fa-qrcode',
+            tarjeta: 'fa-credit-card',
+            mixto: 'fa-code-compare',
+            credito: 'fa-book-open'
+        };
+        icon.className = `fa-solid ${icons[method] || 'fa-credit-card'} input-icon--abs`;
     }
 
     function updateMixedPaymentSum() {
@@ -84,6 +127,21 @@
     }
 
     function handleCatalogClick(event) {
+        const qtyBtn = event.target.closest('[data-qty-action]');
+        if (qtyBtn) {
+            event.stopPropagation();
+            const extraId = qtyBtn.dataset.extraId;
+            const action = qtyBtn.dataset.qtyAction;
+            const input = document.getElementById('qty-extra-' + extraId);
+            if (input) {
+                let val = parseInt(input.value, 10) || 1;
+                if (action === 'inc') val = Math.min(99, val + 1);
+                else if (action === 'dec') val = Math.max(1, val - 1);
+                input.value = val;
+            }
+            return;
+        }
+
         const actionTarget = event.target.closest('[data-action]');
         if (!actionTarget) return;
 
@@ -110,20 +168,6 @@
             addExtraToCart(extraId, qty);
             if (qtyInput) qtyInput.value = 1;
         }
-    }
-
-    function handleDrinkQtyBtn(event) {
-        const btn = event.target.closest('[data-qty-action]');
-        if (!btn) return;
-        event.stopPropagation();
-        const extraId = btn.dataset.extraId;
-        const action = btn.dataset.qtyAction;
-        const input = document.getElementById('qty-extra-' + extraId);
-        if (!input) return;
-        let val = parseInt(input.value, 10) || 1;
-        if (action === 'inc') val = Math.min(99, val + 1);
-        else if (action === 'dec') val = Math.max(1, val - 1);
-        input.value = val;
     }
 
     function handleCartClick(event) {
@@ -160,6 +204,125 @@
         saveCartToLocalStorage();
         refreshPosView();
         notify();
+        schedulePromoSuggestions();
+    }
+
+    let promoDebounce = null;
+    function schedulePromoSuggestions() {
+        clearTimeout(promoDebounce);
+        promoDebounce = setTimeout(() => suggestPromosForCart(), 400);
+    }
+
+    async function suggestPromosForCart() {
+        const appState = window.state;
+        if (!appState.cart || appState.cart.length === 0) {
+            appState.cartSuggestedPromos = [];
+            appState.cartPromo = null;
+            appState.cartDiscountAmount = 0;
+            appState.cartDiscountLabel = '';
+            appState.cartCouponCode = '';
+            return;
+        }
+        const channel = guessPosChannel();
+        const items = appState.cart.map(item => ({
+            id: item.id || item.platoId || item.extraId || item.sopaId || '',
+            name: item.name,
+            type: item.type,
+            product_id: promoProductId(item),
+            product_type: promoProductType(item),
+            quantity: item.qty || 1,
+            unit_price: item.price,
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0)) * (item.qty || 1)
+        }));
+        try {
+            const data = await AppApi.suggestPromos(items, channel, appState.cartCouponCode || '');
+            const suggested = data.suggestions || data.suggested || [];
+            appState.cartSuggestedPromos = suggested;
+            if (appState.cartPromo && !suggested.find(s => s.plan_id === appState.cartPromo.plan_id)) {
+                removePromo();
+                return;
+            }
+            if (appState.cartPromo) {
+                const match = suggested.find(s => s.plan_id === appState.cartPromo.plan_id);
+                if (match) {
+                    appState.cartPromo = match;
+                    appState.cartDiscountAmount = match.discount || 0;
+                }
+            }
+            refreshPosView();
+        } catch (e) {
+            console.warn('[POS] Error sugiriendo promos:', e);
+        }
+    }
+
+    function promoProductId(item) {
+        if (item.type === 'plato_extra') return item.platoId || '';
+        if (item.type === 'extra') return item.extraId || '';
+        if (item.type === 'sopa') return item.sopaId || '';
+        if (item.type === 'segundo') return item.segundoId || '';
+        return '';
+    }
+
+    function promoProductType(item) {
+        return item.type === 'almuerzo' ? 'almuerzo' : item.type;
+    }
+
+    function guessPosChannel() {
+        const tableSelect = document.getElementById('order-table-select');
+        const val = tableSelect ? tableSelect.value : 'Llevar';
+        if (val === 'Delivery') return 'delivery';
+        if (val === 'Llevar' || val === 'Personalizado') return 'llevar';
+        return 'mesa';
+    }
+
+    function applyPromo(idx) {
+        const appState = window.state;
+        const promo = (appState.cartSuggestedPromos || [])[idx];
+        if (!promo) return;
+        appState.cartPromo = promo;
+        appState.cartDiscountAmount = promo.discount_amount || promo.discount || 0;
+        appState.cartDiscountLabel = promo.plan_name || promo.name || 'Descuento';
+        refreshPosView();
+    }
+
+    function removePromo() {
+        const appState = window.state;
+        appState.cartPromo = null;
+        appState.cartDiscountAmount = 0;
+        appState.cartDiscountLabel = '';
+        appState.cartCouponCode = '';
+        refreshPosView();
+    }
+
+    async function applyCouponCode(code) {
+        const appState = window.state;
+        if (!code || !appState.cart || appState.cart.length === 0) return;
+        const channel = guessPosChannel();
+        const items = appState.cart.map(item => ({
+            id: item.id || item.platoId || item.extraId || item.sopaId || '',
+            name: item.name,
+            type: item.type,
+            product_id: promoProductId(item),
+            product_type: promoProductType(item),
+            quantity: item.qty || 1,
+            unit_price: item.price,
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0)) * (item.qty || 1)
+        }));
+        try {
+            const data = await AppApi.applyPromoCoupon(code, items, channel);
+            if (data.valid) {
+                appState.cartPromo = { id: data.plan_id, plan_id: data.plan_id, name: data.plan_name, coupon_code: data.coupon_code, discount_amount: data.discount_amount };
+                appState.cartCouponCode = code;
+                appState.cartDiscountAmount = data.discount_amount || 0;
+                appState.cartDiscountLabel = data.plan_name || `Cupón ${code}`;
+                showToast('Cupón aplicado.', 'success');
+            } else {
+                showToast(data.message || 'Cupón no válido.', 'warning');
+            }
+            refreshPosView();
+        } catch (e) {
+            showToast(e.message || 'Error al aplicar cupón.', 'error');
+        }
     }
 
     function cartItemKey(item) {
@@ -453,39 +616,31 @@
         }
 
         const tableSelect = document.getElementById('order-table-select');
-        let customerName = tableSelect ? tableSelect.value : 'Llevar';
+        const locationName = tableSelect ? tableSelect.value : 'Llevar';
+        const customerInput = document.getElementById('order-customer-name');
+        const enteredCustomerName = customerInput ? customerInput.value.trim() : '';
+        const selectedCustomerId = document.getElementById('order-customer-id')?.value || '';
+        if (!enteredCustomerName) {
+            showToast('Ingrese el nombre del cliente para continuar.', 'warning');
+            customerInput?.focus();
+            return;
+        }
+
+        let customerName = enteredCustomerName;
         let deliveryType = 'llevar';
 
-        if (customerName === 'Personalizado') {
-            const customerInput = document.getElementById('order-customer-name');
-            customerName = customerInput ? customerInput.value.trim() : '';
-            if (!customerName) {
-                showToast('Escriba un nombre personalizado.', 'warning');
-                return;
-            }
+        if (locationName === 'Personalizado') {
+            customerName = `Personalizado - ${enteredCustomerName}`;
             deliveryType = 'llevar';
-        } else if (customerName === 'Delivery') {
-            const customerInput = document.getElementById('order-customer-name');
-            customerName = customerInput ? customerInput.value.trim() : '';
-            if (!customerName) {
-                showToast('Escriba el nombre del cliente para delivery.', 'warning');
-                return;
-            }
+        } else if (locationName === 'Delivery') {
+            customerName = `Delivery - ${enteredCustomerName}`;
             deliveryType = 'delivery';
-        } else if (customerName === 'Llevar') {
+        } else if (locationName === 'Llevar') {
+            customerName = `Para Llevar - ${enteredCustomerName}`;
             deliveryType = 'llevar';
-            const customerInput = document.getElementById('order-customer-name');
-            const takeoutName = customerInput ? customerInput.value.trim() : '';
-            if (takeoutName) {
-                customerName = `Para Llevar - ${takeoutName}`;
-            }
         } else {
+            customerName = `${locationName} - ${enteredCustomerName}`;
             deliveryType = 'mesa';
-            const customerInput = document.getElementById('order-customer-name');
-            const dinerName = customerInput ? customerInput.value.trim() : '';
-            if (dinerName) {
-                customerName = `${customerName} - ${dinerName}`;
-            }
         }
 
         const hasSoup = appState.cart.some(i => i.type === 'almuerzo' || i.type === 'sopa');
@@ -509,10 +664,20 @@
         }
         const paymentSelectEl = document.getElementById('order-payment-select');
         const paymentSelect = paymentSelectEl ? paymentSelectEl.value : 'efectivo';
-        const total = appState.cart.reduce((sum, item) => {
+        const creditDueDate = document.getElementById('credit-due-date')?.value || '';
+        const creditOverrideReason = document.getElementById('credit-override-reason')?.value.trim() || '';
+        if (paymentSelect === 'credito' && (!enteredCustomerName || !creditDueDate)) {
+            showToast('Para una venta a crédito indique el cliente y la fecha de vencimiento.', 'warning');
+            return;
+        }
+        const grossTotal = appState.cart.reduce((sum, item) => {
             const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
             return sum + (item.price + salsaTotal) * (item.qty || 1);
         }, 0);
+        const discountTotal = appState.cartDiscountAmount || 0;
+        const appliedPromo = appState.cartPromo || null;
+        const couponCode = appState.cartCouponCode || null;
+        const total = Math.max(0, Math.round((grossTotal - discountTotal) * 100) / 100);
 
         let paymentMethod;
         if (paymentSelect === 'mixto') {
@@ -531,64 +696,76 @@
         const newOrder = {
             id: generateId(),
             customer: customerName,
+            customerId: selectedCustomerId || null,
             deliveryType: deliveryType,
             items: [...appState.cart],
             total: total,
+            subtotal: grossTotal,
+            discountTotal: discountTotal,
+            appliedPromo: appliedPromo,
+            couponCode: couponCode,
             paymentMethod: paymentMethod,
+            dueDate: paymentSelect === 'credito' ? creditDueDate : null,
+            credit_override_reason: paymentSelect === 'credito' ? creditOverrideReason : '',
             timestamp: nowLocal()
         };
+        if (paymentSelect === 'credito') {
+            newOrder.status = 'completado';
+            newOrder.paid = false;
+        }
 
         if (isPendingOnly) {
             newOrder.status = 'pendiente';
             newOrder.serviceState = initialServiceState;
 
-            const success = await saveOrderOnServer(newOrder);
-            if (!success) {
-                showToast('Error al procesar comanda en el servidor.', 'error');
-                return;
-            }
+            await saveOrderOnServer(newOrder);
 
             Notifications.notify(`🛒 Nuevo pedido: ${customerName}`, 'success');
-            commitCart([]);
-            resetCartInputs();
-            if (typeof window.upsertActiveOrder === 'function') {
-                window.upsertActiveOrder(newOrder);
-            }
-            showToast('La comanda quedo registrada. Imprimiendo ticket de cocina...', 'info');
             try {
-                window.openTicketModal(newOrder, 'kitchen');
+                commitCart([]);
+                resetCartInputs();
+                if (typeof window.upsertActiveOrder === 'function') {
+                    window.upsertActiveOrder(newOrder);
+                }
+                showToast('La comanda quedo registrada. Imprimiendo ticket de cocina...', 'info');
+                try {
+                    window.openTicketModal(newOrder, 'kitchen');
+                } catch (e) {
+                    console.error('[POS] Error abriendo ticket modal:', e);
+                }
             } catch (e) {
-                console.error('[POS] Error abriendo ticket modal:', e);
+                console.error('[POS] Error post-comanda:', e);
             }
             return;
         }
 
         newOrder.status = 'pendiente';
         newOrder.paid = true;
+        newOrder.soldAt = new Date().toISOString();
         newOrder.serviceState = initialServiceState;
 
-        const success = await saveOrderOnServer(newOrder);
-        if (!success) {
-            showToast('Error al registrar cobro en el servidor.', 'error');
-            return;
-        }
+        await saveOrderOnServer(newOrder);
 
         Notifications.notify(`💰 Venta cobrada: ${customerName}`, 'success');
-        commitCart([]);
-        resetCartInputs();
-        if (typeof window.upsertActiveOrder === 'function') {
-            window.upsertActiveOrder(newOrder);
-        }
-        showToast('Pedido cobrado. Imprimiendo comanda...', 'info');
         try {
-            if (window.TicketPrinter) {
-                window.TicketPrinter.printFull(newOrder);
-            } else {
-                window.openTicketModal(newOrder, 'full');
+            commitCart([]);
+            resetCartInputs();
+            if (typeof window.upsertActiveOrder === 'function') {
+                window.upsertActiveOrder(newOrder);
+            }
+            showToast('Pedido cobrado. Imprimiendo comanda...', 'info');
+            try {
+                if (window.TicketPrinter) {
+                    window.TicketPrinter.printFull(newOrder);
+                } else {
+                    window.openTicketModal(newOrder, 'full');
+                }
+            } catch (e) {
+                console.error('Error abriendo ticket modal:', e);
+                showToast('Venta registrada. Error al mostrar ticket.', 'warning');
             }
         } catch (e) {
-            console.error('Error abriendo ticket modal:', e);
-            showToast('Venta registrada. Error al mostrar ticket.', 'warning');
+            console.error('[POS] Error post-venta:', e);
         }
     }
 
@@ -597,20 +774,26 @@
             const data = await AppApi.request('save_order', order);
             if (data.status !== 'success') {
                 console.error('[ORDER] Server rejected order:', data);
+                throw new Error(data.message || 'El servidor rechazó el pedido.');
             }
-            return data.status === 'success';
+            return true;
         } catch (error) {
             console.error('[ORDER] saveOrderOnServer error:', error);
             if (window.OfflineQueue) {
-                await OfflineQueue.enqueue(order);
-                showToast('Sin conexión. Pedido en cola — se enviará cuando haya red.', 'warning');
-                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.ready.then(reg => {
-                        if (reg.sync) reg.sync.register('replay-offline-orders').catch(() => {});
-                    });
+                try {
+                    await OfflineQueue.enqueue(order);
+                    showToast('Sin conexión. Pedido en cola — se enviará cuando haya red.', 'warning');
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.ready.then(reg => {
+                            if (reg.sync) reg.sync.register('replay-offline-orders').catch(() => {});
+                        });
+                    }
+                    return true;
+                } catch (qError) {
+                    console.error('[ORDER] OfflineQueue error:', qError);
                 }
             }
-            return false;
+            throw error;
         }
     }
 
@@ -618,17 +801,27 @@
         const tableSelect = document.getElementById('order-table-select');
         if (tableSelect) tableSelect.value = 'Llevar';
         const customWrapper = document.getElementById('custom-customer-name-wrapper');
-        if (customWrapper) customWrapper.style.display = 'none';
+        if (customWrapper) customWrapper.style.display = '';
         const customerName = document.getElementById('order-customer-name');
         if (customerName) customerName.value = '';
+        const customerId = document.getElementById('order-customer-id');
+        if (customerId) customerId.value = '';
         const paymentSelect = document.getElementById('order-payment-select');
         if (paymentSelect) paymentSelect.value = 'efectivo';
         const mixedSection = document.getElementById('mixed-payment-section');
         if (mixedSection) mixedSection.style.display = 'none';
+        const creditSection = document.getElementById('credit-payment-section');
+        if (creditSection) creditSection.style.display = 'none';
+        const dueDate = document.getElementById('credit-due-date');
+        if (dueDate) { dueDate.value = ''; dueDate.required = false; }
+        const creditOverrideReason = document.getElementById('credit-override-reason');
+        if (creditOverrideReason) creditOverrideReason.value = '';
         const mixedEfectivo = document.getElementById('mixed-efectivo');
         if (mixedEfectivo) mixedEfectivo.value = '0';
         const mixedQr = document.getElementById('mixed-qr');
         if (mixedQr) mixedQr.value = '0';
+        const couponInput = document.getElementById('cart-coupon-input');
+        if (couponInput) couponInput.value = '';
     }
 
     function notify() {
@@ -649,7 +842,12 @@
         addExtraToCart,
         removeCartItem,
         clearCart,
-        checkoutOrder
+        checkoutOrder,
+        syncServiceModeFromLocation: () => syncCatalogServiceDefaults(document.getElementById('order-table-select')?.value || 'Llevar'),
+        applyPromo,
+        removePromo,
+        applyCouponCode,
+        suggestPromosForCart
     };
 })(window);
 

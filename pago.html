@@ -163,7 +163,7 @@
                         nombre_restaurante: localStorage.getItem('pending_business_name') || 'Mi Restaurante',
                         name: name,
                         email: localStorage.getItem('pending_email') || '',
-                        password: localStorage.getItem('pending_password') || '',
+                        password: '',
                         pais: 'Bolivia',
                         plan_code: planCode,
                         payment_notes: notes
@@ -176,7 +176,6 @@
                     document.getElementById('success-card').style.display = 'block';
                     localStorage.removeItem('pending_business_name');
                     localStorage.removeItem('pending_email');
-                    localStorage.removeItem('pending_password');
                 } else {
                     errEl.textContent = data.message || 'Error al enviar confirmación.';
                     errEl.style.display = 'block';

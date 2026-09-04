@@ -249,7 +249,6 @@
                     if (data.subscription_status === 'pending_payment') {
                         localStorage.setItem('pending_business_name', payload.nombre_restaurante);
                         localStorage.setItem('pending_email', payload.email);
-                        localStorage.setItem('pending_password', payload.password);
                         window.location.href = 'pago.html?plan=' + encodeURIComponent(data.plan_code);
                     } else {
                         window.location.href = 'index.html';

@@ -17,7 +17,7 @@ npm ci --omit=dev 2>/dev/null || npm install --omit=dev
 
 # 3. Run migrations
 echo "[3/6] Running migrations..."
-php migrate.php --force
+php migrate.php
 
 # 4. Fix storage permissions
 echo "[4/6] Setting storage permissions..."
@@ -40,5 +40,5 @@ npm run lint:syntax > /dev/null 2>&1
 echo ""
 echo "=== Deploy complete ==="
 echo ""
-echo "IMPORTANT: Change the default admin password before going live!"
-echo "  Default: owner@legacy.restocloud.local / admin12345"
+echo "IMPORTANT: Verify production secrets and administrator credentials before going live."
+echo "Configure cron: php whatsapp-worker.php --limit=10"

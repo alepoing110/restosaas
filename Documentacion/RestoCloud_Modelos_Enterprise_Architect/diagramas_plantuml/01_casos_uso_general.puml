@@ -1,0 +1,34 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor Cajero
+actor Administrador
+actor Propietario
+actor "Superadministrador SaaS" as Super
+actor Cliente
+actor "Servicio WhatsApp" as WA
+rectangle RestoCloud {
+  package "POS y pedidos" { usecase "Registrar pedido" as UC03; usecase "Cobrar pedido" as UC06; usecase "Cancelar pedido" as UC07; usecase "Aplicar descuento" as UC09 }
+  package "Administración" { usecase "Gestionar inventario" as UC11; usecase "Gestionar reservas" as UC17; usecase "Cerrar caja" as UC19; usecase "Consultar reportes" as UC20; usecase "Administrar usuarios" as UC27 }
+  package SaaS { usecase "Registrar restaurante" as UC28; usecase "Gestionar tenants" as UC29; usecase "Gestionar planes y suscripciones" as UC32 }
+  package Chatbot { usecase "Atender por WhatsApp" as UC34 }
+}
+Cajero --> UC03
+Cajero --> UC06
+Cajero --> UC07
+Cajero --> UC09
+Administrador --> UC11
+Administrador --> UC17
+Administrador --> UC19
+Administrador --> UC20
+Administrador --> UC27
+Propietario --> UC11
+Propietario --> UC19
+Propietario --> UC20
+Propietario --> UC27
+Super --> UC29
+Super --> UC32
+Cliente --> UC28
+Cliente --> UC34
+WA --> UC34
+@enduml

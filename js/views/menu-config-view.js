@@ -23,6 +23,37 @@ function renderMenuConfig() {
     }
 }
 
+function getCatalogFilters() {
+    return window.catalogFilters || { search: '', type: 'all', status: 'all', stock: 'all' };
+}
+
+function matchesCatalogFilter(item, type) {
+    const filters = getCatalogFilters();
+    const search = (filters.search || '').toLowerCase();
+    const active = Number(item.active) !== 0;
+    const stock = Number(item.stock || 0);
+    return (!search || String(item.name || '').toLowerCase().includes(search)) &&
+        (filters.type === 'all' || filters.type === type) &&
+        (filters.status === 'all' || (filters.status === 'active' ? active : !active)) &&
+        (filters.stock === 'all' || (filters.stock === 'available' ? stock > 0 : stock <= 0));
+}
+
+window.setCatalogFilter = function(field, value) {
+    window.catalogFilters = { ...getCatalogFilters(), [field]: value || (field === 'search' ? '' : 'all') };
+    if (field === 'type' && value && value !== 'all' && typeof window.switchMenuConfigSubtab === 'function') {
+        const subtabByType = { segundo: 'a-la-carta', sopa: 'sopas', plato_extra: 'extras', extra: 'gaseosas', salsa: 'salsas' };
+        if (subtabByType[value]) window.switchMenuConfigSubtab(subtabByType[value]);
+    }
+    renderMenuConfig();
+};
+
+window.clearCatalogFilters = function() {
+    window.catalogFilters = { search: '', type: 'all', status: 'all', stock: 'all' };
+    const toolbar = document.getElementById('catalog-filter-toolbar');
+    if (toolbar) toolbar.querySelectorAll('input, select').forEach(input => { input.value = input.tagName === 'SELECT' ? 'all' : ''; });
+    renderMenuConfig();
+};
+
 function renderMenusTable() {
     const tbody = document.getElementById('menus-crud-body');
     if (!tbody) return;
@@ -70,7 +101,7 @@ function renderSecondsTable() {
         return;
     }
 
-    state.seconds.forEach(sec => {
+    state.seconds.filter(sec => matchesCatalogFilter(sec, 'segundo')).forEach(sec => {
         const tr = document.createElement('tr');
         const isEditing = editingSegundoId === sec.id;
         const isActive = Number(sec.active) !== 0;
@@ -121,7 +152,7 @@ function renderSopasTable() {
         return;
     }
 
-    state.sopas.forEach(sopa => {
+    state.sopas.filter(sopa => matchesCatalogFilter(sopa, 'sopa')).forEach(sopa => {
         const tr = document.createElement('tr');
         const isEditing = editingSopaId === sopa.id;
         const isActive = Number(sopa.active) !== 0;
@@ -172,7 +203,7 @@ function renderPlatosExtrasTable() {
         return;
     }
 
-    state.platosExtras.forEach(plato => {
+    state.platosExtras.filter(plato => matchesCatalogFilter(plato, 'plato_extra')).forEach(plato => {
         const tr = document.createElement('tr');
         const isEditing = editingPlatoId === plato.id;
         const hasSalsa = plato.accepts_salsa;
@@ -216,7 +247,7 @@ function renderExtrasTable() {
         return;
     }
 
-    state.extras.forEach(ext => {
+    state.extras.filter(ext => matchesCatalogFilter(ext, 'extra')).forEach(ext => {
         const tr = document.createElement('tr');
         const isEditing = editingExtraId === ext.id;
 
@@ -253,7 +284,7 @@ function renderSalsasTable() {
         return;
     }
 
-    state.salsas.forEach(salsa => {
+    state.salsas.filter(salsa => matchesCatalogFilter(salsa, 'salsa')).forEach(salsa => {
         const tr = document.createElement('tr');
         const isEditing = editingSalsaId === salsa.id;
         const isActive = Number(salsa.active) !== 0;

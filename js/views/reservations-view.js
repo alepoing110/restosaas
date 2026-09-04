@@ -9,13 +9,17 @@ function renderReservations() {
     }
 
     populateReservationTableSelect();
+    if (typeof window.populateReservationCustomerSelect === 'function') window.populateReservationCustomerSelect();
     renderReservationCatalog();
 
     const reservations = state.reservations || [];
     const filter = state.reservationFilter || 'activas';
+    const isBotQueue = filter === 'bot';
     const filteredByStatus = filter === 'activas'
         ? reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada')
-        : reservations.filter(r => r.status === 'completada' || r.status === 'cancelada');
+        : isBotQueue
+            ? reservations.filter(r => r.source === 'bot' && (r.status === 'pendiente' || r.status === 'confirmada') && !r.kitchen_printed_at)
+            : reservations.filter(r => r.status === 'completada' || r.status === 'cancelada');
     const searchQuery = (state.reservationSearch || '').toLowerCase();
     const filtered = searchQuery
         ? filteredByStatus.filter(r => (r.customer_name || '').toLowerCase().includes(searchQuery) || (r.phone || '').includes(searchQuery))
@@ -23,13 +27,21 @@ function renderReservations() {
 
     const tbody = document.getElementById('reservations-table-body');
     if (!tbody) return;
+    const batchActions = document.getElementById('bot-reservations-batch-actions');
+    const selectionCount = document.getElementById('bot-reservations-selection-count');
+    const selectHeader = document.getElementById('bot-reservations-select-header');
+    const verificationHeader = document.getElementById('bot-reservations-verification-header');
+    if (batchActions) batchActions.style.display = isBotQueue ? 'flex' : 'none';
+    if (selectHeader) selectHeader.style.display = isBotQueue ? '' : 'none';
+    if (verificationHeader) verificationHeader.style.display = isBotQueue ? '' : 'none';
+    if (selectionCount) selectionCount.textContent = `${botReservationSelection.size} seleccionada(s)`;
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
         const emptyMsg = filter === 'activas'
             ? (searchQuery ? 'No se encontraron reservas para esta búsqueda.' : 'No hay reservas activas para esta fecha.')
             : (searchQuery ? 'No se encontraron reservas para esta búsqueda.' : 'No hay reservas entregadas para esta fecha.');
-        tbody.innerHTML = `<tr><td colspan="9" class="text-muted" style="text-align:center; padding:32px;">${emptyMsg}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="text-muted" style="text-align:center; padding:32px;">${emptyMsg}</td></tr>`;
         updateReservationSummary(reservations);
         return;
     }
@@ -39,6 +51,12 @@ function renderReservations() {
         tr.className = 'reservation-row status-' + res.status;
 
         const statusBadge = getReservationStatusBadge(res.status);
+        const isBot = res.source === 'bot';
+        const isPendingVerification = isBot && res.verification_status !== 'verificada';
+        const canSelect = isBot && ['pendiente', 'confirmada'].includes(res.status) && !res.kitchen_printed_at;
+        const verificationBadge = isPendingVerification
+            ? '<span class="badge badge-warning" style="font-size:10px;">Pendiente</span>'
+            : '<span class="badge badge-success" style="font-size:10px;">Verificada</span>';
         const timeStr = (res.reservation_time || '').substring(0, 5);
         const deliveryType = res.delivery_type || 'para_servirse';
         const deliveryBadge = deliveryType === 'para_llevar'
@@ -50,6 +68,7 @@ function renderReservations() {
             : '<span style="color:var(--text-muted);">Sin pedido</span>';
 
         tr.innerHTML = `
+            ${isBotQueue ? `<td style="text-align:center;"><input type="checkbox" ${canSelect && botReservationSelection.has(res.id) ? 'checked' : ''} ${canSelect ? '' : 'disabled'} onchange="toggleBotReservationSelection('${res.id}', this.checked)" aria-label="Seleccionar reserva de ${escapeHtml(res.customer_name)}"></td>` : ''}
             <td><strong>${escapeHtml(res.customer_name)}</strong>${res.phone ? '<br><small style="color:var(--text-muted);">' + escapeHtml(res.phone) + '</small>' : ''}</td>
             <td style="text-align:center;">${timeStr}</td>
             <td style="text-align:center;"><span class="badge badge-info">${res.party_size}</span></td>
@@ -58,9 +77,10 @@ function renderReservations() {
             <td style="font-size:12px; max-width:200px;">${itemsSummary}</td>
             <td style="text-align:right; font-weight:600;">${formatCurrency(res.total || 0)}</td>
             <td style="text-align:center;">${statusBadge}</td>
+            ${isBotQueue ? `<td style="text-align:center;">${verificationBadge}</td>` : ''}
             <td style="text-align:center;">
                 <div class="reservation-actions">
-                    ${res.status === 'pendiente' ? `
+                    ${res.status === 'pendiente' && !isPendingVerification ? `
                         <button class="btn btn-sm btn-success" onclick="confirmReservation('${res.id}')" title="${res.delivery_type === 'para_servirse' ? 'Confirmar y asignar mesa' : 'Cobrar reserva'}">
                             <i class="fa-solid fa-${res.delivery_type === 'para_servirse' ? 'chair' : 'cash-register'}"></i>
                         </button>
@@ -73,9 +93,9 @@ function renderReservations() {
                     <button class="btn btn-sm btn-outline" onclick="editReservation('${res.id}')" title="Editar">
                         <i class="fa-solid fa-pen"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline" onclick="printReservationComanda('${res.id}')" title="Imprimir Comanda">
+                    ${(!isBot || !isPendingVerification) ? `<button class="btn btn-sm btn-outline" onclick="printReservationComanda('${res.id}')" title="${res.kitchen_printed_at ? 'Reimprimir comanda' : 'Imprimir comanda'}">
                         <i class="fa-solid fa-print"></i>
-                    </button>
+                    </button>` : ''}
                     ${res.status !== 'completada' ? `
                         <button class="btn btn-sm btn-danger-outline" onclick="deleteReservation('${res.id}')" title="Eliminar">
                             <i class="fa-solid fa-trash"></i>

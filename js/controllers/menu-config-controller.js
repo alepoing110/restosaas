@@ -18,6 +18,15 @@ window.switchMenuConfigSubtab = function(subtabId) {
     });
 
     window.activeMenuConfigSubtab = subtabId;
+    if (typeof window.saveUiContext === 'function') {
+        const context = typeof window.getUiContext === 'function' ? window.getUiContext() : {};
+        window.saveUiContext({ subtabs: { ...(context.subtabs || {}), 'menu-config': subtabId } });
+    }
+
+    if (subtabId === 'descuentos') {
+        if (typeof window.PromoController === 'object' && window.PromoController.init) window.PromoController.init();
+        if (typeof renderPromoPlans === 'function') renderPromoPlans();
+    }
 };
 
 // Segundos inline editing

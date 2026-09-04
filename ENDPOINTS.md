@@ -279,3 +279,37 @@ Antes de mover el sistema a un servidor productivo:
 4. Revisar `Access-Control-Allow-Origin` en `api.php` (el dominio de producción debe estar en la lista)
 5. Permisos `775` en `storage/` y subcarpetas
 6. Ejecutar `php migrate.php --force` para crear/esquema de la BD
+
+## Contrato HTTP vigente
+
+`api.php` aplica esta política en servidor. Una acción de lectura solo acepta
+`GET`; toda acción que calcula con datos sensibles o modifica estado solo acepta
+`POST`. Los `POST` autenticados requieren `X-CSRF-Token` y tienen rate limiting.
+Las excepciones públicas son `auth_login`, `admin_login` y `public_register`;
+también están limitadas por intentos en sus propios handlers.
+
+| Dominio | GET | POST |
+| --- | --- | --- |
+| Autenticación | `auth_me` | `auth_login`, `admin_login`, `auth_logout`, `switch_branch` |
+| Estado y paneles | `get_state`, `get_pos_state`, `get_active_orders`, `get_inventory`, `get_reports`, `get_dashboard`, `get_customers`, `get_receivables` | - |
+| Pedidos | - | `save_order`, `update_order_state`, `complete_order`, `cancel_order`, `append_order_items`, `annul_sale` |
+| Catálogo y menús | `get_products_by_menu` | `save_item`, `delete_item`, `save_product`, `delete_product`, `save_menu`, `delete_menu` |
+| Caja y finanzas | `get_daily_report`, `get_financial_report`, `get_branch_comparison`, `get_cash_flow`, `get_control_report`, `get_customers`, `get_receivables` | `save_caja_movimiento`, `delete_caja_movimiento`, `save_caja_cierre`, `reset_data`, `save_financial_expense`, `delete_financial_expense`, `save_customer`, `save_receivable_payment` |
+| Mesas y configuración | - | `save_table`, `delete_table`, `reorder_tables`, `save_prices`, `save_business_info` |
+| Reservas | `get_reservations` | `save_reservation`, `update_reservation_status`, `delete_reservation` |
+| Administración SaaS | `get_saas_admin`, `saas_get_plans` | `saas_create_tenant`, `saas_create_branch`, `saas_create_user`, `saas_update_subscription`, `saas_edit_tenant`, `saas_delete_tenant`, `saas_edit_branch`, `saas_delete_branch`, `saas_edit_user`, `saas_delete_user`, `saas_create_plan`, `saas_update_plan`, `saas_delete_plan`, `saas_approve_payment`, `saas_reject_payment`, `public_register` |
+| Usuarios del tenant | `get_tenant_users` | `create_tenant_user`, `edit_tenant_user`, `delete_tenant_user` |
+| Categorías | `get_categories` | `save_category`, `delete_category`, `reorder_categories` |
+| Datos y stock | `export_tenant_data`, `get_stock_history`, `get_stock_report` | `import_tenant_data` |
+| Descuentos | `get_discounts` | `save_discount`, `delete_discount`, `calculate_discount` |
+| Chatbot | `get_chatbot_conversations`, `get_chatbot_messages` | `chatbot_simulate`, `chatbot_close_conversation`, `delete_chatbot_conversation`, `chatbot_simulate_local`, `chatbot_save_reply_local`, `chatbot_execute_tool` |
+
+Los filtros de lecturas se envían como query string. Ejemplo:
+
+```text
+GET /api.php?action=get_reports&start_date=2026-08-01&end_date=2026-08-31
+```
+
+Las respuestas JSON siguen el sobre `{ status, message?, ...datos }`. Para
+errores de contrato el API devuelve `400` (acción ausente), `404` (acción
+desconocida), `405` (método incorrecto), `401` (sesión) o `403` (CSRF/permisos).

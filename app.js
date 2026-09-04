@@ -72,14 +72,10 @@ function initTabNavigation() {
     // POS Table selection listener
     safeBind('order-table-select', 'change', (e) => {
         const customWrapper = document.getElementById('custom-customer-name-wrapper');
+        if (customWrapper) customWrapper.style.display = '';
         if (e.target.value === 'Personalizado') {
-            if (customWrapper) customWrapper.style.display = 'block';
-            const nameInput = document.getElementById('order-customer-name');
-            if (nameInput) nameInput.value = '';
             const nameTarget = document.getElementById('order-customer-name');
             if (nameTarget) nameTarget.focus();
-        } else {
-            if (customWrapper) customWrapper.style.display = 'none';
         }
     });
 
@@ -245,7 +241,7 @@ async function startAuthenticatedApp(forceReload = false) {
             if (window.PosController) {
                 PosController.checkoutOrder(true).catch(err => {
                     console.error('[POS] checkoutOrder error:', err);
-                    showToast('Error inesperado al procesar el pedido.', 'error');
+                    showToast(err.message || 'Error inesperado al procesar el pedido.', 'error');
                 });
             }
         });
@@ -253,7 +249,7 @@ async function startAuthenticatedApp(forceReload = false) {
             if (window.PosController) {
                 PosController.checkoutOrder(false).catch(err => {
                     console.error('[POS] checkoutOrder error:', err);
-                    showToast('Error inesperado al procesar el pedido.', 'error');
+                    showToast(err.message || 'Error inesperado al procesar el pedido.', 'error');
                 });
             }
         });
@@ -387,7 +383,16 @@ async function startAuthenticatedApp(forceReload = false) {
     }
 
     applyRoleVisibility();
-    switchTab('pos');
+    const validTabs = ['pos','active-orders','menu-config','inventory','reports','financial','customers','dashboard','reservations','users','saas-admin'];
+    const hashTab = window.location.hash.replace('#', '');
+    const uiContext = typeof window.getUiContext === 'function' ? window.getUiContext() : {};
+    const savedTab = (hashTab && validTabs.includes(hashTab))
+        ? hashTab
+        : (localStorage.getItem('restocloud_active_tab') || 'pos');
+    if (savedTab === 'reservations' && uiContext.reservationsDate) {
+        state.reservationsDate = uiContext.reservationsDate;
+    }
+    switchTab(savedTab, { skipLoad: savedTab !== 'reservations' && savedTab !== 'financial' && savedTab !== 'customers' });
 }
 
 window.startAuthenticatedApp = startAuthenticatedApp;

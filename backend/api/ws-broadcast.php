@@ -2,7 +2,8 @@
 // WebSocket event broadcaster - writes events for the WebSocket server to broadcast
 
 function broadcastWebSocketEvent(string $eventType, array $data, array $authContext): void {
-    $eventDir = sys_get_temp_dir();
+    $eventDir = __DIR__ . '/../../storage/ws';
+    if (!is_dir($eventDir)) @mkdir($eventDir, 0750, true);
     $eventFile = $eventDir . '/restocloud_ws_events.jsonl';
 
     $event = json_encode([

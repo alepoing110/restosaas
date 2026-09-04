@@ -1,0 +1,14 @@
+@startuml
+node "Dispositivo del usuario" { artifact "Navegador web"; artifact "Service Worker PWA" }
+node "Servidor Apache/PHP" { artifact "Frontend RestoCloud"; artifact "api.php"; artifact "Módulos backend"; artifact "Sesiones y caché" }
+node "Servidor MySQL" { database "Base RestoCloud multi-tenant" }
+node "Servidor WebSocket" { artifact "websocket-server.php" }
+cloud "Servicio WhatsApp"
+cloud "Proveedor LLM"
+"Navegador web" --> "Frontend RestoCloud" : HTTPS
+"Navegador web" --> "api.php" : HTTPS/JSON
+"Navegador web" --> "websocket-server.php" : WSS
+"Módulos backend" --> "Base RestoCloud multi-tenant" : PDO/MySQL
+"Módulos backend" --> "Servicio WhatsApp" : HTTPS
+"Módulos backend" --> "Proveedor LLM" : HTTPS
+@enduml

@@ -20,7 +20,173 @@ window.switchSaasSubtab = function(tabId) {
     if (tabId === 'plans' && typeof renderSaasPlansTable === 'function') {
         renderSaasPlansTable();
     }
+    if (tabId === 'chatbot' && typeof reloadChatbotConversations === 'function') {
+        reloadChatbotConversations();
+    }
 };
+
+async function reloadChatbotConversations() {
+    try {
+        const params = {};
+        if (state.activeTenantId) params.tenant_id = state.activeTenantId;
+        const data = await AppApi.request('get_chatbot_conversations', null, { method: 'GET', params });
+        state.saasAdmin.chatbotConversations = data.conversations || [];
+        renderSaasChatbotConversations();
+        renderSaasChatbotMessages();
+    } catch (error) {
+        showToast(error.message || 'No se pudo cargar conversaciones del chatbot.', 'error');
+    }
+}
+
+async function selectChatbotConversation(conversationId) {
+    state.saasAdmin.chatbotSelectedConversationId = conversationId;
+    renderSaasChatbotConversations();
+    try {
+        const params = { conversation_id: conversationId };
+        if (state.activeTenantId) params.tenant_id = state.activeTenantId;
+        const data = await AppApi.request('get_chatbot_messages', null, { method: 'GET', params });
+        state.saasAdmin.chatbotMessages = data.messages || [];
+        renderSaasChatbotMessages();
+    } catch (error) {
+        state.saasAdmin.chatbotMessages = [];
+        renderSaasChatbotMessages();
+        showToast(error.message || 'No se pudo cargar mensajes de la conversación.', 'error');
+    }
+}
+
+async function sendSimulatedMessage() {
+    const input = document.getElementById('chatbot-sim-input');
+    const sendBtn = document.getElementById('chatbot-sim-send');
+    if (!input || !sendBtn) return;
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    let phone = document.getElementById('chatbot-sim-phone')?.value.trim();
+    const customerName = document.getElementById('chatbot-sim-name')?.value.trim() || 'Cliente Sim';
+
+    if (!phone) {
+        phone = 'sim_' + Date.now().toString(36);
+        const phoneInput = document.getElementById('chatbot-sim-phone');
+        if (phoneInput) phoneInput.value = phone;
+    }
+
+    sendBtn.disabled = true;
+    input.disabled = true;
+    input.value = '';
+
+    if (!state.saasAdmin.chatbotSimMessages) state.saasAdmin.chatbotSimMessages = [];
+    state.saasAdmin.chatbotSimMessages.push({
+        role: 'user',
+        content: message,
+        created_at: new Date().toISOString()
+    });
+    renderSaasChatbotSimMessages();
+
+    state.saasAdmin.chatbotSimMessages.push({
+        role: 'loading',
+        content: '...',
+        created_at: new Date().toISOString()
+    });
+    renderSaasChatbotSimMessages();
+
+    try {
+        const payload = { message, phone, customer_name: customerName };
+        if (state.activeTenantId) payload.tenant_id = state.activeTenantId;
+        const data = await AppApi.request('chatbot_simulate', payload);
+
+        state.saasAdmin.chatbotSimMessages = state.saasAdmin.chatbotSimMessages.filter(m => m.role !== 'loading');
+        state.saasAdmin.chatbotSimMessages.push({
+            role: 'assistant',
+            content: data.reply || '',
+            tool_result: data.tool_result || null,
+            conversation_id: data.conversation_id || null,
+            created_at: new Date().toISOString()
+        });
+        renderSaasChatbotSimMessages();
+
+        if (data.conversation_id) {
+            state.saasAdmin.chatbotSelectedConversationId = data.conversation_id;
+            await reloadChatbotConversations();
+        }
+    } catch (error) {
+        state.saasAdmin.chatbotSimMessages = state.saasAdmin.chatbotSimMessages.filter(m => m.role !== 'loading');
+        state.saasAdmin.chatbotSimMessages.push({
+            role: 'error',
+            content: error.message || 'Error al enviar mensaje',
+            created_at: new Date().toISOString()
+        });
+        renderSaasChatbotSimMessages();
+    } finally {
+        sendBtn.disabled = false;
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+async function clearSimulatorChat() {
+    const conversationId = state.saasAdmin.chatbotSelectedConversationId;
+    if (conversationId) {
+        try {
+            const payload = { conversation_id: conversationId };
+            if (state.activeTenantId) payload.tenant_id = state.activeTenantId;
+            await AppApi.request('delete_chatbot_conversation', payload);
+        } catch (e) {
+            // Silently fail — clear UI regardless
+        }
+    }
+    state.saasAdmin.chatbotSimMessages = [];
+    state.saasAdmin.chatbotSelectedConversationId = null;
+    state.saasAdmin.chatbotMessages = [];
+    renderSaasChatbotSimMessages();
+    renderSaasChatbotConversations();
+    renderSaasChatbotMessages();
+    const phoneInput = document.getElementById('chatbot-sim-phone');
+    const nameInput = document.getElementById('chatbot-sim-name');
+    if (phoneInput) phoneInput.value = '';
+    if (nameInput) nameInput.value = '';
+}
+
+async function closeChatbotConversation(conversationId) {
+    const confirmed = await ConfirmDialog.show('¿Cerrar esta conversación? El chatbot no responderá más mensajes de esta conversación.', {
+        title: 'Cerrar Conversación',
+        confirmText: 'Sí, cerrar'
+    });
+    if (!confirmed) return;
+
+    try {
+        await AppApi.request('chatbot_close_conversation', { conversation_id: conversationId });
+        showToast('Conversación cerrada.', 'success');
+        await reloadChatbotConversations();
+    } catch (error) {
+        showToast(error.message || 'No se pudo cerrar la conversación.', 'error');
+    }
+}
+
+async function deleteChatbotConversation(conversationId) {
+    const confirmed = await ConfirmDialog.show('¿Eliminar esta conversación y todos sus mensajes? Esta acción no se puede deshacer.', {
+        title: 'Eliminar Conversación',
+        confirmText: 'Sí, eliminar'
+    });
+    if (!confirmed) return;
+
+    try {
+        const payload = { conversation_id: conversationId };
+        if (state.activeTenantId) payload.tenant_id = state.activeTenantId;
+        await AppApi.request('delete_chatbot_conversation', payload);
+        showToast('Conversación eliminada.', 'success');
+        if (state.saasAdmin.chatbotSelectedConversationId === conversationId) {
+            state.saasAdmin.chatbotSelectedConversationId = null;
+            state.saasAdmin.chatbotMessages = [];
+            renderSaasChatbotMessages();
+        }
+        await reloadChatbotConversations();
+    } catch (error) {
+        showToast(error.message || 'No se pudo eliminar la conversación.', 'error');
+    }
+}
+window.deleteChatbotConversation = deleteChatbotConversation;
+window.clearSimulatorChat = clearSimulatorChat;
 
 async function reloadSaasAdminData() {
     await loadStateForTab('saas-admin');
@@ -607,6 +773,26 @@ window.filterSaasTenants = function(query, status) {
     if (query !== undefined) state.saasAdmin.searchQuery = query.toLowerCase().trim();
     if (status !== undefined) state.saasAdmin.statusFilter = status;
     renderSaasTenantsTable();
+};
+
+window.setSaasListFilter = function(list, field, value) {
+    if (!state.saasAdmin.filters) state.saasAdmin.filters = {};
+    if (!state.saasAdmin.filters[list]) state.saasAdmin.filters[list] = {};
+    state.saasAdmin.filters[list][field] = field === 'search' ? String(value || '').trim() : (value || 'all');
+    if (list === 'branches') renderSaasBranchesTable();
+    if (list === 'users') renderSaasUsersTable();
+    if (list === 'payments') renderSaasPendingPayments();
+};
+
+window.clearSaasListFilters = function(list) {
+    if (!state.saasAdmin.filters) state.saasAdmin.filters = {};
+    state.saasAdmin.filters[list] = {};
+    const panel = document.getElementById(`saas-panel-${list}`);
+    if (panel) panel.querySelectorAll('input[type="search"]').forEach(input => { input.value = ''; });
+    if (panel) panel.querySelectorAll('.saas-list-filters select').forEach(select => { select.value = 'all'; });
+    if (list === 'branches') renderSaasBranchesTable();
+    if (list === 'users') renderSaasUsersTable();
+    if (list === 'payments') renderSaasPendingPayments();
 };
 
 window.initSaasAdminController = function() {

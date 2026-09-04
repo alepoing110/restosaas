@@ -1,0 +1,20 @@
+@startuml
+actor Administrador
+boundary "Vista reservas" as UI
+control ReservationsController
+control "API Reservas" as API
+control AuthService
+database MySQL
+Administrador -> UI: registra reserva
+UI -> ReservationsController: saveReservation(datos)
+ReservationsController -> API: save_reservation(datos)
+API -> AuthService: requirePermission(settings)
+API -> API: validar fecha, cliente y mesa
+API -> MySQL: verificar disponibilidad
+alt mesa disponible
+  API -> MySQL: guardar reserva
+  API --> UI: reserva registrada
+else conflicto de horario
+  API --> UI: informar conflicto
+end
+@enduml

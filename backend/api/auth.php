@@ -105,3 +105,33 @@ function handle_auth_logout(PDO $pdo, ?array $authContext, array $input): void {
     closeUserSession($pdo);
     echo json_encode(["status" => "success"]);
 }
+
+function handle_switch_branch(PDO $pdo, ?array $authContext, array $input): void {
+    requirePermission($authContext, 'settings');
+    $branchId = trim((string)($input['branch_id'] ?? ''));
+    if ($branchId === '') {
+        echo json_encode(['status' => 'error', 'message' => 'Sucursal requerida']);
+        return;
+    }
+
+    $access = $pdo->prepare("\n        SELECT b.id\n        FROM `user_branch_access` uba\n        INNER JOIN `branches` b ON b.id = uba.branch_id AND b.tenant_id = uba.tenant_id\n        WHERE uba.user_id = :uid AND uba.tenant_id = :tid AND uba.branch_id = :bid AND b.active = 1\n        LIMIT 1\n    ");
+    $access->execute([
+        'uid' => $authContext['user_id'],
+        'tid' => $authContext['tenant_id'],
+        'bid' => $branchId
+    ]);
+    if (!$access->fetch()) {
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'No tienes acceso a esta sucursal']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("UPDATE `user_sessions` SET `branch_id` = :bid, `last_seen_at` = NOW() WHERE `id` = :sid AND `user_id` = :uid AND `tenant_id` = :tid AND `ended_at` IS NULL");
+    $stmt->execute(['bid' => $branchId, 'sid' => $authContext['session_id'], 'uid' => $authContext['user_id'], 'tid' => $authContext['tenant_id']]);
+    $nextContext = resolveAuthContext($pdo);
+    if (!$nextContext) {
+        throw new RuntimeException('No se pudo cambiar el contexto de sucursal.');
+    }
+    writeAuditLog($pdo, $nextContext, 'auth.branch.switch', 'branch', $branchId);
+    echo json_encode(array_merge(['status' => 'success'], buildAuthPayload($nextContext)));
+}

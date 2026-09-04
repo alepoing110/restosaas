@@ -1,0 +1,12 @@
+@startuml
+[*] --> Pendiente
+Pendiente --> "En preparación" : iniciar preparación
+"En preparación" --> Listo : finalizar preparación
+Listo --> Completado : cobrar/entregar
+Pendiente --> Cancelado : cancelar
+"En preparación" --> Cancelado : cancelar autorizado
+Completado --> Anulado : anular venta
+Cancelado --> [*]
+Anulado --> [*]
+Completado --> [*]
+@enduml

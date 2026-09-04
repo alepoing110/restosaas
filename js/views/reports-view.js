@@ -11,7 +11,7 @@ function renderReports() {
     let mixedEfectivoTotal = 0;
     let mixedQrTotal = 0;
 
-    const completedSales = state.salesHistory.filter(s => s.status === 'completado');
+    const completedSales = state.salesHistory.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid));
 
     completedSales.forEach(sale => {
         totalRevenue += sale.total;
@@ -88,6 +88,7 @@ function renderReports() {
     renderSalesHistory();
     renderTopSellers();
     renderCajaCierresHistory();
+    if (typeof renderRefundsReport === 'function') renderRefundsReport();
     runArqueoCalculations();
     if (typeof initReportsSubtabs === 'function') {
         initReportsSubtabs();
@@ -103,7 +104,7 @@ function renderTopSellers() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const completedSales = state.salesHistory.filter(s => s.status === 'completado');
+    const completedSales = state.salesHistory.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid));
     if (completedSales.length === 0) {
         if (emptyState) emptyState.style.display = 'flex';
         return;
@@ -240,29 +241,40 @@ function renderSalesHistory() {
         if (emptySalesState) emptySalesState.style.display = 'none';
     }
 
-    const sortedSales = [...filteredSales].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const sortedSales = [...filteredSales].sort((a, b) => {
+        const ta = getSaleTime(a) || a.timestamp || '';
+        const tb = getSaleTime(b) || b.timestamp || '';
+        return new Date(tb) - new Date(ta);
+    });
 
     sortedSales.forEach(sale => {
         const tr = document.createElement('tr');
+        const isPaid = sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid);
 
         let itemsSummary = '<div class="sale-items-compact-list">';
         (sale.items || []).forEach(item => {
+            const qty = item.qty || item.quantity || 1;
             let details = '';
             if (item.type === 'almuerzo' || item.type === 'segundo') {
                 details = item.segundoName ? `(${item.segundoName})` : '';
             }
             itemsSummary += `
                 <span class="sale-item-compact-row">
-                    <strong>1x</strong> ${escapeHtml(item.name)} ${escapeHtml(details)}
+                    <strong>${qty}x</strong> ${escapeHtml(item.name)} ${escapeHtml(details)}
                     <span class="item-detail-badge ${item.serviceType}">${escapeHtml(item.serviceType)}</span>
                 </span>
             `;
         });
         itemsSummary += '</div>';
 
-        const statusBadge = sale.status === 'completado'
-            ? '<span class="badge-status completed">Cobrado</span>'
-            : '<span class="badge-status refunded">Anulado</span>';
+        let statusBadge;
+        if (sale.status === 'anulado') {
+            statusBadge = '<span class="badge-status refunded">Anulado</span>';
+        } else if (sale.status === 'pendiente' && sale.paid) {
+            statusBadge = '<span class="badge-status completed">Cobrado</span>';
+        } else {
+            statusBadge = '<span class="badge-status completed">Cobrado</span>';
+        }
 
         const pm = parsePaymentMethod(sale.paymentMethod, sale.total);
         const isMixed = sale.paymentMethod && typeof sale.paymentMethod === 'object';
@@ -280,7 +292,7 @@ function renderSalesHistory() {
                                 '<span class="item-detail-badge llevar">💳 Tarj.</span>';
         }
 
-        const buttons = sale.status === 'completado'
+        const buttons = isPaid
             ? `<div style="display:flex; gap:6px;">
                 <button class="btn btn-outline btn-sm" onclick="openTicketFromHistory('${sale.id}')" title="Re-imprimir Ticket">
                     <i class="fa-solid fa-print"></i> Ticket
@@ -288,11 +300,14 @@ function renderSalesHistory() {
                 <button class="btn btn-outline-danger btn-sm" onclick="annulCompletedSale('${sale.id}')" title="Anular e Inventariar">
                     <i class="fa-solid fa-rotate-left"></i> Anular
                 </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="openRefundModal('${sale.id}')" title="Registrar devolución">
+                    <i class="fa-solid fa-money-bill-transfer"></i> Devolver
+                </button>
                </div>`
             : '<span class="text-muted" style="font-size:11px;">Devuelto</span>';
 
         tr.innerHTML = `
-            <td><strong>${formatTime(sale.timestamp)}</strong></td>
+            <td><strong>${formatTime(getSaleTime(sale) || sale.timestamp)}</strong></td>
             <td>${escapeHtml(sale.customer)}</td>
             <td>${itemsSummary}</td>
             <td>${methodBadgeHtml}</td>
@@ -308,7 +323,7 @@ function runArqueoCalculations() {
     const cashRealInput = document.getElementById('caja-efectivo-real');
     const physicalTotal = parseFloat(cashRealInput ? cashRealInput.value : 0) || 0;
 
-    const completedSales = state.salesHistory.filter(s => s.status === 'completado');
+    const completedSales = state.salesHistory.filter(s => s.status === 'completado' || (s.status === 'pendiente' && s.paid));
     let cashSales = 0;
     completedSales.forEach(s => {
         const pm = parsePaymentMethod(s.paymentMethod, s.total);
@@ -413,7 +428,7 @@ function openDrinksReportModal() {
         let soldToday = 0;
         if (Array.isArray(state.salesHistory)) {
             state.salesHistory.forEach(s => {
-                if (s && s.status === 'completado' && Array.isArray(s.items)) {
+                if (s && (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) && Array.isArray(s.items)) {
                     s.items.forEach(item => {
                         if (item && item.type === 'extra' && item.extraId === ext.id) {
                             soldToday++;

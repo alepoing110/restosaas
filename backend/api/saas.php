@@ -44,6 +44,10 @@ function handle_saas_create_tenant(PDO $pdo, ?array $authContext, array $input):
         echo json_encode(["status" => "error", "message" => "La contraseña debe tener al menos 8 caracteres"]);
         return;
     }
+    if (!preg_match('/[A-Z]/', $ownerPassword) || !preg_match('/[a-z]/', $ownerPassword) || !preg_match('/[0-9]/', $ownerPassword)) {
+        echo json_encode(["status" => "error", "message" => "La contraseña debe incluir al menos una mayúscula, una minúscula y un número"]);
+        return;
+    }
 
     $validStatuses = ['trial', 'active', 'past_due', 'suspended', 'pending_payment'];
     if (!in_array($subscriptionStatus, $validStatuses, true)) {
@@ -54,6 +58,26 @@ function handle_saas_create_tenant(PDO $pdo, ?array $authContext, array $input):
     $branchId = 'branch_' . bin2hex(random_bytes(8));
     $userId = 'user_' . bin2hex(random_bytes(8));
     $subscriptionId = 'sub_' . bin2hex(random_bytes(8));
+
+    $slugCheck = $pdo->prepare("SELECT id FROM `tenants` WHERE slug = :slug LIMIT 1");
+    $slugCheck->execute(['slug' => $tenantSlug]);
+    if ($slugCheck->fetch()) {
+        echo json_encode(["status" => "error", "message" => "El slug ya está en uso"]);
+        return;
+    }
+    $emailCheck = $pdo->prepare("SELECT id FROM `users` WHERE email = :email LIMIT 1");
+    $emailCheck->execute(['email' => $ownerEmail]);
+    if ($emailCheck->fetch()) {
+        echo json_encode(["status" => "error", "message" => "Ya existe un usuario con este email"]);
+        return;
+    }
+    $planRow = $pdo->prepare("SELECT id, trial_days FROM `plans` WHERE `code` = :code AND `active` = 1 LIMIT 1");
+    $planRow->execute(['code' => $planCode]);
+    $plan = $planRow->fetch(PDO::FETCH_ASSOC);
+    if (!$plan) {
+        echo json_encode(["status" => "error", "message" => "El plan seleccionado no está disponible"]);
+        return;
+    }
 
     $pdo->beginTransaction();
 
@@ -66,16 +90,17 @@ function handle_saas_create_tenant(PDO $pdo, ?array $authContext, array $input):
     $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `tenant_id`, `branch_id`, `name`, `email`, `password_hash`, `role`, `active`, `created_at`) VALUES (:id, :tenant_id, :branch_id, :name, :email, :password_hash, 'owner', 1, NOW())");
     $stmt->execute(['id' => $userId, 'tenant_id' => $tenantId, 'branch_id' => $branchId, 'name' => $ownerName, 'email' => $ownerEmail, 'password_hash' => password_hash($ownerPassword, PASSWORD_DEFAULT)]);
 
-    $planRow = $pdo->prepare("SELECT id, trial_days FROM `plans` WHERE `code` = :code LIMIT 1");
-    $planRow->execute(['code' => $planCode]);
-    $plan = $planRow->fetch(PDO::FETCH_ASSOC);
-    $planId = $plan ? $plan['id'] : null;
-    $trialDays = $plan ? (int)($plan['trial_days'] ?? 14) : 14;
+    $planId = $plan['id'];
+    $trialDays = (int)($plan['trial_days'] ?? 14);
     $endsAt = $subscriptionStatus === 'trial' ? date('Y-m-d H:i:s', strtotime("+{$trialDays} days")) : null;
     $snapshot = $planId ? createPlanSnapshot($pdo, $planId) : null;
 
     $stmt = $pdo->prepare("INSERT INTO `tenant_subscriptions` (`id`, `tenant_id`, `plan_code`, `plan_id`, `status`, `starts_at`, `ends_at`, `plan_snapshot`, `created_at`) VALUES (:id, :tenant_id, :plan_code, :plan_id, :status, NOW(), :ends_at, :plan_snapshot, NOW())");
     $stmt->execute(['id' => $subscriptionId, 'tenant_id' => $tenantId, 'plan_code' => $planCode, 'plan_id' => $planId, 'status' => $subscriptionStatus, 'ends_at' => $endsAt, 'plan_snapshot' => $snapshot]);
+
+    $stmt = $pdo->prepare("INSERT INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) VALUES (:uid, :tid, :bid)");
+    $stmt->execute(['uid' => $userId, 'tid' => $tenantId, 'bid' => $branchId]);
+    initializeBranchTemplate($pdo, $tenantId, $branchId, $tenantName);
 
     $pdo->commit();
     writeAuditLog($pdo, $authContext, 'saas.tenant.create', 'tenant', $tenantId, ['owner_email' => $ownerEmail, 'branch_id' => $branchId]);
@@ -93,6 +118,13 @@ function handle_saas_create_branch(PDO $pdo, ?array $authContext, array $input):
         return;
     }
 
+    $tenantStmt = $pdo->prepare("SELECT name FROM `tenants` WHERE id = :tid AND active = 1 LIMIT 1");
+    $tenantStmt->execute(['tid' => $tenantId]);
+    $tenant = $tenantStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$tenant) {
+        echo json_encode(["status" => "error", "message" => "Tenant no válido o inactivo"]);
+        return;
+    }
     $limit = checkPlanLimits($pdo, $tenantId, 'branches');
     if (!$limit['allowed']) {
         echo json_encode(["status" => "error", "message" => "Límite de sucursales alcanzado ({$limit['current']}/{$limit['limit']})"]);
@@ -100,8 +132,18 @@ function handle_saas_create_branch(PDO $pdo, ?array $authContext, array $input):
     }
 
     $branchId = 'branch_' . bin2hex(random_bytes(8));
+    $pdo->beginTransaction();
+    try {
     $stmt = $pdo->prepare("INSERT INTO `branches` (`id`, `tenant_id`, `name`, `active`, `created_at`) VALUES (:id, :tenant_id, :name, 1, NOW())");
     $stmt->execute(['id' => $branchId, 'tenant_id' => $tenantId, 'name' => $branchName]);
+    $stmt = $pdo->prepare("INSERT IGNORE INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) SELECT id, tenant_id, :bid FROM users WHERE tenant_id = :tid AND role = 'owner' AND active = 1");
+    $stmt->execute(['bid' => $branchId, 'tid' => $tenantId]);
+    initializeBranchTemplate($pdo, $tenantId, $branchId, $tenant['name']);
+    $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 
     writeAuditLog($pdo, $authContext, 'saas.branch.create', 'branch', $branchId, ['tenant_id' => $tenantId]);
     echo json_encode(array_merge(["status" => "success"], loadSaasAdminData($pdo)));
@@ -138,6 +180,10 @@ function handle_saas_create_user(PDO $pdo, ?array $authContext, array $input): v
         echo json_encode(["status" => "error", "message" => "La contraseña debe tener al menos 8 caracteres"]);
         return;
     }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+        echo json_encode(["status" => "error", "message" => "La contraseña debe incluir al menos una mayúscula, una minúscula y un número"]);
+        return;
+    }
 
     if (!in_array($role, $validRoles, true)) {
         $role = 'admin';
@@ -160,6 +206,13 @@ function handle_saas_create_user(PDO $pdo, ?array $authContext, array $input): v
     $userId = 'user_' . bin2hex(random_bytes(8));
     $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `tenant_id`, `branch_id`, `name`, `email`, `password_hash`, `role`, `active`, `created_at`) VALUES (:id, :tenant_id, :branch_id, :name, :email, :password_hash, :role, 1, NOW())");
     $stmt->execute(['id' => $userId, 'tenant_id' => $tenantId, 'branch_id' => $branchId, 'name' => $name, 'email' => $email, 'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'role' => $role]);
+    if ($role === 'owner') {
+        $stmt = $pdo->prepare("INSERT INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) SELECT :uid, :tid, id FROM `branches` WHERE tenant_id = :tid AND active = 1");
+        $stmt->execute(['uid' => $userId, 'tid' => $tenantId]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) VALUES (:uid, :tid, :bid)");
+        $stmt->execute(['uid' => $userId, 'tid' => $tenantId, 'bid' => $branchId]);
+    }
 
     writeAuditLog($pdo, $authContext, 'saas.user.create', 'user', $userId, ['tenant_id' => $tenantId, 'branch_id' => $branchId, 'role' => $role]);
     echo json_encode(array_merge(["status" => "success"], loadSaasAdminData($pdo)));
@@ -316,15 +369,6 @@ function handle_saas_edit_tenant(PDO $pdo, ?array $authContext, array $input): v
     $stmt = $pdo->prepare("UPDATE `tenants` SET `name` = :name, `business_type` = :business_type, `plan_level` = :plan_level, `active` = :active WHERE `id` = :id");
     $stmt->execute(['name' => $name, 'business_type' => $businessType, 'plan_level' => $planLevel, 'active' => $active, 'id' => $id]);
 
-    // Sync plan_level with tenant_subscriptions when plan changes
-    $existing = $pdo->prepare("SELECT `plan_code` FROM `tenant_subscriptions` WHERE `tenant_id` = :id AND `status` = 'active' LIMIT 1");
-    $existing->execute(['id' => $id]);
-    $currentSub = $existing->fetch(PDO::FETCH_ASSOC);
-    if ($currentSub && $currentSub['plan_code'] !== $planLevel) {
-        $updSub = $pdo->prepare("UPDATE `tenant_subscriptions` SET `plan_code` = :plan_code WHERE `tenant_id` = :id AND `status` = 'active'");
-        $updSub->execute(['plan_code' => $planLevel, 'id' => $id]);
-    }
-
     writeAuditLog($pdo, $authContext, 'saas.tenant.update', 'tenant', $id);
     echo json_encode(array_merge(["status" => "success"], loadSaasAdminData($pdo)));
 }
@@ -344,7 +388,7 @@ function handle_saas_delete_tenant(PDO $pdo, ?array $authContext, array $input):
             'menus', 'products', 'tables_config', 'categories',
             'config_precios', 'config_general', 'reservations', 'discounts',
             'audit_logs', 'stock_history', 'stock_daily_snapshot',
-            'user_sessions', 'plan_changes_log', 'tenant_subscriptions',
+            'user_sessions', 'user_branch_access', 'plan_changes_log', 'tenant_subscriptions',
             'users', 'branches'
         ];
         foreach ($orphanTables as $table) {
@@ -392,7 +436,7 @@ function handle_saas_delete_branch(PDO $pdo, ?array $authContext, array $input):
             'menus', 'products', 'tables_config', 'categories',
             'config_precios', 'config_general', 'reservations', 'discounts',
             'audit_logs', 'stock_history', 'stock_daily_snapshot',
-            'user_sessions', 'users'
+            'user_sessions', 'user_branch_access', 'users'
         ];
         foreach ($orphanTables as $table) {
             $stmt = $pdo->prepare("DELETE FROM `$table` WHERE `branch_id` = :id AND `tenant_id` = (SELECT `tenant_id` FROM `branches` WHERE `id` = :id2)");
@@ -433,7 +477,7 @@ function handle_saas_edit_user(PDO $pdo, ?array $authContext, array $input): voi
         return;
     }
 
-    $validRoles = ['owner', 'admin', 'cajero'];
+    $validRoles = ['owner', 'admin', 'cajero', 'super_admin'];
     if (!in_array($role, $validRoles, true)) $role = 'cajero';
 
     if ($password !== '' && strlen($password) < 8) {
@@ -463,6 +507,14 @@ function handle_saas_edit_user(PDO $pdo, ?array $authContext, array $input): voi
     } else {
         $stmt = $pdo->prepare("UPDATE `users` SET `name` = :name, `email` = :email, `role` = :role, `active` = :active, `branch_id` = :branch_id WHERE `id` = :id");
         $stmt->execute(['name' => $name, 'email' => $email, 'role' => $role, 'active' => $active, 'branch_id' => $branchId, 'id' => $id]);
+    }
+    if ($branchId !== '') {
+        $accessStmt = $pdo->prepare("INSERT IGNORE INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) VALUES (:uid, :tid, :bid)");
+        $accessStmt->execute(['uid' => $id, 'tid' => $userData['tenant_id'], 'bid' => $branchId]);
+    }
+    if ($role === 'owner') {
+        $accessStmt = $pdo->prepare("INSERT IGNORE INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) SELECT :uid, :tid, id FROM `branches` WHERE tenant_id = :tid AND active = 1");
+        $accessStmt->execute(['uid' => $id, 'tid' => $userData['tenant_id']]);
     }
     writeAuditLog($pdo, $authContext, 'saas.user.update', 'user', $id);
     echo json_encode(array_merge(["status" => "success"], loadSaasAdminData($pdo)));
@@ -534,6 +586,10 @@ function handle_create_tenant_user(PDO $pdo, ?array $authContext, array $input):
     }
     if (strlen($password) < 8) {
         echo json_encode(["status" => "error", "message" => "La contraseña debe tener al menos 8 caracteres"]);
+        return;
+    }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+        echo json_encode(["status" => "error", "message" => "La contraseña debe incluir al menos una mayúscula, una minúscula y un número"]);
         return;
     }
     $validRoles = ['admin', 'cajero'];
@@ -637,6 +693,14 @@ function handle_edit_tenant_user(PDO $pdo, ?array $authContext, array $input): v
     $params['tid'] = $tenantId;
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+    if ($branchId !== '') {
+        $accessStmt = $pdo->prepare("INSERT IGNORE INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) VALUES (:uid, :tid, :bid)");
+        $accessStmt->execute(['uid' => $id, 'tid' => $tenantId, 'bid' => $branchId]);
+    }
+    if ($role === 'owner') {
+        $accessStmt = $pdo->prepare("INSERT IGNORE INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`) SELECT :uid, :tid, id FROM `branches` WHERE tenant_id = :tid AND active = 1");
+        $accessStmt->execute(['uid' => $id, 'tid' => $tenantId]);
+    }
     writeAuditLog($pdo, $authContext, 'tenant.user.update', 'user', $id);
     echo json_encode(["status" => "success", "message" => "Usuario actualizado"]);
 }
@@ -899,6 +963,10 @@ function handle_public_register(PDO $pdo, ?array $authContext, array $input): vo
         $snapshot = createPlanSnapshot($pdo, $planId);
         $stmt = $pdo->prepare("INSERT INTO `tenant_subscriptions` (`id`, `tenant_id`, `plan_code`, `plan_id`, `status`, `plan_snapshot`, `starts_at`, `ends_at`, `created_at`) VALUES (:id, :tenant_id, :plan_code, :plan_id, :status, :snapshot, NOW(), :ends_at, NOW())");
         $stmt->execute(['id' => $subscriptionId, 'tenant_id' => $tenantId, 'plan_code' => $requestedPlanCode, 'plan_id' => $planId, 'status' => $subscriptionStatus, 'snapshot' => $snapshot, 'ends_at' => $endsAt]);
+
+        $stmt = $pdo->prepare("INSERT INTO `user_branch_access` (`user_id`, `tenant_id`, `branch_id`, `created_at`) VALUES (:user_id, :tenant_id, :branch_id, NOW())");
+        $stmt->execute(['user_id' => $userId, 'tenant_id' => $tenantId, 'branch_id' => $branchId]);
+        initializeBranchTemplate($pdo, $tenantId, $branchId, $nombreRestaurante);
 
         $pdo->commit();
     } catch (Throwable $e) {

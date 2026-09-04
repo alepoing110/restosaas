@@ -9,31 +9,30 @@
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     Header set X-XSS-Protection "1; mode=block"
     Header set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'"
 </IfModule>
 
 # Disable directory listing
 Options -Indexes
 
 # Prevent access to sensitive files
-<FilesMatch "^(db\.php|db_migrations\.php|migrate\.php|\.env|\.env\.example|deploy\.sh|package\.json|package-lock\.json|skills-lock\.json)$">
+<FilesMatch "^(db\.php|db_migrations\.php|migrate\.php|create-admin\.php|tmp_test_conv\.php|\.env|\.env\.example|\.env\.local|\.env\.production|deploy\.sh|package\.json|package-lock\.json|skills-lock\.json)$">
     Require all denied
 </FilesMatch>
 
-# Block access to storage/logs, storage/rate_limits, storage/sessions
+# Block access to all runtime storage
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^storage/logs/ - [F,L]
-    RewriteRule ^storage/rate_limits/ - [F,L]
-    RewriteRule ^storage/sessions/ - [F,L]
+    RewriteRule ^storage(?:/|$) - [F,L]
+    RewriteRule ^backend/ - [F,L]
 </IfModule>
 
 # Block access to node_modules, .git, .agents, .vscode, etc
 <IfModule mod_rewrite.c>
-    RewriteRule ^(node_modules|\.git|\.agents|\.codex|\.github|\.vscode|__tests__)/ - [F,L]
+    RewriteRule ^(node_modules|\.git|\.agents|\.codex|\.github|\.vscode|__tests__|tests)/ - [F,L]
 </IfModule>
 
-# Force HTTPS (uncomment if SSL is active)
+# Force HTTPS — activar solo cuando SSL esté configurado en el servidor
 # <IfModule mod_rewrite.c>
 #     RewriteEngine On
 #     RewriteCond %{HTTPS} off

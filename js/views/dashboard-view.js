@@ -2,7 +2,7 @@
 // SCREEN 6: DASHBOARD VIEW
 // ==========================================================================
 
-var dashboardCharts = {};
+let dashboardCharts = {};
 let dashboardData = null;
 let dashboardRendering = false;
 let dashboardDataHash = null;
@@ -121,7 +121,8 @@ async function renderDashboard() {
         try { renderTopProducts(data.topProducts || []); } catch (e) { console.error('Chart topProducts error:', e); }
     } catch (e) {
         console.error('Dashboard load error:', e);
-        showToast('Error al cargar el dashboard', 'error');
+        console.error('Dashboard error details:', e.message, e.stack);
+        showToast('Error al cargar el dashboard: ' + (e.message || 'Error desconocido'), 'error');
     } finally {
         dashboardRendering = false;
     }

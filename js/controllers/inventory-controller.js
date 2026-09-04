@@ -17,7 +17,7 @@ window.saveStockInline = async function(id, type) {
             let usage = countSegundoUsage(state.cart, id);
             state.activeOrders.forEach(o => { usage += countSegundoUsage(o.items, id); });
             state.salesHistory.forEach(s => {
-                if (s.status === 'completado') usage += countSegundoUsage(s.items, id);
+                if (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) usage += countSegundoUsage(s.items, id);
             });
             const newTotalStock = newCurrentStock + usage;
             const success = await window.saveItemOnServer('segundo', { id: id, name: sec.name, stock: newTotalStock });
@@ -38,7 +38,7 @@ window.saveStockInline = async function(id, type) {
             let usage = countSopaUsage(state.cart, id);
             state.activeOrders.forEach(o => { usage += countSopaUsage(o.items, id); });
             state.salesHistory.forEach(s => {
-                if (s.status === 'completado') usage += countSopaUsage(s.items, id);
+                if (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) usage += countSopaUsage(s.items, id);
             });
             const newTotalStock = newCurrentStock + usage;
             const success = await window.saveItemOnServer('sopa', { id: id, name: sopa.name, stock: newTotalStock, active: sopa.active ? 1 : 0 });
@@ -59,7 +59,7 @@ window.saveStockInline = async function(id, type) {
             let usage = countPlatoExtraUsage(state.cart, id);
             state.activeOrders.forEach(o => { usage += countPlatoExtraUsage(o.items, id); });
             state.salesHistory.forEach(s => {
-                if (s.status === 'completado') usage += countPlatoExtraUsage(s.items, id);
+                if (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) usage += countPlatoExtraUsage(s.items, id);
             });
             const newTotalStock = newCurrentStock + usage;
             const success = await window.saveItemOnServer('plato_extra', { id: id, name: plato.name, price: plato.price, stock: newTotalStock });
@@ -83,7 +83,7 @@ window.saveStockInline = async function(id, type) {
             let usage = countExtraUsage(state.cart, id);
             state.activeOrders.forEach(o => { usage += countExtraUsage(o.items, id); });
             state.salesHistory.forEach(s => {
-                if (s.status === 'completado') usage += countExtraUsage(s.items, id);
+                if (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) usage += countExtraUsage(s.items, id);
             });
             const newTotalStock = editStock + addAmount + usage;
             const success = await window.saveItemOnServer('extra', { id: id, name: ext.name, price: ext.price, stock: newTotalStock });

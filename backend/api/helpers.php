@@ -17,19 +17,75 @@ function _backfillProductsForTenant(PDO $pdo, array $authContext): void {
         'platos_extras' => 'plato_extra',
         'gaseosas' => 'refresco'
     ];
-    try {
-        foreach ($tables as $catalogTable => $productType) {
-            $pdo->prepare("
-                INSERT IGNORE INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `tenant_id`, `branch_id`)
-                SELECT c.`id`, c.`name`, :ptype, COALESCE(c.`price`, 0), COALESCE(c.`stock`, 0), NULL, 1, c.`tenant_id`, c.`branch_id`
-                FROM `$catalogTable` c
-                LEFT JOIN `products` p ON p.`id` = c.`id` AND p.`tenant_id` = c.`tenant_id` AND p.`branch_id` = c.`branch_id`
-                WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id AND p.`id` IS NULL
-            ")->execute(array_merge(['ptype' => $productType], $params));
+    foreach ($tables as $catalogTable => $productType) {
+        try {
+            $hasPrice = in_array($catalogTable, ['platos_extras', 'gaseosas'], true);
+            $hasSalsa = in_array($catalogTable, ['segundos', 'sopas', 'platos_extras'], true);
+            if ($hasPrice) {
+                $pdo->prepare("
+                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `tenant_id`, `branch_id`)
+                    SELECT c.`id`, c.`name`, :ptype, COALESCE(c.`price`, 0), COALESCE(c.`stock`, 0), NULL, 1, COALESCE(c.`accepts_salsa`, 0), c.`tenant_id`, c.`branch_id`
+                    FROM `$catalogTable` c
+                    WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id
+                    ON DUPLICATE KEY UPDATE `price` = VALUES(`price`), `stock` = VALUES(`stock`), `accepts_salsa` = VALUES(`accepts_salsa`), `active` = 1
+                ")->execute(array_merge(['ptype' => $productType], $params));
+            } else {
+                $pdo->prepare("
+                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `tenant_id`, `branch_id`)
+                    SELECT c.`id`, c.`name`, :ptype, 0, COALESCE(c.`stock`, 0), NULL, 1, COALESCE(c.`accepts_salsa`, 0), c.`tenant_id`, c.`branch_id`
+                    FROM `$catalogTable` c
+                    WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id
+                    ON DUPLICATE KEY UPDATE `stock` = VALUES(`stock`), `accepts_salsa` = VALUES(`accepts_salsa`), `active` = 1
+                ")->execute(array_merge(['ptype' => $productType], $params));
+            }
+        } catch (Throwable $e) {
+            error_log("[RestoCloud] products backfill failed for $catalogTable: " . $e->getMessage());
         }
-    } catch (Throwable $e) {
-        error_log("[RestoCloud] _backfillProductsForTenant failed: " . $e->getMessage());
     }
+}
+
+function initializeBranchTemplate(PDO $pdo, string $tenantId, string $branchId, string $tenantName): void
+{
+    $menuId = 'menu_' . substr(hash('sha256', $branchId), 0, 20);
+    $suffix = substr(hash('sha256', $branchId), 0, 16);
+    $prices = ['almuerzo' => 15.00, 'segundo' => 12.00, 'sopa' => 6.00];
+    foreach ($prices as $id => $value) {
+        $stmt = $pdo->prepare("INSERT IGNORE INTO `config_precios` (`id`, `valor`, `tenant_id`, `branch_id`) VALUES (:id, :value, :tid, :bid)");
+        $stmt->execute(['id' => $id, 'value' => $value, 'tid' => $tenantId, 'bid' => $branchId]);
+    }
+    foreach ([
+        'nombre_restaurante' => $tenantName,
+        'direccion' => 'Por configurar',
+        'telefono' => 'Por configurar',
+        'pais' => 'Bolivia'
+    ] as $id => $value) {
+        $stmt = $pdo->prepare("INSERT IGNORE INTO `config_general` (`id`, `value`, `tenant_id`, `branch_id`) VALUES (:id, :value, :tid, :bid)");
+        $stmt->execute(['id' => $id, 'value' => $value, 'tid' => $tenantId, 'bid' => $branchId]);
+    }
+
+    $stmt = $pdo->prepare("INSERT IGNORE INTO `menus` (`id`, `name`, `active`, `tenant_id`, `branch_id`) VALUES (:id, 'Menú del Día', 1, :tid, :bid)");
+    $stmt->execute(['id' => $menuId, 'tid' => $tenantId, 'bid' => $branchId]);
+
+    $catalog = [
+        ['segundos', 'seg_' . $suffix, 'Plato principal', 0, 0],
+        ['sopas', 'sopa_' . $suffix, 'Sopa del día', 0, 0],
+        ['platos_extras', 'extra_' . $suffix, 'Plato extra', 0, 10],
+        ['gaseosas', 'beb_' . $suffix, 'Bebida', 0, 5]
+    ];
+    foreach ($catalog as [$table, $id, $name, $stock, $price]) {
+        if (in_array($table, ['platos_extras', 'gaseosas'], true)) {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO `$table` (`id`, `name`, `price`, `stock`, `tenant_id`, `branch_id`) VALUES (:id, :name, :price, :stock, :tid, :bid)");
+            $stmt->execute(compact('id', 'name', 'price', 'stock') + ['tid' => $tenantId, 'bid' => $branchId]);
+        } else {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO `$table` (`id`, `name`, `stock`, `active`, `tenant_id`, `branch_id`) VALUES (:id, :name, :stock, 1, :tid, :bid)");
+            $stmt->execute(compact('id', 'name', 'stock') + ['tid' => $tenantId, 'bid' => $branchId]);
+        }
+    }
+    $tableId = 'tbl_' . $suffix;
+    $stmt = $pdo->prepare("INSERT IGNORE INTO `tables_config` (`id`, `name`, `icon`, `sort_order`, `active`, `tenant_id`, `branch_id`) VALUES (:id, 'Mesa 1', 'fa-chair', 1, 1, :tid, :bid)");
+    $stmt->execute(['id' => $tableId, 'tid' => $tenantId, 'bid' => $branchId]);
+
+    _backfillProductsForTenant($pdo, ['tenant_id' => $tenantId, 'branch_id' => $branchId]);
 }
 
 function buildReportContext(array $authContext, array $business = [], array $filters = []): array {
@@ -230,6 +286,23 @@ function normalizeOrders(array $orders) {
         if ($ts && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/', $ts)) {
             $order['timestamp'] = str_replace(' ', 'T', substr($ts, 0, 19));
         }
+        $soldAt = $order['sold_at'] ?? null;
+        if ($soldAt && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $soldAt)) {
+            $order['soldAt'] = $soldAt . 'Z';
+        } else {
+            $order['soldAt'] = null;
+        }
+        unset($order['sold_at']);
+        $totalRefunded = (float)($order['total_refunded'] ?? 0);
+        $order['total_refunded'] = $totalRefunded;
+        $order['has_refunds'] = $totalRefunded > 0;
+        $order['refund_count'] = (int)($order['refund_count'] ?? 0);
+        $order['subtotal'] = isset($order['subtotal']) ? (float)$order['subtotal'] : null;
+        $order['discountTotal'] = (float)($order['discount_total'] ?? 0);
+        $order['couponCode'] = $order['coupon_code'] ?? null;
+        $appliedPromoRaw = $order['applied_promo'] ?? null;
+        $order['appliedPromo'] = $appliedPromoRaw ? json_decode($appliedPromoRaw, true) : null;
+        unset($order['discount_total'], $order['applied_promo'], $order['coupon_code']);
     }
     unset($order);
     return $orders;
@@ -242,7 +315,7 @@ function loadActiveOrders(PDO $pdo, array $authContext) {
 }
 
 function loadOpenSalesHistory(PDO $pdo, array $authContext, $limit = null) {
-    $sql = "SELECT * FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` IN ('completado', 'anulado') AND `closure_id` IS NULL ORDER BY `timestamp` DESC";
+    $sql = "SELECT * FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND ((`status` IN ('completado', 'anulado')) OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL ORDER BY COALESCE(`sold_at`, `timestamp`) DESC";
     if ($limit !== null) {
         $sql .= " LIMIT " . max(1, (int)$limit);
     }
@@ -264,11 +337,20 @@ function loadCajaMovimientos(PDO $pdo, array $authContext) {
 
 function loadSalesHistoryRange(PDO $pdo, array $authContext, string $startDate, string $endDate) {
     $stmt = $pdo->prepare("
-        SELECT * FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id
-          AND `status` IN ('completado', 'anulado')
-          AND `timestamp` BETWEEN :start AND :end
-        ORDER BY `timestamp` DESC
+        SELECT p.*,
+               COALESCE(refund_data.total_refunded, 0) AS total_refunded,
+               COALESCE(refund_data.refund_count, 0) AS refund_count
+        FROM `pedidos` p
+        LEFT JOIN (
+            SELECT order_id, SUM(total_refunded) AS total_refunded, COUNT(*) AS refund_count
+            FROM `pedido_reversiones`
+            WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND status != 'anulada'
+            GROUP BY order_id
+        ) refund_data ON refund_data.order_id = p.id
+        WHERE p.`tenant_id` = :tenant_id AND p.`branch_id` = :branch_id
+          AND ((p.`status` IN ('completado', 'anulado')) OR (p.`status` = 'pendiente' AND p.`paid` = 1))
+          AND COALESCE(p.`sold_at`, p.`timestamp`) BETWEEN :start AND :end
+        ORDER BY COALESCE(p.`sold_at`, p.`timestamp`) DESC
     ");
     $stmt->execute([
         ':tenant_id' => $authContext['tenant_id'],
@@ -512,6 +594,8 @@ function loadSaasAdminData(PDO $pdo): array
             ts.verified_at,
             ts.starts_at,
             ts.ends_at,
+            (SELECT u.name FROM `users` u WHERE u.tenant_id = t.id AND u.role = 'owner' ORDER BY u.created_at ASC LIMIT 1) AS owner_name,
+            (SELECT u.email FROM `users` u WHERE u.tenant_id = t.id AND u.role = 'owner' ORDER BY u.created_at ASC LIMIT 1) AS owner_email,
             (SELECT COUNT(*) FROM `branches` b WHERE b.tenant_id = t.id) AS branches_count,
             (SELECT COUNT(*) FROM `users` u WHERE u.tenant_id = t.id) AS users_count
         FROM `tenants` t

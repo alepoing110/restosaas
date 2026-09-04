@@ -1,0 +1,9 @@
+@startuml
+[*] --> Pendiente
+Pendiente --> Confirmada : confirmar
+Pendiente --> Cancelada : cancelar
+Confirmada --> Completada : atender
+Confirmada --> Cancelada : cancelar
+Completada --> [*]
+Cancelada --> [*]
+@enduml

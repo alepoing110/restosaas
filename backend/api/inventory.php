@@ -5,7 +5,7 @@ function _invalidateCatalogCache(array $authContext): void {
     cacheInvalidateTenant('catalog', $authContext['tenant_id'], $authContext['branch_id']);
 }
 
-function _ensureProductRecord(PDO $pdo, array $authContext, string $id, string $name, string $type, float $price, int $stock): void {
+function _ensureProductRecord(PDO $pdo, array $authContext, string $id, string $name, string $type, float $price, int $stock, int $active = 1): void {
     $typeMap = ['segundo' => 'segundo', 'sopa' => 'sopa', 'plato_extra' => 'plato_extra', 'extra' => 'refresco'];
     $productType = $typeMap[$type] ?? null;
     if (!$productType) return;
@@ -13,20 +13,14 @@ function _ensureProductRecord(PDO $pdo, array $authContext, string $id, string $
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
 
-    try {
-        $check = $pdo->prepare("SELECT id, menu_id FROM `products` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
-        $check->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
-        $existing = $check->fetch();
-
-        if ($existing) {
-            $stmt = $pdo->prepare("UPDATE `products` SET `name` = :name, `price` = :price, `stock` = :stock WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
-            $stmt->execute(['name' => $name, 'price' => $price, 'stock' => $stock, 'id' => $id, 'tid' => $tid, 'bid' => $bid]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `tenant_id`, `branch_id`) VALUES (:id, :name, :type, :price, :stock, NULL, :tenant_id, :branch_id)");
-            $stmt->execute(['id' => $id, 'name' => $name, 'type' => $productType, 'price' => $price, 'stock' => $stock, 'tenant_id' => $tid, 'branch_id' => $bid]);
-        }
-    } catch (Throwable $e) {
-        error_log("[RestoCloud] _ensureProductRecord failed for $id: " . $e->getMessage());
+    $check = $pdo->prepare("SELECT id FROM `products` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+    $check->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
+    if ($check->fetch()) {
+        $stmt = $pdo->prepare("UPDATE `products` SET `name` = :name, `price` = :price, `stock` = :stock, `active` = :active WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+        $stmt->execute(['name' => $name, 'price' => $price, 'stock' => $stock, 'active' => $active, 'id' => $id, 'tid' => $tid, 'bid' => $bid]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `tenant_id`, `branch_id`) VALUES (:id, :name, :type, :price, :stock, NULL, :active, :tenant_id, :branch_id)");
+        $stmt->execute(['id' => $id, 'name' => $name, 'type' => $productType, 'price' => $price, 'stock' => $stock, 'active' => $active, 'tenant_id' => $tid, 'branch_id' => $bid]);
     }
 }
 
@@ -64,6 +58,13 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
     $checkStmt = $pdo->prepare("SELECT id FROM `$table` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
     $checkStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
     $exists = $checkStmt->fetch();
+    if (!$exists && $type !== 'salsa') {
+        $limit = checkPlanLimits($pdo, $tid, 'products');
+        if (!$limit['allowed']) {
+            echo json_encode(["status" => "error", "message" => "Límite de productos alcanzado ({$limit['current']}/{$limit['limit']})"]);
+            return;
+        }
+    }
 
     // Build column sets based on type
     $hasPrice = in_array($type, ['plato_extra', 'extra', 'salsa']);
@@ -71,6 +72,8 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
     $hasActive = in_array($type, ['segundo', 'sopa', 'salsa']);
     $hasAcceptsSalsa = in_array($type, ['segundo', 'sopa', 'plato_extra']);
 
+    $pdo->beginTransaction();
+    try {
     if ($exists) {
         $sets = ['`name` = :name'];
         $params = ['name' => $name, 'id' => $id, 'tid' => $tid, 'bid' => $bid];
@@ -91,8 +94,13 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
         $stmt = $pdo->prepare("INSERT INTO `$table` (" . implode(', ', $cols) . ") VALUES (" . implode(', ', $placeholders) . ")");
         $stmt->execute($params);
     }
+    _ensureProductRecord($pdo, $authContext, $id, $name, $type, $price, $stock, $hasActive ? $active : 1);
+    $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
     writeAuditLog($pdo, $authContext, 'catalog.item.save', $type, $id);
-    _ensureProductRecord($pdo, $authContext, $id, $name, $type, $price, $stock);
     _invalidateCatalogCache($authContext);
     echo json_encode(["status" => "success"]);
 }
@@ -120,14 +128,15 @@ function handle_delete_item(PDO $pdo, ?array $authContext, array $input): void {
         return;
     }
 
-    $stmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-
-    // Also delete corresponding product record to prevent orphaned records
+    $pdo->beginTransaction();
     try {
+        $stmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
         $productStmt = $pdo->prepare("DELETE FROM `products` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
         $productStmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        $pdo->commit();
     } catch (Throwable $e) {
-        // Ignore errors for backward compatibility
+        $pdo->rollBack();
+        throw $e;
     }
 
     writeAuditLog($pdo, $authContext, 'catalog.item.delete', $type, $id);
@@ -158,9 +167,23 @@ function handle_save_product(PDO $pdo, ?array $authContext, array $input): void 
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
 
+    if ($menuId !== null) {
+        $menuCheck = $pdo->prepare("SELECT id FROM `menus` WHERE id = :id AND tenant_id = :tid AND branch_id = :bid LIMIT 1");
+        $menuCheck->execute(['id' => $menuId, 'tid' => $tid, 'bid' => $bid]);
+        if (!$menuCheck->fetch()) {
+            echo json_encode(["status" => "error", "message" => "El menú no pertenece a la sucursal activa"]);
+            return;
+        }
+    }
+
     $checkStmt = $pdo->prepare("SELECT id FROM `products` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
     $checkStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
     $exists = $checkStmt->fetch();
+
+    if (!$exists) {
+        echo json_encode(["status" => "error", "message" => "Crea los productos mediante el catálogo operativo"]);
+        return;
+    }
 
     if ($exists) {
         $stmt = $pdo->prepare("UPDATE `products` SET `name` = :name, `type` = :type, `price` = :price, `stock` = :stock, `menu_id` = :menu_id WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");

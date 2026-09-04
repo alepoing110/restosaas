@@ -1,0 +1,62 @@
+[
+  {
+    "id": "lunch-takeaway-name-time",
+    "message": "Buen dia, 2 completos: un lomo y un estofado. Para recoger a las doce y cuarto, para Cliente A.",
+    "expected": {"kind": "almuerzo", "quantity": 2, "service": "para_llevar", "time": "12:15", "needs": ["sopa"]}
+  },
+  {
+    "id": "lunch-dine-in",
+    "message": "Tres almuerzos para servirse ahi, dos pollos dorados y un majadito. Familia Cliente B.",
+    "expected": {"kind": "almuerzo", "quantity": 3, "service": "para_servirse", "needs": ["sopa", "hora"]}
+  },
+  {
+    "id": "lunch-extra-soup",
+    "message": "Un almuerzo completo con albondiga y una sopa extra. Para ahi. Cliente C.",
+    "expected": {"kind": "almuerzo_con_extra", "service": "para_servirse", "extras": ["sopa"], "needs": ["hora"]}
+  },
+  {
+    "id": "mixed-service",
+    "message": "Cuatro completos: dos para servirse y dos para llevar. Dos lomos y dos estofados. Cliente D.",
+    "expected": {"kind": "almuerzo", "quantity": 4, "service": "mixto", "action": "confirmar_dos_reservas"}
+  },
+  {
+    "id": "extra-wings-sauce",
+    "message": "Una alita de 25, mitad miel y mostaza y mitad BBQ. Para recoger en media hora, Cliente E.",
+    "expected": {"kind": "plato_extra", "product": "alitas", "service": "para_llevar", "time": "relativa", "notes": ["mitad miel y mostaza", "mitad BBQ"]}
+  },
+  {
+    "id": "extra-broaster",
+    "message": "Dos pollos broaster y una salchipapa para llevar. Cliente F.",
+    "expected": {"kind": "plato_extra", "products": ["pollo broaster", "salchipapa"], "service": "para_llevar", "needs": ["hora"]}
+  },
+  {
+    "id": "delivery-address",
+    "message": "Tres almuerzos, los tres pollo dorado. Enviar por delivery a Avenida Ejemplo 123, a nombre de Cliente G.",
+    "expected": {"kind": "almuerzo", "quantity": 3, "service": "delivery", "needs": ["sopa", "hora"], "notes": ["Avenida Ejemplo 123"]}
+  },
+  {
+    "id": "delivery-missing-address",
+    "message": "Dos completos con majadito para delivery, Cliente H.",
+    "expected": {"kind": "almuerzo", "quantity": 2, "service": "delivery", "needs": ["sopa", "direccion", "hora"]}
+  },
+  {
+    "id": "only-seconds",
+    "message": "Tres segundos: un lomo y dos estofados. Recogeremos a las 12:00.",
+    "expected": {"kind": "segundo_suelto", "quantity": 3, "service": "para_llevar", "needs": ["nombre"]}
+  },
+  {
+    "id": "spelling-variant",
+    "message": "Dos almuerzos completos para recojer, segundos dos lomos, para Cliente I.",
+    "expected": {"kind": "almuerzo", "quantity": 2, "service": "para_llevar", "needs": ["sopa", "hora"]}
+  },
+  {
+    "id": "follow-up-substitution",
+    "message": "Esta bien entonces pollo.",
+    "expected": {"kind": "correccion", "action": "reemplazar_producto_previamente_consultado"}
+  },
+  {
+    "id": "stock-announcement",
+    "message": "Solo nos queda de segundo estofado de pollo.",
+    "expected": {"kind": "aviso_interno", "action": "no_crear_reserva"}
+  }
+]

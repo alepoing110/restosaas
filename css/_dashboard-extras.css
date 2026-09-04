@@ -1062,6 +1062,28 @@
     background: var(--primary);
     box-shadow: 0 2px 8px rgba(255, 107, 53, 0.25);
 }
+.catalog-filter-toolbar,
+.saas-list-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.catalog-filter-toolbar {
+    margin-bottom: 16px;
+    padding: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.catalog-filter-toolbar .search-box { flex: 1 1 220px; }
+.catalog-filter-toolbar .form-select,
+.saas-list-filters .form-select { width: auto; min-width: 130px; }
+.saas-list-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.saas-list-filters .form-input { min-width: 200px; }
+
 .reservation-catalog-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

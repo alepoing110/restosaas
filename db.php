@@ -5,7 +5,10 @@
 $docRoot = strtolower($_SERVER['DOCUMENT_ROOT'] ?? __DIR__);
 $isProduction = (strpos($docRoot, 'infinityfree') !== false) || (strpos($docRoot, 'epizy') !== false);
 
-$envFile = $isProduction ? __DIR__ . '/.env.production' : __DIR__ . '/.env.local';
+$envOverride = getenv('RC_ENV_FILE') ?: '';
+$envFile = $envOverride !== ''
+    ? $envOverride
+    : ($isProduction ? __DIR__ . '/.env.production' : __DIR__ . '/.env.local');
 
 // Fallback: if the selected file doesn't exist, try .env
 if (!is_file($envFile)) {
@@ -46,6 +49,7 @@ $host = rc_env('DB_HOST', '127.0.0.1');
 $user = rc_env('DB_USER', 'root');
 $pass = rc_env('DB_PASS', '');
 $db_name = rc_env('DB_NAME', 'pos_pension');
+$allowSchemaBootstrap = rc_env('APP_ENV', 'production') === 'development' || rc_env('RUN_MIGRATIONS', '0') === '1';
 
 try {
     // Connect directly to the target database
@@ -55,7 +59,7 @@ try {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
         ]);
     } catch (PDOException $e) {
-        if (strpos($e->getMessage(), 'Unknown database') !== false) {
+        if (strpos($e->getMessage(), 'Unknown database') !== false && $allowSchemaBootstrap) {
             // First run: create database and reconnect
             $pdo = new PDO("mysql:host=$host;charset=utf8mb4", $user, $pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -68,6 +72,14 @@ try {
         }
     }
 
+    // Set MySQL session timezone to UTC for consistent DATETIME storage
+    try {
+        $pdo->exec("SET time_zone = '+00:00'");
+    } catch (Throwable $e) {
+        error_log("[RestoCloud] Could not set MySQL timezone to UTC: " . $e->getMessage());
+    }
+
+    if ($allowSchemaBootstrap) {
     $pdo->exec("CREATE TABLE IF NOT EXISTS `tenants` (
         `id` VARCHAR(50) PRIMARY KEY,
         `slug` VARCHAR(100) NOT NULL UNIQUE,
@@ -101,6 +113,15 @@ try {
         INDEX `idx_users_tenant_branch` (`tenant_id`, `branch_id`),
         CONSTRAINT `fk_users_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
         CONSTRAINT `fk_users_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`) ON DELETE CASCADE
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `user_branch_access` (
+        `user_id` VARCHAR(50) NOT NULL,
+        `tenant_id` VARCHAR(50) NOT NULL,
+        `branch_id` VARCHAR(50) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`user_id`, `branch_id`),
+        INDEX `idx_user_branch_access_tenant_branch` (`tenant_id`, `branch_id`)
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `user_sessions` (
@@ -162,6 +183,9 @@ try {
         `entity_type` VARCHAR(100) NOT NULL,
         `entity_id` VARCHAR(100) DEFAULT NULL,
         `payload` LONGTEXT DEFAULT NULL,
+        `reason` VARCHAR(255) DEFAULT NULL,
+        `before_snapshot` LONGTEXT DEFAULT NULL,
+        `after_snapshot` LONGTEXT DEFAULT NULL,
         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX `idx_audit_logs_tenant_branch_created` (`tenant_id`, `branch_id`, `created_at`)
     )");
@@ -182,6 +206,64 @@ try {
         `branch_id` VARCHAR(26) DEFAULT NULL,
         UNIQUE KEY `uniq_general` (`id`, `tenant_id`, `branch_id`)
     )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `chatbot_conversations` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `tenant_id` VARCHAR(50) NOT NULL,
+        `branch_id` VARCHAR(50) NOT NULL,
+        `wa_phone` VARCHAR(30) NOT NULL,
+        `customer_name` VARCHAR(150) DEFAULT NULL,
+        `status` ENUM('active','closed') NOT NULL DEFAULT 'active',
+        `context` LONGTEXT DEFAULT NULL,
+        `reservation_id` VARCHAR(50) DEFAULT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX `idx_chatbot_conversations_tenant_phone` (`tenant_id`, `branch_id`, `wa_phone`, `status`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `chatbot_messages` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `conversation_id` VARCHAR(50) NOT NULL,
+        `role` ENUM('user','assistant','system') NOT NULL,
+        `content` LONGTEXT NOT NULL,
+        `tool_calls` LONGTEXT DEFAULT NULL,
+        `tool_result` LONGTEXT DEFAULT NULL,
+        `tokens_in` INT NOT NULL DEFAULT 0,
+        `tokens_out` INT NOT NULL DEFAULT 0,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_chatbot_messages_conversation` (`conversation_id`, `created_at`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `whatsapp_processed_messages` (
+        `message_id` VARCHAR(150) PRIMARY KEY,
+        `tenant_id` VARCHAR(50) NOT NULL,
+        `branch_id` VARCHAR(50) NOT NULL,
+        `status` ENUM('processing','completed') NOT NULL DEFAULT 'processing',
+        `reply` TEXT DEFAULT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `processed_at` DATETIME DEFAULT NULL,
+        INDEX `idx_whatsapp_processed_messages_created` (`created_at`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `whatsapp_events` (
+        `message_id` VARCHAR(150) PRIMARY KEY,
+        `tenant_id` VARCHAR(50) NOT NULL,
+        `branch_id` VARCHAR(50) NOT NULL,
+        `phone_number_id` VARCHAR(100) NOT NULL,
+        `display_phone_number` VARCHAR(30) DEFAULT NULL,
+        `sender_phone` VARCHAR(30) NOT NULL,
+        `customer_name` VARCHAR(150) DEFAULT NULL,
+        `message_text` TEXT NOT NULL,
+        `status` ENUM('received','processing','ready','sent','failed') NOT NULL DEFAULT 'received',
+        `reply` TEXT DEFAULT NULL,
+        `attempts` INT NOT NULL DEFAULT 0,
+        `next_attempt_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `last_error` TEXT DEFAULT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX `idx_whatsapp_events_queue` (`status`, `next_attempt_at`, `created_at`),
+        INDEX `idx_whatsapp_events_tenant` (`tenant_id`, `branch_id`, `created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `inventario_sopa` (
         `total` INT NOT NULL DEFAULT 0
@@ -214,6 +296,15 @@ try {
         `branch_id` VARCHAR(26) DEFAULT NULL
     )");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `salsas` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `name` VARCHAR(100) NOT NULL,
+        `price` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `active` TINYINT(1) NOT NULL DEFAULT 1,
+        `tenant_id` VARCHAR(50) NULL,
+        `branch_id` VARCHAR(50) NULL
+    )");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS `pedidos` (
         `id` VARCHAR(50) PRIMARY KEY,
         `customer` VARCHAR(150) NOT NULL,
@@ -227,7 +318,192 @@ try {
         `tenant_id` VARCHAR(26) DEFAULT NULL,
         `branch_id` VARCHAR(26) DEFAULT NULL,
         `delivery_type` VARCHAR(20) DEFAULT 'mesa',
-        `paid` TINYINT(1) NOT NULL DEFAULT 0
+        `paid` TINYINT(1) NOT NULL DEFAULT 0,
+        `sold_at` DATETIME DEFAULT NULL,
+        `customer_id` VARCHAR(50) DEFAULT NULL,
+        `due_date` DATE DEFAULT NULL
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `clientes` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `name` VARCHAR(150) NOT NULL,
+        `phone` VARCHAR(40) DEFAULT NULL,
+        `phone_normalized` VARCHAR(30) DEFAULT NULL,
+        `whatsapp_phone` VARCHAR(30) DEFAULT NULL,
+        `email` VARCHAR(150) DEFAULT NULL,
+        `address` VARCHAR(255) DEFAULT NULL,
+        `credit_limit` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `source` VARCHAR(30) NOT NULL DEFAULT 'manual',
+        `notes` TEXT DEFAULT NULL,
+        `marketing_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
+        `last_seen_at` DATETIME DEFAULT NULL,
+        `updated_at` DATETIME DEFAULT NULL,
+        `active` TINYINT(1) NOT NULL DEFAULT 1,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_clientes_scope_name` (`tenant_id`, `branch_id`, `name`),
+        INDEX `idx_clientes_scope_phone` (`tenant_id`, `branch_id`, `phone`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) NOT NULL,
+        `customer_id` VARCHAR(50) NOT NULL,
+        `original_amount` DECIMAL(10,2) NOT NULL,
+        `balance` DECIMAL(10,2) NOT NULL,
+        `due_date` DATE NOT NULL,
+        `status` ENUM('pendiente','vencida','pagada','cancelada') NOT NULL DEFAULT 'pendiente',
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `closed_at` DATETIME DEFAULT NULL,
+        UNIQUE KEY `uniq_cxc_order` (`tenant_id`, `branch_id`, `order_id`),
+        INDEX `idx_cxc_scope_status_due` (`tenant_id`, `branch_id`, `status`, `due_date`),
+        INDEX `idx_cxc_customer` (`tenant_id`, `branch_id`, `customer_id`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `cobros_cuentas_por_cobrar` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `receivable_id` VARCHAR(50) NOT NULL,
+        `amount` DECIMAL(10,2) NOT NULL,
+        `payment_method` VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+        `reference` VARCHAR(120) DEFAULT NULL,
+        `paid_at` DATETIME NOT NULL,
+        `created_by` VARCHAR(26) DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        INDEX `idx_cobros_cxc_receivable` (`receivable_id`),
+        INDEX `idx_cobros_cxc_date` (`tenant_id`, `branch_id`, `paid_at`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_cotizaciones` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) DEFAULT NULL,
+        `reservation_id` VARCHAR(50) DEFAULT NULL,
+        `context` ENUM('pos','mesa','llevar','delivery','reserva') NOT NULL DEFAULT 'pos',
+        `subtotal` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `discount_total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `coupon_code` VARCHAR(100) DEFAULT NULL,
+        `coupon_discount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `manual_discount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `manual_discount_reason` VARCHAR(255) DEFAULT NULL,
+        `manual_discount_authorizer` VARCHAR(150) DEFAULT NULL,
+        `total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `applied_plans` LONGTEXT DEFAULT NULL,
+        `status` ENUM('sugerida','seleccionada','bloqueada','retirada','invalidada') NOT NULL DEFAULT 'sugerida',
+        `selected_by` VARCHAR(26) DEFAULT NULL,
+        `selected_by_name` VARCHAR(150) DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `locked_at` DATETIME DEFAULT NULL,
+        INDEX `idx_cotizaciones_order` (`tenant_id`, `branch_id`, `order_id`),
+        INDEX `idx_cotizaciones_reservation` (`tenant_id`, `branch_id`, `reservation_id`),
+        INDEX `idx_cotizaciones_status` (`tenant_id`, `branch_id`, `status`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_reversiones` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) NOT NULL,
+        `scope` ENUM('producto_parcial','producto_total','pedido_completo','venta_completa') NOT NULL DEFAULT 'pedido_completo',
+        `total_refunded` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `refund_method` VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+        `reason` VARCHAR(255) DEFAULT NULL,
+        `status` ENUM('aplicada','pendiente','anulada') NOT NULL DEFAULT 'aplicada',
+        `created_by` VARCHAR(26) DEFAULT NULL,
+        `created_by_name` VARCHAR(150) DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_pedido_reversiones_order` (`tenant_id`, `branch_id`, `order_id`),
+        INDEX `idx_pedido_reversiones_date` (`tenant_id`, `branch_id`, `created_at`),
+        INDEX `idx_pedido_reversiones_scope` (`tenant_id`, `branch_id`, `scope`),
+        INDEX `idx_pedido_reversiones_method` (`tenant_id`, `branch_id`, `refund_method`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_reversion_items` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `reversal_id` VARCHAR(50) NOT NULL,
+        `order_id` VARCHAR(50) NOT NULL,
+        `line_no` INT NOT NULL,
+        `item_name` VARCHAR(255) NOT NULL,
+        `item_type` VARCHAR(50) DEFAULT NULL,
+        `unit_price` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `quantity` DECIMAL(10,3) NOT NULL DEFAULT 1,
+        `line_total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_pedido_reversion_items_reversal` (`reversal_id`),
+        INDEX `idx_pedido_reversion_items_order` (`tenant_id`, `branch_id`, `order_id`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_items` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) NOT NULL,
+        `line_no` INT NOT NULL,
+        `product_id` VARCHAR(50) DEFAULT NULL,
+        `item_type` VARCHAR(50) DEFAULT NULL,
+        `item_name` VARCHAR(255) NOT NULL,
+        `category_id` VARCHAR(50) DEFAULT NULL,
+        `category_name` VARCHAR(100) DEFAULT NULL,
+        `unit_price` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `quantity` DECIMAL(10,3) NOT NULL DEFAULT 1,
+        `line_total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `unit_cost` DECIMAL(10,2) DEFAULT NULL,
+        `service_type` VARCHAR(50) DEFAULT NULL,
+        `item_snapshot` LONGTEXT DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY `uniq_pedido_items_line` (`tenant_id`, `branch_id`, `order_id`, `line_no`),
+        INDEX `idx_pedido_items_product_date` (`tenant_id`, `branch_id`, `product_id`, `created_at`),
+        INDEX `idx_pedido_items_order` (`tenant_id`, `branch_id`, `order_id`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_pagos` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) NOT NULL,
+        `payment_method` VARCHAR(30) NOT NULL,
+        `amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `raw_payment_method` LONGTEXT DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY `uniq_pedido_pagos_method` (`tenant_id`, `branch_id`, `order_id`, `payment_method`),
+        INDEX `idx_pedido_pagos_date` (`tenant_id`, `branch_id`, `created_at`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_descuentos` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `order_id` VARCHAR(50) NOT NULL,
+        `discount_id` VARCHAR(50) DEFAULT NULL,
+        `discount_name` VARCHAR(255) DEFAULT NULL,
+        `discount_type` VARCHAR(50) DEFAULT NULL,
+        `amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `basis_amount` DECIMAL(10,2) DEFAULT NULL,
+        `discount_snapshot` LONGTEXT DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_pedido_descuentos_order` (`tenant_id`, `branch_id`, `order_id`),
+        INDEX `idx_pedido_descuentos_date` (`tenant_id`, `branch_id`, `created_at`)
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `coupon_usage_log` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `discount_id` VARCHAR(50) NOT NULL,
+        `coupon_code` VARCHAR(100) NOT NULL,
+        `order_id` VARCHAR(50) DEFAULT NULL,
+        `reservation_id` VARCHAR(50) DEFAULT NULL,
+        `customer_id` VARCHAR(50) DEFAULT NULL,
+        `used_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        INDEX `idx_coupon_usage_discount` (`tenant_id`, `branch_id`, `discount_id`),
+        INDEX `idx_coupon_usage_code` (`tenant_id`, `branch_id`, `coupon_code`),
+        INDEX `idx_coupon_usage_customer` (`tenant_id`, `branch_id`, `customer_id`)
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `caja_movimientos` (
@@ -239,6 +515,23 @@ try {
         `closure_id` VARCHAR(26) DEFAULT NULL,
         `tenant_id` VARCHAR(26) DEFAULT NULL,
         `branch_id` VARCHAR(26) DEFAULT NULL
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `gastos_financieros` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `fecha` DATE NOT NULL,
+        `description` VARCHAR(255) NOT NULL,
+        `category` VARCHAR(50) NOT NULL DEFAULT 'otros',
+        `amount` DECIMAL(10,2) NOT NULL,
+        `payment_method` VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+        `reference` VARCHAR(120) DEFAULT NULL,
+        `employee_name` VARCHAR(150) DEFAULT NULL,
+        `payment_period` VARCHAR(50) DEFAULT NULL,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `created_by` VARCHAR(26) DEFAULT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_gastos_financieros_scope_date` (`tenant_id`, `branch_id`, `fecha`)
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `caja_cierres_historico` (
@@ -278,15 +571,23 @@ try {
                 $pdo->exec($sql);
                 $stmtInsertMigration->execute(['name' => $name]);
             } catch (Throwable $e) {
-                // Skip if column/index already exists (backward compat)
+                $msg = $e->getMessage();
+                if (stripos($msg, 'Duplicate') !== false || stripos($msg, 'already exists') !== false || stripos($msg, 'Duplicate column') !== false) {
+                    $stmtInsertMigration->execute(['name' => $name]);
+                } else {
+                    error_log("[RestoCloud] Migration $name failed: " . $msg);
+                }
             }
         }
     }
 
-    // Validate critical columns exist — prevents confusing "error de conexión" messages
+    }
+
+    // Validate critical columns exist. Production must be migrated before serving requests.
     $requiredColumns = [
-        'pedidos'       => ['delivery_type', 'closure_id', 'tenant_id', 'branch_id'],
-        'reservations'  => ['delivery_type', 'items', 'total', 'tenant_id', 'branch_id'],
+        'pedidos'       => ['delivery_type', 'closure_id', 'tenant_id', 'branch_id', 'service_state', 'paid', 'sold_at'],
+        'reservations'  => ['delivery_type', 'items', 'total', 'tenant_id', 'branch_id', 'source', 'verification_status', 'kitchen_printed_at', 'customer_id'],
+        'clientes'      => ['phone_normalized', 'whatsapp_phone', 'source', 'marketing_opt_in'],
         'products'      => ['category_id', 'tenant_id', 'branch_id'],
     ];
     foreach ($requiredColumns as $table => $columns) {
@@ -304,6 +605,8 @@ try {
         }
     }
 
+    // Legacy seed and catalog backfill are limited to local development.
+    if (rc_env('APP_ENV', 'production') === 'development') {
     $legacyTenantId = 'tenant_legacy';
     $legacyBranchId = 'branch_main';
     $legacyUserId = 'user_owner_legacy';
@@ -401,9 +704,12 @@ try {
             'gaseosas' => 'refresco'
         ];
         foreach ($tables as $catalogTable => $productType) {
+            $priceExpression = in_array($catalogTable, ['platos_extras', 'gaseosas'], true) ? 'COALESCE(c.`price`, 0)' : '0';
+            $hasSalsa = in_array($catalogTable, ['segundos', 'sopas', 'platos_extras'], true);
+            $salsaExpr = $hasSalsa ? 'COALESCE(c.`accepts_salsa`, 0)' : '0';
             $pdo->prepare("
-                INSERT IGNORE INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `tenant_id`, `branch_id`)
-                SELECT c.`id`, c.`name`, :ptype, COALESCE(c.`price`, 0), COALESCE(c.`stock`, 0), NULL, 1, c.`tenant_id`, c.`branch_id`
+                INSERT IGNORE INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `tenant_id`, `branch_id`)
+                SELECT c.`id`, c.`name`, :ptype, $priceExpression, COALESCE(c.`stock`, 0), NULL, 1, $salsaExpr, c.`tenant_id`, c.`branch_id`
                 FROM `$catalogTable` c
                 LEFT JOIN `products` p ON p.`id` = c.`id` AND p.`tenant_id` = c.`tenant_id` AND p.`branch_id` = c.`branch_id`
                 WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id AND p.`id` IS NULL
@@ -464,41 +770,15 @@ try {
         ");
     }
     */
+    }
 
 } catch (Throwable $e) {
     $msg = $e->getMessage();
     error_log("[RestoCloud] DB error: " . $msg);
 
-    if (strpos($msg, 'Unknown column') !== false) {
-        preg_match("/Unknown column '(\w+)' in/", $msg, $m);
-        $col = $m[1] ?? 'desconocida';
-        echo json_encode([
-            "status" => "error",
-            "message" => "Falta la columna '$col'. Ejecute las migraciones (RUN_MIGRATIONS=1) o contacte al administrador."
-        ]);
-    } elseif (strpos($msg, 'Table') !== false && strpos($msg, "doesn't exist") !== false) {
-        preg_match("/Table '(\w+[\.\w]*)'/", $msg, $m);
-        $table = $m[1] ?? 'desconocida';
-        echo json_encode([
-            "status" => "error",
-            "message" => "Falta la tabla '$table'. Ejecute las migraciones (RUN_MIGRATIONS=1) o contacte al administrador."
-        ]);
-    } elseif (strpos($msg, 'Access denied') !== false) {
-        echo json_encode([
-            "status" => "error",
-            "message" => "Credenciales de base de datos incorrectas. Verifique .env.production"
-        ]);
-    } elseif (strpos($msg, 'SQLSTATE[HY000]') !== false) {
-        echo json_encode([
-            "status" => "error",
-            "message" => "No se pudo conectar al servidor de base de datos. Verifique que el host '$host' esté disponible."
-        ]);
-    } else {
-        error_log("[RestoCloud] Unhandled DB error: " . $msg);
-        echo json_encode([
-            "status" => "error",
-            "message" => "Error interno de base de datos. Contacte al administrador."
-        ]);
-    }
+    echo json_encode([
+        "status" => "error",
+        "message" => "Error interno de base de datos. Contacte al administrador."
+    ]);
     exit;
 }

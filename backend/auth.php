@@ -36,8 +36,8 @@ function getPublicActions(): array
 function getRolePermissions(string $role): array
 {
     $map = [
-        'super_admin' => ['pos', 'orders', 'inventory', 'reports', 'dashboard', 'settings', 'saas_admin'],
-        'owner' => ['pos', 'orders', 'inventory', 'reports', 'dashboard', 'settings'],
+        'super_admin' => ['pos', 'orders', 'inventory', 'reports', 'dashboard', 'settings', 'financial_reports', 'saas_admin'],
+        'owner' => ['pos', 'orders', 'inventory', 'reports', 'dashboard', 'settings', 'financial_reports'],
         'admin' => ['pos', 'orders', 'inventory', 'reports', 'dashboard', 'settings'],
         'cajero' => ['pos', 'orders', 'reports', 'dashboard'],
     ];
@@ -95,6 +95,7 @@ function buildAuthPayload(?array $context): array
             'id' => $context['branch_id'],
             'name' => $context['branch_name']
         ],
+        'authorizedBranches' => getAuthorizedBranches($GLOBALS['pdo'] ?? null, $context),
         'permissions' => getRolePermissions($context['role']),
         'subscription' => [
             'status' => $context['subscription_status'] ?: 'trial',
@@ -102,6 +103,22 @@ function buildAuthPayload(?array $context): array
             'ends_at' => $context['subscription_ends_at'] ?? null
         ]
     ];
+}
+
+function getAuthorizedBranches(?PDO $pdo, array $context): array
+{
+    if (!$pdo) return [];
+    $stmt = $pdo->prepare("\n        SELECT b.id, b.name\n        FROM `user_branch_access` uba\n        INNER JOIN `branches` b ON b.id = uba.branch_id AND b.tenant_id = uba.tenant_id\n        WHERE uba.user_id = :uid AND uba.tenant_id = :tid AND b.active = 1\n        ORDER BY b.name ASC\n    ");
+    $stmt->execute(['uid' => $context['user_id'], 'tid' => $context['tenant_id']]);
+    $branches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$branches) {
+        $branches = [[
+            'id' => $context['branch_id'],
+            'name' => $context['branch_name']
+        ]];
+    }
+    return $branches;
 }
 
 function resolveAuthContext(PDO $pdo): ?array
@@ -117,6 +134,7 @@ function resolveAuthContext(PDO $pdo): ?array
         SELECT
             us.id AS session_id,
             us.started_at AS session_started_at,
+            us.ip_address AS session_ip,
             u.id AS user_id,
             u.name AS user_name,
             u.email AS user_email,
@@ -145,6 +163,13 @@ function resolveAuthContext(PDO $pdo): ?array
 
     if (!$context) {
         error_log("[RestoCloud] resolveAuthContext: session $sessionId not found in DB or ended");
+        unset($_SESSION['restocloud_session_id']);
+        return null;
+    }
+
+    $currentIp = $_SERVER['REMOTE_ADDR'] ?? '';
+    if ($currentIp && $context['session_ip'] && $currentIp !== $context['session_ip']) {
+        error_log("[RestoCloud] resolveAuthContext: IP mismatch for session $sessionId (expected {$context['session_ip']}, got $currentIp)");
         unset($_SESSION['restocloud_session_id']);
         return null;
     }
@@ -219,7 +244,7 @@ function touchUserSession(PDO $pdo, ?array $context): bool
         return true;
     }
 
-    $maxInactive = 8 * 3600;
+    $maxInactive = 30 * 60;
     $sessionId = $context['session_id'] ?? 'unknown';
 
     // Try to expire inactive session in one query
@@ -244,7 +269,7 @@ function touchUserSession(PDO $pdo, ?array $context): bool
     return true;
 }
 
-function writeAuditLog(PDO $pdo, ?array $context, string $action, string $entityType, ?string $entityId = null, array $payload = []): void
+function writeAuditLog(PDO $pdo, ?array $context, string $action, string $entityType, ?string $entityId = null, array $payload = [], ?string $reason = null, ?array $before = null, ?array $after = null): void
 {
     if (!$context) {
         return;
@@ -259,8 +284,8 @@ function writeAuditLog(PDO $pdo, ?array $context, string $action, string $entity
     }
 
     $stmt = $pdo->prepare("
-        INSERT INTO `audit_logs` (`id`, `tenant_id`, `branch_id`, `user_id`, `action`, `entity_type`, `entity_id`, `payload`, `created_at`)
-        VALUES (:id, :tenant_id, :branch_id, :user_id, :action, :entity_type, :entity_id, :payload, NOW())
+        INSERT INTO `audit_logs` (`id`, `tenant_id`, `branch_id`, `user_id`, `action`, `entity_type`, `entity_id`, `payload`, `reason`, `before_snapshot`, `after_snapshot`, `created_at`)
+        VALUES (:id, :tenant_id, :branch_id, :user_id, :action, :entity_type, :entity_id, :payload, :reason, :before_snapshot, :after_snapshot, NOW())
     ");
     $stmt->execute([
         'id' => 'aud_' . bin2hex(random_bytes(12)),
@@ -270,7 +295,10 @@ function writeAuditLog(PDO $pdo, ?array $context, string $action, string $entity
         'action' => $action,
         'entity_type' => $entityType,
         'entity_id' => $entityId,
-        'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE)
+        'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        'reason' => $reason !== null ? trim($reason) ?: null : null,
+        'before_snapshot' => $before !== null ? json_encode($before, JSON_UNESCAPED_UNICODE) : null,
+        'after_snapshot' => $after !== null ? json_encode($after, JSON_UNESCAPED_UNICODE) : null
     ]);
 }
 
@@ -319,15 +347,12 @@ function checkRateLimit(string $identifier, int $maxAttempts = 5, int $lockoutSe
     $data = ['attempts' => 0, 'first_at' => time(), 'locked_until' => 0];
 
     if (is_file($file)) {
-        $fp = fopen($file, 'rb');
-        if ($fp && flock($fp, LOCK_SH)) {
-            $size = filesize($file);
-            if ($size > 0) {
-                $raw = @fread($fp, $size);
-                if ($raw && $raw !== false) $data = json_decode($raw, true) ?: $data;
+        $raw = @file_get_contents($file);
+        if ($raw !== false && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
             }
-            flock($fp, LOCK_UN);
-            fclose($fp);
         }
     }
 
@@ -395,7 +420,11 @@ function validateCsrfToken(?string $token): bool {
     if (!$token || empty($_SESSION['restocloud_csrf_token'])) {
         return false;
     }
-    return hash_equals($_SESSION['restocloud_csrf_token'], $token);
+    $valid = hash_equals($_SESSION['restocloud_csrf_token'], $token);
+    if ($valid) {
+        $_SESSION['restocloud_csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $valid;
 }
 
 function requireCsrfToken(): void {

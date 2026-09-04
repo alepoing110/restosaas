@@ -93,7 +93,7 @@ export function getAvailableSoupStock(st) {
     });
 
     (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado') {
+        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
             (sale.items || []).forEach(item => {
                 if (item.type === 'almuerzo' || item.type === 'sopa') used++;
             });
@@ -120,7 +120,7 @@ export function getAvailableSegundoStock(st, segundoId) {
     });
 
     (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado') {
+        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
             (sale.items || []).forEach(item => {
                 if ((item.type === 'almuerzo' || item.type === 'segundo') && item.segundoId === segundoId) used++;
             });
@@ -147,7 +147,7 @@ export function getAvailablePlatoExtraStock(st, platoId) {
     });
 
     (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado') {
+        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
             (sale.items || []).forEach(item => {
                 if (item.type === 'plato_extra' && item.platoId === platoId) used++;
             });
@@ -174,7 +174,7 @@ export function getAvailableExtraStock(st, extraId) {
     });
 
     (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado') {
+        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
             (sale.items || []).forEach(item => {
                 if (item.type === 'extra' && item.extraId === extraId) used++;
             });

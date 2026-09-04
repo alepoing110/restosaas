@@ -168,6 +168,18 @@
                         <span>Bs ${pm.tarjeta.toFixed(2)}</span>
                     </div>
                     ` : ''}
+                    ${order.subtotal && parseFloat(order.subtotal) > 0 ? `
+                    <div class="ticket-total-row" style="font-size:10px; color:#666;">
+                        <span>Subtotal:</span>
+                        <span>Bs ${parseFloat(order.subtotal).toFixed(2)}</span>
+                    </div>
+                    ` : ''}
+                    ${order.discountTotal && parseFloat(order.discountTotal) > 0 ? `
+                    <div class="ticket-total-row" style="color:#16a34a;">
+                        <span>${order.appliedPromo ? escapeHtml(order.appliedPromo.plan_name || order.appliedPromo.name || 'Descuento') : (order.couponCode ? 'Cupón ' + escapeHtml(order.couponCode) : 'Descuento')}:</span>
+                        <span>-${parseFloat(order.discountTotal).toFixed(2)}</span>
+                    </div>
+                    ` : ''}
                     <div class="ticket-total-row">
                         <span>Subtotal:</span>
                         <span>Bs ${parseFloat(order.total || 0).toFixed(2)}</span>
@@ -332,6 +344,18 @@
         return buildFullTicketHtml(order);
     }
 
+    function printKitchenBatch(orders, printWindow) {
+        const target = printWindow || window.open('', '_blank', 'width=420,height=700');
+        if (!target || target.closed) return false;
+        const tickets = orders.map(buildKitchenComandaHtml).join('<div style="break-after:page; page-break-after:always;"></div>');
+        target.document.open();
+        target.document.write(`<!doctype html><html><head><title>Comandas de cocina</title><style>body{font-family:Arial,sans-serif;margin:0;padding:8px}.ticket-kitchen-copy{width:76mm;margin:0 auto 8px}.ticket-header{text-align:center}.ticket-divider{border-top:1px dashed #000;margin:6px 0}.ticket-table{width:100%;border-collapse:collapse;font-size:12px}.ticket-table th,.ticket-table td{padding:3px 1px;text-align:left;vertical-align:top}.ticket-qty-col{width:12%;text-align:center!important}.ticket-desc-col{width:68%}.ticket-total-col{width:20%;text-align:right!important}@media print{@page{size:80mm auto;margin:2mm}body{padding:0}}</style></head><body>${tickets}</body></html>`);
+        target.document.close();
+        target.focus();
+        target.print();
+        return true;
+    }
+
     // Public API
     window.TicketPrinter = {
         buildClientReceipt: buildClientReceiptHtml,
@@ -339,6 +363,7 @@
         buildFullTicket: buildFullTicketHtml,
         resolveTicketMode: resolveTicketMode,
         generateHtml: generateTicketHtml,
+        printKitchenBatch,
         
         /**
          * Open preview modal for kitchen comanda

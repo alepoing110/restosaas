@@ -4,16 +4,19 @@
 
 function changeReservationsDate(dateStr) {
     state.reservationsDate = dateStr;
+    if (typeof window.saveUiContext === 'function') window.saveUiContext({ reservationsDate: dateStr });
     loadReservationsForDate(dateStr);
 }
 
 function searchReservations(query) {
     state.reservationSearch = query;
+    if (typeof window.saveUiContext === 'function') window.saveUiContext({ reservationSearch: query });
     renderReservations();
 }
 
 function filterReservations(filter) {
     state.reservationFilter = filter;
+    if (typeof window.saveUiContext === 'function') window.saveUiContext({ reservationFilter: filter });
 
     document.querySelectorAll('.reservation-subtab').forEach(tab => tab.classList.remove('active'));
     const activeTab = document.getElementById('res-subtab-' + filter);
@@ -57,7 +60,7 @@ function validateReservationItems(items) {
 
     for (const item of items) {
         const type = item.type || '';
-        const id = item.id || '';
+        const id = item.id || item.product_id || '';
 
         if (type === 'almuerzo') {
             if (!item.sopaId || !item.segundoId) {
@@ -77,6 +80,54 @@ function validateReservationItems(items) {
         }
     }
     return invalid;
+}
+
+function sanitizeReservationDetail(value) {
+    const detail = String(value || '').trim();
+    return ['servirse', 'llevar', 'mesa'].includes(detail.toLowerCase()) ? '' : detail;
+}
+
+function buildReservationOrder(reservation, overrides = {}) {
+    const isDineIn = reservation.delivery_type === 'para_servirse';
+    const tableName = reservation.table_id ? getTableName(reservation.table_id) : 'Sin mesa';
+    const deliveryType = isDineIn ? 'mesa' : 'llevar';
+    const fallbackServiceType = isDineIn ? 'servirse' : 'llevar';
+    const items = (reservation.items || []).map(it => {
+        return {
+        type: it.type || 'segundo',
+        name: it.name || '',
+        quantity: it.quantity || it.qty || 1,
+        price: it.price || 0,
+        id: it.id || it.product_id || '',
+        sopaId: it.sopaId || null,
+        sopaName: it.sopaName || null,
+        segundoId: it.segundoId || null,
+        segundoName: it.segundoName || null,
+        platoId: it.platoId || null,
+        extraId: it.extraId || null,
+        salsas: it.salsas || [],
+        // Older reservations stored the service mode as a preparation note.
+        detail: sanitizeReservationDetail(it.detail),
+        serviceType: it.serviceType || fallbackServiceType
+        };
+    });
+
+    return {
+        id: reservation.id || generateId(),
+        customer: isDineIn
+            ? `${tableName} - ${reservation.customer_name}`
+            : `${reservation.customer_name} (Reserva - Llevar)`,
+        deliveryType,
+        customerId: reservation.customer_id || null,
+        items,
+        total: reservation.total || 0,
+        status: 'pendiente',
+        notes: reservation.notes || '',
+        reservationTime: reservation.reservation_time || '',
+        reservationDate: reservation.reservation_date || '',
+        timestamp: reservation.created_at || nowLocal(),
+        ...overrides
+    };
 }
 
 async function confirmReservation(id) {
@@ -129,37 +180,12 @@ async function confirmReservationForMesa(res) {
     if (!confirmed) return;
 
     try {
-        const items = (res.items || []).map(it => ({
-            type: it.type || 'segundo',
-            name: it.name || '',
-            quantity: it.quantity || 1,
-            price: it.price || 0,
-            id: it.id || '',
-            sopaId: it.sopaId || null,
-            sopaName: it.sopaName || null,
-            segundoId: it.segundoId || null,
-            segundoName: it.segundoName || null,
-            platoId: it.platoId || null,
-            extraId: it.extraId || null,
-            salsas: it.salsas || [],
-            detail: it.detail || '',
-            serviceType: it.serviceType || 'servirse'
-        }));
+        const newOrder = buildReservationOrder(res, { id: generateId() });
 
-        const hasSoup = items.some(i => i.type === 'almuerzo' || i.type === 'sopa');
+        const hasSoup = newOrder.items.some(i => i.type === 'almuerzo' || i.type === 'sopa');
         const initialServiceState = hasSoup ? 'esperando_sopa' : 'esperando_segundo';
-
-        const newOrder = {
-            id: generateId(),
-            customer: `${tableName} - ${res.customer_name}`,
-            deliveryType: 'mesa',
-            items: items,
-            total: res.total || 0,
-            paymentMethod: 'efectivo',
-            status: 'pendiente',
-            serviceState: initialServiceState,
-            timestamp: nowLocal()
-        };
+        newOrder.paymentMethod = 'efectivo';
+        newOrder.serviceState = initialServiceState;
 
         const orderData = await AppApi.request('save_order', newOrder);
         if (orderData.status !== 'success') {
@@ -235,6 +261,7 @@ function editReservation(id) {
     document.getElementById('reservation-form-id').value = res.id;
     document.getElementById('reservation-form-name').value = res.customer_name;
     document.getElementById('reservation-form-phone').value = res.phone || '';
+    document.getElementById('reservation-form-customer-id').value = res.customer_id || '';
     document.getElementById('reservation-form-party').value = res.party_size;
     document.getElementById('reservation-form-type').value = res.delivery_type || 'para_servirse';
     document.getElementById('reservation-form-date').value = res.reservation_date;
@@ -253,7 +280,7 @@ function editReservation(id) {
         name: it.name || '',
         price: it.price || 0,
         quantity: it.quantity || 1,
-        detail: it.detail || '',
+        detail: sanitizeReservationDetail(it.detail),
         sopaId: it.sopaId || null,
         sopaName: it.sopaName || null,
         segundoId: it.segundoId || null,
@@ -261,7 +288,7 @@ function editReservation(id) {
         platoId: it.platoId || null,
         extraId: it.extraId || null,
         salsas: it.salsas || [],
-        serviceType: it.serviceType || 'servirse'
+        serviceType: it.serviceType || (res.delivery_type === 'para_llevar' ? 'llevar' : 'servirse')
     }));
     renderReservationCart();
     renderReservationCatalog();
@@ -277,6 +304,7 @@ function resetReservationForm() {
     document.getElementById('reservation-form-id').value = '';
     document.getElementById('reservation-form-name').value = '';
     document.getElementById('reservation-form-phone').value = '';
+    document.getElementById('reservation-form-customer-id').value = '';
     document.getElementById('reservation-form-party').value = 1;
     document.getElementById('reservation-form-type').value = 'para_servirse';
     document.getElementById('reservation-form-date').value = state.reservationsDate || nowLocal().slice(0, 10);
@@ -324,6 +352,9 @@ function toggleReservationForm() {
 function switchReservationCatalogTab(tab) {
     const validTabs = ['meals', 'extras', 'drinks'];
     state.reservationCatalogTab = validTabs.includes(tab) ? tab : 'meals';
+    if (typeof window.saveUiContext === 'function') {
+        window.saveUiContext({ reservationCatalogTab: state.reservationCatalogTab });
+    }
     renderReservationCatalog();
     document.querySelectorAll('.reservation-catalog-tab').forEach(btn => {
         if (btn.dataset.resCatalogTab === state.reservationCatalogTab) {
@@ -336,6 +367,9 @@ function switchReservationCatalogTab(tab) {
 
 function setReservationCatalogSearch(query) {
     state.reservationCatalogSearch = query || '';
+    if (typeof window.saveUiContext === 'function') {
+        window.saveUiContext({ reservationCatalogSearch: state.reservationCatalogSearch });
+    }
     renderReservationCatalog();
 }
 
@@ -380,7 +414,7 @@ function addReservationMealToCart(type, qtyValue = 1) {
             name: 'Almuerzo Completo',
             price: state.prices?.almuerzo || 15,
             quantity: qty,
-            detail: `${sopa?.name || ''} + ${segundo?.name || ''}`,
+            detail: '',
             serviceType: getReservationItemServiceType(),
             sopaId,
             sopaName: sopa?.name || '',
@@ -413,7 +447,7 @@ function addReservationMealToCart(type, qtyValue = 1) {
             name: segundo?.name || 'Segundo Suelto',
             price: state.prices?.segundo || 12,
             quantity: qty,
-            detail: 'servirse',
+            detail: '',
             serviceType: getReservationItemServiceType(),
             segundoId,
             segundoName: segundo?.name || ''
@@ -443,7 +477,7 @@ function addReservationMealToCart(type, qtyValue = 1) {
             name: sopa?.name || 'Sopa',
             price: state.prices?.sopa || 6,
             quantity: qty,
-            detail: 'servirse',
+            detail: '',
             serviceType: getReservationItemServiceType(),
             sopaId,
             sopaName: sopa?.name || ''
@@ -477,7 +511,7 @@ function addReservationPlatoExtraToCart(platoId, qtyValue = 1) {
         name: plato.name,
         price: plato.price || 0,
         quantity: qty,
-        detail: 'servirse',
+        detail: '',
         serviceType: getReservationItemServiceType(),
         platoId
     };
@@ -509,8 +543,8 @@ function addReservationExtraToCart(extraId, qtyValue = 1) {
         name: extra.name,
         price: extra.price || 0,
         quantity: qty,
-        detail: 'llevar',
-        serviceType: 'llevar',
+        detail: '',
+        serviceType: getReservationItemServiceType(),
         extraId
     }, `${qty}x bebida "${extra.name}" agregada(s) a la reserva.`);
 }
@@ -537,13 +571,17 @@ async function handleSaveReservation(e) {
     const id = document.getElementById('reservation-form-id').value;
     const name = document.getElementById('reservation-form-name').value.trim();
     const phone = document.getElementById('reservation-form-phone').value.trim();
+    const customerId = document.getElementById('reservation-form-customer-id').value;
     const partySize = parseInt(document.getElementById('reservation-form-party').value);
     const deliveryType = document.getElementById('reservation-form-type').value;
     const date = document.getElementById('reservation-form-date').value;
     const time = document.getElementById('reservation-form-time').value;
     const tableId = deliveryType === 'para_servirse' ? document.getElementById('reservation-form-table').value : '';
     const notes = document.getElementById('reservation-form-notes').value.trim();
-    const cart = state.reservationCart || [];
+    const cart = (state.reservationCart || []).map(item => ({
+        ...item,
+        detail: sanitizeReservationDetail(item.detail)
+    }));
     const total = cart.reduce((sum, it) => {
         const salsaTotal = (it.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
         return sum + ((it.price || 0) + salsaTotal) * (it.quantity || 1);
@@ -563,6 +601,7 @@ async function handleSaveReservation(e) {
             id: id || '',
             customer_name: name,
             phone: phone,
+            customer_id: customerId,
             party_size: partySize,
             delivery_type: deliveryType,
             reservation_date: date,
@@ -576,40 +615,17 @@ async function handleSaveReservation(e) {
             showToast(id ? 'Reserva actualizada.' : 'Reserva creada con éxito.', 'success');
 
             if (!id) {
-                const reservationOrder = {
+                const reservationOrder = buildReservationOrder({
                     id: (data && data.id) || generateId(),
-                    customer: `${name} (Reserva - ${deliveryType === 'para_servirse' ? 'Mesa' : (deliveryType === 'para_llevar' ? 'Llevar' : 'Delivery')})`,
-                    deliveryType: deliveryType === 'para_servirse' ? 'mesa' : (deliveryType === 'para_llevar' ? 'llevar' : 'delivery'),
-                    items: cart.length > 0 ? cart.map(it => ({
-                        type: it.type || 'segundo',
-                        name: it.name || 'Plato Reserva',
-                        quantity: it.quantity || 1,
-                        price: it.price || 0,
-                        id: it.id || '',
-                        sopaId: it.sopaId || null,
-                        sopaName: it.sopaName || null,
-                        segundoId: it.segundoId || null,
-                        segundoName: it.segundoName || null,
-                        platoId: it.platoId || null,
-                        extraId: it.extraId || null,
-                        salsas: it.salsas || [],
-                        serviceType: it.serviceType || (deliveryType === 'para_servirse' ? 'servirse' : 'llevar'),
-                        detail: it.detail || ''
-                    })) : [{
-                        type: 'segundo',
-                        name: `Reserva para ${partySize} persona(s)`,
-                        quantity: partySize,
-                        price: 0,
-                        serviceType: deliveryType === 'para_servirse' ? 'mesa' : 'llevar',
-                        detail: notes || 'Sin notas adicionales'
-                    }],
-                    total: total,
-                    status: 'pendiente',
-                    notes: notes,
-                    reservationTime: time,
-                    reservationDate: date,
-                    timestamp: nowLocal()
-                };
+                    customer_name: name,
+                    delivery_type: deliveryType,
+                    table_id: tableId,
+                    items: cart,
+                    total,
+                    notes,
+                    reservation_time: time,
+                    reservation_date: date
+                });
 
                 try {
                     if (window.TicketPrinter) {
@@ -730,36 +746,14 @@ async function confirmReservationPayment() {
     setButtonLoading(confirmBtn, true);
 
     try {
-        const items = (res.items || []).map(it => ({
-            type: it.type || 'segundo',
-            name: it.name || '',
-            quantity: it.quantity || 1,
-            price: it.price || 0,
-            id: it.id || '',
-            sopaId: it.sopaId || null,
-            sopaName: it.sopaName || null,
-            segundoId: it.segundoId || null,
-            segundoName: it.segundoName || null,
-            platoId: it.platoId || null,
-            extraId: it.extraId || null,
-            salsas: it.salsas || [],
-            detail: it.detail || '',
-            serviceType: 'llevar'
-        }));
-
-        const deliveryType = res.delivery_type === 'para_llevar' ? 'llevar' : 'delivery';
-        const orderCustomer = `${res.customer_name} (Reserva - ${deliveryType === 'llevar' ? 'Llevar' : 'Delivery'})`;
-
-        const newOrder = {
+        const newOrder = buildReservationOrder(res, {
             id: generateId(),
-            customer: orderCustomer,
-            deliveryType: deliveryType,
-            items: items,
-            total: total,
             paymentMethod: payment,
+            paid: true,
+            soldAt: new Date().toISOString(),
             status: 'completado',
             timestamp: nowLocal()
-        };
+        });
 
         const orderData = await AppApi.request('save_order', newOrder);
         if (orderData.status !== 'success') {
@@ -787,7 +781,8 @@ async function confirmReservationPayment() {
             console.error('Error abriendo ticket modal:', e);
         }
     } catch (e) {
-        showToast('Error al procesar cobro de reserva.', 'error');
+        console.error('[RESERVATIONS] Error al cobrar reserva:', e);
+        showToast(e.message || 'Error al procesar cobro de reserva.', 'error');
     } finally {
         setButtonLoading(confirmBtn, false);
     }
@@ -910,36 +905,7 @@ function printReservationComanda(reservationId) {
         return;
     }
 
-    const tableName = reservation.table_id ? getTableName(reservation.table_id) : 'Sin mesa';
-    const customerLabel = `${tableName} - ${reservation.customer_name}`;
-
-    const order = {
-        id: reservation.id,
-        customer: customerLabel,
-        deliveryType: reservation.delivery_type === 'para_servirse' ? 'mesa' : 'llevar',
-        items: items.map(it => ({
-            type: it.type || 'segundo',
-            name: it.name || '',
-            quantity: it.quantity || 1,
-            price: it.price || 0,
-            id: it.id || '',
-            sopaId: it.sopaId || null,
-            sopaName: it.sopaName || null,
-            segundoId: it.segundoId || null,
-            segundoName: it.segundoName || null,
-            platoId: it.platoId || null,
-            extraId: it.extraId || null,
-            salsas: it.salsas || [],
-            detail: it.detail || '',
-            serviceType: it.serviceType || 'servirse'
-        })),
-        total: reservation.total || 0,
-        status: 'pendiente',
-        notes: reservation.notes || '',
-        reservationTime: reservation.reservation_time || '',
-        reservationDate: reservation.reservation_date || '',
-        timestamp: reservation.created_at || nowLocal()
-    };
+    const order = buildReservationOrder(reservation);
 
     try {
         if (window.TicketPrinter) {
@@ -958,6 +924,9 @@ function printReservationComanda(reservationId) {
 window.changeReservationsDate = changeReservationsDate;
 window.searchReservations = searchReservations;
 window.filterReservations = filterReservations;
+window.toggleBotReservationSelection = toggleBotReservationSelection;
+window.toggleAllBotReservations = toggleAllBotReservations;
+window.verifyAndPrintBotReservations = verifyAndPrintBotReservations;
 window.onReservationTypeChange = onReservationTypeChange;
 window.toggleReservationForm = toggleReservationForm;
 window.resetReservationForm = resetReservationForm;

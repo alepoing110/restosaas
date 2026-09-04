@@ -122,12 +122,23 @@ function handle_save_business_info(PDO $pdo, ?array $authContext, array $input):
         echo json_encode(["status" => "error", "message" => "Todos los campos son requeridos"]);
         return;
     }
+    $nombre = trim($input['nombre_restaurante']);
+    $direccion = trim($input['direccion']);
+    $telefono = trim($input['telefono']);
+    $whatsapp = trim((string)($input['whatsapp_number'] ?? ''));
+    $whatsappPhoneId = trim((string)($input['whatsapp_phone_id'] ?? ''));
+    if (strlen($nombre) > 100 || strlen($direccion) > 200 || strlen($telefono) > 20 || strlen($whatsapp) > 30 || strlen($whatsappPhoneId) > 80) {
+        echo json_encode(["status" => "error", "message" => "Longitud de campos excedida (nombre: 100, dirección: 200, teléfono: 20, WhatsApp: 30, Phone ID: 80)"]);
+        return;
+    }
     $upsert = $pdo->prepare("INSERT INTO `config_general` (`id`, `value`, `tenant_id`, `branch_id`) VALUES (:id, :value, :tenant_id, :branch_id) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
     $configMap = [
         'nombre_restaurante' => $input['nombre_restaurante'],
         'direccion' => $input['direccion'],
         'telefono' => $input['telefono'],
-        'pais' => $input['pais'] ?? 'Bolivia'
+        'pais' => $input['pais'] ?? 'Bolivia',
+        'whatsapp_number' => $whatsapp,
+        'whatsapp_phone_id' => $whatsappPhoneId
     ];
     foreach ($configMap as $configId => $configValue) {
         $upsert->execute(['id' => $configId, 'value' => $configValue, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);

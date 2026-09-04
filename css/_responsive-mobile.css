@@ -25,9 +25,14 @@
         visibility: hidden !important;
     }
 
-    body.rc-ticket-printing #ticket-print-area,
-    body.rc-ticket-printing #ticket-print-area * {
+    body.rc-ticket-printing #ticket-print-area {
         display: block !important;
+        visibility: visible !important;
+    }
+
+    /* Keep table semantics on thermal prints. Forcing every element to block
+       stacks the kitchen-ticket columns only on the physical printout. */
+    body.rc-ticket-printing #ticket-print-area * {
         visibility: visible !important;
     }
     
@@ -59,6 +64,22 @@
     
     #ticket-print-area td {
         color: #000 !important;
+    }
+
+    #ticket-print-area .ticket-table {
+        display: table !important;
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+
+    #ticket-print-area .ticket-table tr {
+        display: table-row !important;
+    }
+
+    #ticket-print-area .ticket-table th,
+    #ticket-print-area .ticket-table td {
+        display: table-cell !important;
+        overflow-wrap: break-word;
     }
     
     #ticket-print-area .ticket-divider {
@@ -998,6 +1019,13 @@ body.no-scroll { overflow: hidden; }
     }
 
     .auth-summary { min-width: 0; flex: 1; }
+    .auth-branch-switcher { max-width: 100%; flex: 1 1 150px; }
+    .catalog-filter-toolbar,
+    .saas-list-filters { width: 100%; }
+    .catalog-filter-toolbar .search-box,
+    .catalog-filter-toolbar .form-select,
+    .saas-list-filters .form-input,
+    .saas-list-filters .form-select { width: 100%; min-width: 0; flex: 1 1 100%; }
     .auth-summary-text strong { font-size: 12px; }
     .auth-summary-text span { font-size: 10px; }
     .header-date { font-size: 11px; padding: 4px 8px; }

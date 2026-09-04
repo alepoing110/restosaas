@@ -16,7 +16,7 @@ function _getAvailableStock(itemId, stockArray, countFn) {
     } catch (e) {}
     try {
         (state.salesHistory || []).forEach(sale => {
-            if (sale.status === 'completado') {
+            if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
                 usage += countFn(sale.items, itemId);
             }
         });

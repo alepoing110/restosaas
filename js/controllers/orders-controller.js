@@ -5,6 +5,7 @@
 window.openTicketModalById = function(orderId) {
     const order = state.activeOrders.find(o => o.id === orderId);
     if (!order) return;
+
     const allItemsPaid = order.paid || (order.items || []).every(i => i.paid);
     if (allItemsPaid || order.status === 'pendiente') {
         window.openTicketModal(order, 'client');
@@ -37,16 +38,26 @@ window.setOrderServiceState = async function(orderId, newState) {
 };
 
 window.completeActiveOrder = async function(orderId, chosenPaymentMethod = 'efectivo') {
+    let data;
     try {
+        data = await AppApi.request('complete_order', { id: orderId, paymentMethod: chosenPaymentMethod, soldAt: new Date().toISOString() });
+    } catch (e) {
+        console.error('[ORDERS] Error al completar cobro:', e);
+        showToast(e.message || 'Error al completar el cobro.', 'error');
+        return;
+    }
+
+    if (data.status === 'success') {
         const activeOrder = window.findLatestOrderSnapshot(orderId);
-        const data = await AppApi.request('complete_order', { id: orderId, paymentMethod: chosenPaymentMethod });
-        if (data.status === 'success') {
-            const completedOrder = {
-                ...(activeOrder || {}),
-                id: orderId,
-                paymentMethod: chosenPaymentMethod,
-                status: 'completado'
-            };
+        const completedOrder = {
+            ...(activeOrder || {}),
+            id: orderId,
+            paymentMethod: chosenPaymentMethod,
+            paid: true,
+            soldAt: new Date().toISOString(),
+            status: 'completado'
+        };
+        try {
             if (typeof window.removeActiveOrder === 'function') {
                 window.removeActiveOrder(orderId);
             }
@@ -63,41 +74,115 @@ window.completeActiveOrder = async function(orderId, chosenPaymentMethod = 'efec
                     window.openTicketModal(completedOrder, 'client');
                 }
             }
+        } catch (e) {
+            console.error('[ORDERS] El cobro se completó, pero falló la actualización visual:', e);
+            showToast('Cobro registrado. No se pudo actualizar una parte de la vista.', 'warning');
         }
-    } catch (e) {
-        showToast('Error al completar el cobro.', 'error');
     }
 };
 
 const _cancellingOrders = new Set();
+let cancelModalOrder = null;
 
 window.cancelActiveOrder = async function(orderId) {
     if (_cancellingOrders.has(orderId)) return;
     const order = state.activeOrders.find(o => o.id === orderId);
     if (!order) return;
-
-    const confirmed = await window.ConfirmDialog.show(
-        `¿Anular pedido de "${order.customer}"?`,
-        { title: 'Cancelar Pedido', confirmText: 'Sí, cancelar', type: 'danger' }
-    );
-    
-    if (confirmed) {
-        _cancellingOrders.add(orderId);
-        try {
-            const data = await AppApi.request('cancel_order', { id: orderId });
-            if (data.status === 'success') {
-                if (typeof window.removeActiveOrder === 'function') {
-                    window.removeActiveOrder(orderId);
-                }
-                Notifications.notify(`❌ ${order.customer}: Pedido cancelado`, 'warning');
-            }
-        } catch (e) {
-            showToast('Error al cancelar el pedido.', 'error');
-        } finally {
-            _cancellingOrders.delete(orderId);
-        }
-    }
+    cancelModalOrder = order;
+    const orderIdInput = document.getElementById('cancel-order-id');
+    const summary = document.getElementById('cancel-order-summary');
+    const reason = document.getElementById('cancel-order-reason');
+    if (orderIdInput) orderIdInput.value = orderId;
+    if (summary) summary.textContent = `${order.customer || 'Cliente'} · Total ${formatCurrency(order.total || 0)}`;
+    if (reason) reason.value = '';
+    renderCancelOrderItems();
+    openModal('modal-cancel-order');
 };
+
+function renderCancelOrderItems() {
+    const container = document.getElementById('cancel-order-items');
+    if (!container || !cancelModalOrder) return;
+    const items = cancelModalOrder.items || [];
+    container.innerHTML = `
+        <label class="cancel-order-select-all"><input type="checkbox" id="cancel-order-select-all" checked> Seleccionar todos</label>
+        ${items.map((item, index) => {
+            const quantity = Number(item.qty || item.quantity || 1);
+            const details = [item.sopaName, item.segundoName].filter(Boolean).join(' / ');
+            const serviceLabel = item.serviceType === 'llevar' ? 'Para llevar' : 'Servirse';
+            const serviceClass = item.serviceType === 'llevar' ? 'llevar' : 'servirse';
+            const salsaTotal = (item.salsas || []).reduce((total, salsa) => total + Number(salsa.salsaPrice || 0), 0);
+            const unitPrice = Number(item.price || 0) + salsaTotal;
+            const lineTotal = unitPrice * quantity;
+            return `<label class="cancel-order-item">
+                <input type="checkbox" class="cancel-order-check" data-line-no="${index}" checked>
+                <span class="cancel-order-item-name">
+                    <strong>${quantity}x ${escapeHtml(item.name || 'Producto')}</strong>
+                    <span class="cancel-order-item-meta">
+                        <span class="item-detail-badge ${serviceClass}"><i class="fa-solid ${serviceClass === 'llevar' ? 'fa-bag-shopping' : 'fa-plate-wheat'}"></i> ${serviceLabel}</span>
+                        <span>${formatCurrency(unitPrice)} c/u</span>
+                        <span>${formatCurrency(lineTotal)}</span>
+                    </span>
+                    ${details ? `<small>${escapeHtml(details)}</small>` : ''}
+                </span>
+                <input type="number" class="form-input cancel-order-item-qty" data-line-no="${index}" min="0.001" max="${quantity}" step="0.001" value="${quantity}">
+            </label>`;
+        }).join('')}`;
+    const selectAll = document.getElementById('cancel-order-select-all');
+    const checks = Array.from(document.querySelectorAll('.cancel-order-check'));
+    const syncSelectAll = () => {
+        const selectedCount = checks.filter(check => check.checked).length;
+        if (selectAll) {
+            selectAll.checked = selectedCount === checks.length && checks.length > 0;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < checks.length;
+        }
+    };
+    selectAll?.addEventListener('change', event => {
+        checks.forEach(check => { check.checked = event.target.checked; });
+        syncSelectAll();
+    });
+    checks.forEach(check => check.addEventListener('change', syncSelectAll));
+    syncSelectAll();
+}
+
+window.closeCancelOrderModal = function() {
+    closeModal('modal-cancel-order');
+    cancelModalOrder = null;
+};
+
+async function submitCancelOrder() {
+    if (!cancelModalOrder || _cancellingOrders.has(cancelModalOrder.id)) return;
+    const reason = document.getElementById('cancel-order-reason')?.value.trim() || '';
+    if (!reason) return showToast('El motivo es obligatorio.', 'warning');
+    const items = Array.from(document.querySelectorAll('.cancel-order-check:checked')).map(check => {
+        const lineNo = Number(check.dataset.lineNo);
+        const input = document.querySelector(`.cancel-order-item-qty[data-line-no="${lineNo}"]`);
+        return { line_no: lineNo, quantity: Number(input?.value || 0) };
+    }).filter(item => item.quantity > 0);
+    if (!items.length) return showToast('Seleccione al menos un producto.', 'warning');
+    if (!(await ConfirmDialog.show('La cancelación se aplicará a los productos seleccionados. ¿Continuar?', { title: 'Confirmar cancelación', confirmText: 'Cancelar productos', type: 'danger' }))) return;
+
+    const order = cancelModalOrder;
+    _cancellingOrders.add(order.id);
+    try {
+        const data = await AppApi.request('cancel_order', { id: order.id, reason, items });
+        if (data.status === 'success') {
+            if (data.full_cancelled) {
+                window.removeActiveOrder?.(order.id);
+                Notifications.notify(`❌ ${order.customer}: Pedido cancelado`, 'warning');
+            } else {
+                window.updateActiveOrder?.(order.id, { items: data.order.items, total: data.order.total });
+                Notifications.notify(`❌ ${order.customer}: Productos cancelados`, 'warning');
+            }
+            window.closeCancelOrderModal();
+        }
+    } catch (e) {
+        showToast(e.message || 'Error al cancelar los productos.', 'error');
+    } finally {
+        _cancellingOrders.delete(order.id);
+    }
+}
+
+document.getElementById('btn-confirm-cancel-order')?.addEventListener('click', submitCancelOrder);
 
 // ==========================================================================
 // TABLES CONFIGURATION (Dynamic Floor Plan)
@@ -651,7 +736,7 @@ window.closePaidOrder = async function(orderId) {
         if (typeof paymentMethod === 'string' && !validPayments.includes(paymentMethod)) {
             paymentMethod = 'efectivo';
         }
-        const data = await AppApi.request('complete_order', { id: orderId, paymentMethod: paymentMethod });
+        const data = await AppApi.request('complete_order', { id: orderId, paymentMethod: paymentMethod, soldAt: new Date().toISOString() });
         if (data.status === 'success') {
             const completedOrder = {
                 ...order,

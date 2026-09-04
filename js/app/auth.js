@@ -17,8 +17,15 @@
 
         const userEl = document.getElementById('header-auth-user');
         const metaEl = document.getElementById('header-auth-meta');
+        const branchSelect = document.getElementById('header-branch-switcher');
         if (userEl) userEl.textContent = userName;
         if (metaEl) metaEl.textContent = `${tenantName} · ${branchName} · ${roleName}`;
+        if (branchSelect) {
+            const branches = payload?.authorizedBranches || [];
+            branchSelect.innerHTML = branches.map(branch => `<option value="${branch.id}">${branch.name}</option>`).join('');
+            branchSelect.value = payload?.branch?.id || '';
+            branchSelect.hidden = branches.length < 2;
+        }
     }
 
     function applyAuthPayload(payload) {
@@ -29,6 +36,7 @@
                 authUser: payload?.authUser || null,
                 tenant: payload?.tenant || null,
                 branch: payload?.branch || null,
+                authorizedBranches: payload?.authorizedBranches || [],
                 permissions: payload?.permissions || [],
                 subscription: payload?.subscription || null
             });
@@ -37,6 +45,7 @@
             window.state.authUser = payload?.authUser || null;
             window.state.tenant = payload?.tenant || null;
             window.state.branch = payload?.branch || null;
+            window.state.authorizedBranches = payload?.authorizedBranches || [];
             window.state.permissions = payload?.permissions || [];
             window.state.subscription = payload?.subscription || null;
         }
@@ -177,6 +186,25 @@
         if (window.showToast) showToast('Sesión cerrada.', 'info');
     }
 
+    async function switchBranch(branchId) {
+        if (!branchId || branchId === window.state?.branch?.id) return;
+        try {
+            const payload = await window.AppApi.switchBranch(branchId);
+            if (window.AppWebSocket) AppWebSocket.disconnect();
+            applyAuthPayload(payload);
+            if (window.AppWebSocket && payload.session) {
+                AppWebSocket.connect(payload.session.tenant_id, payload.session.branch_id);
+            }
+            if (typeof window.loadStateFromServer === 'function') await window.loadStateFromServer();
+            if (typeof window.switchTab === 'function') window.switchTab('pos');
+            if (window.showToast) showToast(`Sucursal activa: ${payload.branch.name}`, 'success');
+        } catch (error) {
+            if (window.showToast) showToast(error.message || 'No se pudo cambiar de sucursal.', 'error');
+            const select = document.getElementById('header-branch-switcher');
+            if (select) select.value = window.state?.branch?.id || '';
+        }
+    }
+
     function bind() {
         const form = getForm();
         if (form && !form.dataset.bound) {
@@ -189,11 +217,20 @@
             logoutButton.dataset.bound = 'true';
             logoutButton.addEventListener('click', logout);
         }
+        const branchSelect = document.getElementById('header-branch-switcher');
+        if (branchSelect && !branchSelect.dataset.bound) {
+            branchSelect.dataset.bound = 'true';
+            branchSelect.addEventListener('change', () => switchBranch(branchSelect.value));
+        }
 
         if (!window._authUnauthorizedBound) {
             window._authUnauthorizedBound = true;
             window.addEventListener('restocloud:unauthorized', () => {
                 authenticated = false;
+                stopHeartbeat();
+                if (window.AppWebSocket) {
+                    try { AppWebSocket.disconnect(); } catch (e) {}
+                }
                 showLogin('La sesión expiró. Vuelve a iniciar sesión.');
             });
         }
@@ -232,6 +269,7 @@
         hideLogin,
         isAuthenticated: () => authenticated,
         applyAuthPayload,
+        switchBranch,
         startHeartbeat,
         stopHeartbeat
     };

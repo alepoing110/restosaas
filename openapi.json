@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "RestoCloud API",
-    "description": "Multi-tenant restaurant POS SaaS API",
+    "description": "Multi-tenant restaurant POS SaaS API. The action router enforces GET for reads and POST for operations; authenticated POST requests require X-CSRF-Token.",
     "version": "2.0.0",
     "contact": {
       "name": "RestoCloud Support"
@@ -18,6 +18,16 @@
       "description": "Local development"
     }
   ],
+  "x-restocloud-action-contract": {
+      "read_get": [
+      "auth_me", "get_state", "get_pos_state", "get_active_orders", "get_inventory", "get_reports", "get_dashboard", "get_financial_report", "get_branch_comparison", "get_cash_flow", "get_control_report", "get_customers", "get_customer_profile", "get_receivables", "get_refunds_report", "get_promo_plans", "get_products_by_menu", "get_daily_report", "get_reservations", "get_saas_admin", "saas_get_plans", "get_tenant_users", "get_categories", "export_tenant_data", "get_stock_history", "get_stock_report", "get_discounts", "get_chatbot_conversations", "get_chatbot_messages"
+    ],
+      "operation_post": [
+      "auth_login", "admin_login", "auth_logout", "switch_branch", "create_refund", "suggest_promos", "validate_promo", "apply_promo_coupon", "save_promo_plan", "delete_promo_plan", "save_order", "update_order_state", "complete_order", "cancel_order", "append_order_items", "annul_sale", "save_item", "delete_item", "save_product", "delete_product", "save_menu", "delete_menu", "save_caja_movimiento", "delete_caja_movimiento", "save_caja_cierre", "reset_data", "save_financial_expense", "delete_financial_expense", "save_customer", "save_customer_interaction", "save_collection_task", "save_receivable_payment", "save_table", "delete_table", "reorder_tables", "save_prices", "save_business_info", "save_reservation", "update_reservation_status", "delete_reservation", "verify_bot_reservations", "mark_bot_reservations_printed", "saas_create_tenant", "saas_create_branch", "saas_create_user", "saas_update_subscription", "saas_edit_tenant", "saas_delete_tenant", "saas_edit_branch", "saas_delete_branch", "saas_edit_user", "saas_delete_user", "saas_create_plan", "saas_update_plan", "saas_delete_plan", "saas_approve_payment", "saas_reject_payment", "public_register", "create_tenant_user", "edit_tenant_user", "delete_tenant_user", "save_category", "delete_category", "reorder_categories", "import_tenant_data", "save_discount", "delete_discount", "calculate_discount", "chatbot_simulate", "chatbot_close_conversation", "delete_chatbot_conversation", "chatbot_simulate_local", "chatbot_save_reply_local", "chatbot_execute_tool", "update_chatbot_attention", "send_human_whatsapp_reply"
+    ],
+    "public_post": ["auth_login", "admin_login", "public_register"],
+    "authenticated_post_security": ["csrf", "rate_limit"]
+  },
   "components": {
     "securitySchemes": {
       "session": {

@@ -1,0 +1,16 @@
+@startuml
+actor Administrador
+boundary "Vista inventario" as UI
+control InventoryController
+control "API Inventario" as API
+control AuthService
+database MySQL
+Administrador -> UI: ingresa datos del producto
+UI -> InventoryController: saveProduct(producto)
+InventoryController -> API: save_product(producto)
+API -> AuthService: requirePermission(inventory)
+API -> API: validar datos y alcance tenant/sucursal
+API -> MySQL: insertar o actualizar producto
+API -> MySQL: registrar auditoría
+API --> UI: producto guardado
+@enduml

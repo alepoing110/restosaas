@@ -9,6 +9,9 @@ function renderSaasAdmin() {
     try { renderSaasBranchesTable(); } catch (e) { console.error('renderSaasBranchesTable error:', e); }
     try { renderSaasUsersTable(); } catch (e) { console.error('renderSaasUsersTable error:', e); }
     try { renderSaasPlansTable(); } catch (e) { console.error('renderSaasPlansTable error:', e); }
+    try { renderSaasChatbotConversations(); } catch (e) { console.error('renderSaasChatbotConversations error:', e); }
+    try { renderSaasChatbotMessages(); } catch (e) { console.error('renderSaasChatbotMessages error:', e); }
+    try { renderSaasChatbotSimMessages(); } catch (e) { console.error('renderSaasChatbotSimMessages error:', e); }
     try { populateSaasTenantOptions(); } catch (e) { console.error('populateSaasTenantOptions error:', e); }
     try { populateSaasSubscriptionPlanOptions(); } catch (e) { console.error('populateSaasSubscriptionPlanOptions error:', e); }
     initSaasSubtabs();
@@ -19,12 +22,155 @@ function renderSaasAdmin() {
     }
 }
 
+function renderSaasChatbotConversations() {
+    const container = document.getElementById('saas-chatbot-conversations-list');
+    if (!container) return;
+
+    const conversations = state.saasAdmin?.chatbotConversations || [];
+    const selectedId = state.saasAdmin?.chatbotSelectedConversationId || '';
+    if (!conversations.length) {
+        container.innerHTML = '<div class="saas-empty-panel"><i class="fa-solid fa-comment-slash"></i><strong>Sin conversaciones</strong><span>Cuando entren mensajes por WhatsApp aparecerán aquí.</span></div>';
+        return;
+    }
+
+    container.innerHTML = conversations.map((conv) => {
+        const active = conv.id === selectedId;
+        const statusClass = conv.status === 'active' ? 'badge-success' : 'badge-secondary';
+        const ctx = conv.context || {};
+        const summary = [ctx.reservation_date, ctx.reservation_time].filter(Boolean).join(' · ');
+        return `<button type="button" class="content-card" onclick="selectChatbotConversation('${conv.id}')" style="width:100%; text-align:left; margin-bottom:10px; border:${active ? '2px solid var(--brand-primary, #6c63ff)' : '1px solid var(--border-color, #2f3544)'}; background:${active ? 'rgba(108,99,255,.08)' : 'var(--surface-elevated, transparent)'};">
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:start;">
+                <div style="flex:1; min-width:0;">
+                    <strong>${escapeHtml(conv.customer_name || conv.wa_phone || 'Cliente')}</strong>
+                    <div class="saas-muted-line">${escapeHtml(conv.wa_phone || '-')}</div>
+                </div>
+                <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
+                    <span class="badge ${statusClass}">${escapeHtml(conv.status || 'active')}</span>
+                    <button type="button" onclick="event.stopPropagation(); deleteChatbotConversation('${conv.id}')" title="Eliminar conversación" style="background:none; border:none; color:var(--text-muted, #888); cursor:pointer; padding:2px 4px; font-size:12px; line-height:1;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="saas-muted-line" style="margin-top:8px;">${escapeHtml(summary || 'Sin reserva vinculada todavía')}</div>
+        </button>`;
+    }).join('');
+}
+
+function renderSaasChatbotMessages() {
+    const container = document.getElementById('saas-chatbot-messages-panel');
+    if (!container) return;
+
+    const selectedId = state.saasAdmin?.chatbotSelectedConversationId || '';
+    const messages = state.saasAdmin?.chatbotMessages || [];
+    if (!selectedId) {
+        container.innerHTML = '<div class="saas-empty-panel"><i class="fa-solid fa-message"></i><strong>Selecciona una conversación</strong><span>Verás aquí el historial del chatbot.</span></div>';
+        return;
+    }
+
+    if (!messages.length) {
+        container.innerHTML = '<div class="saas-empty-panel"><i class="fa-solid fa-inbox"></i><strong>Sin mensajes</strong><span>Esta conversación no tiene mensajes cargados.</span></div>';
+        return;
+    }
+
+    container.innerHTML = messages.map((message) => {
+        const isUser = message.role === 'user';
+        const bg = isUser ? 'rgba(40,167,69,.12)' : 'rgba(108,99,255,.10)';
+        const border = isUser ? 'rgba(40,167,69,.35)' : 'rgba(108,99,255,.35)';
+        const label = isUser ? 'Cliente' : (message.role === 'assistant' ? 'Bot' : message.role);
+        const toolMeta = Array.isArray(message.tool_calls) && message.tool_calls.length ? `<div class="saas-muted-line" style="margin-top:6px;">Tool: ${escapeHtml((message.tool_calls[0]?.function?.name) || 'tool')}</div>` : '';
+        return `<div class="content-card" style="margin-bottom:10px; background:${bg}; border:1px solid ${border};">
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px;">
+                <strong>${escapeHtml(label)}</strong>
+                <small class="saas-muted-line">${escapeHtml(message.created_at || '')}</small>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.45;">${escapeHtml(message.content || '')}</div>
+            ${toolMeta}
+        </div>`;
+    }).join('');
+}
+
+function renderSaasChatbotSimMessages() {
+    const container = document.getElementById('chatbot-sim-messages');
+    if (!container) return;
+
+    const messages = state.saasAdmin?.chatbotSimMessages || [];
+    if (!messages.length) {
+        container.innerHTML = '<div class="saas-empty-panel"><i class="fa-solid fa-flask"></i><strong>Simulador listo</strong><span>Escribe un mensaje para simular una conversación del chatbot.</span></div>';
+        return;
+    }
+
+    container.innerHTML = messages.map((msg) => {
+        const isUser = msg.role === 'user';
+        const isError = msg.role === 'error';
+        const isLoading = msg.role === 'loading';
+        const bg = isError ? 'rgba(220,53,69,.12)' : isLoading ? 'rgba(108,99,255,.05)' : isUser ? 'rgba(40,167,69,.12)' : 'rgba(108,99,255,.10)';
+        const border = isError ? 'rgba(220,53,69,.35)' : isLoading ? 'rgba(108,99,255,.2)' : isUser ? 'rgba(40,167,69,.35)' : 'rgba(108,99,255,.35)';
+        const label = isError ? 'Error' : isLoading ? 'Bot' : (isUser ? 'Tú (simulador)' : 'Bot');
+        const toolResult = msg.tool_result;
+        let toolMeta = '';
+
+        if (isLoading) {
+            return `<div class="content-card" style="margin-bottom:10px; background:${bg}; border:1px solid ${border};">
+                <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+                    <div class="spinner-sm" style="width:16px; height:16px; border:2px solid var(--brand-primary, #6c63ff); border-top-color:transparent; border-radius:50%; animation:spin .6s linear infinite;"></div>
+                    <strong style="font-size:13px;">${escapeHtml(label)}</strong>
+                    <span class="saas-muted-line" style="font-size:12px;">pensando...</span>
+                </div>
+            </div>`;
+        }
+
+        if (toolResult) {
+            if (toolResult.items && Array.isArray(toolResult.items)) {
+                const items = toolResult.items;
+                const itemList = items.map(i => `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(255,255,255,.06);"><span>${escapeHtml(i.name)}</span><span style="color:var(--brand-primary, #6c63ff); font-weight:600;">Bs ${Number(i.price).toFixed(2)}</span></div>`).join('');
+                toolMeta = `<div style="margin-top:8px; padding:8px 10px; background:rgba(108,99,255,.06); border-radius:6px; font-size:12px; border-left:3px solid var(--brand-primary, #6c63ff);">
+                    <div style="font-weight:600; margin-bottom:4px;"><i class="fa-solid fa-utensils" style="margin-right:4px;"></i> Menú (${items.length} platos)</div>
+                    ${itemList}
+                </div>`;
+            } else if (toolResult.available !== undefined) {
+                const label2 = toolResult.available ? 'Disponible: ' + (toolResult.table?.name || '-') : 'No disponible';
+                toolMeta = `<div style="margin-top:8px; padding:6px 10px; background:rgba(108,99,255,.06); border-radius:6px; font-size:12px; border-left:3px solid var(--brand-primary, #6c63ff);">
+                    <i class="fa-solid fa-table" style="margin-right:4px;"></i> ${escapeHtml(label2)}
+                </div>`;
+            } else if (toolResult.recommendations) {
+                toolMeta = `<div style="margin-top:8px; padding:6px 10px; background:rgba(108,99,255,.06); border-radius:6px; font-size:12px; border-left:3px solid var(--brand-primary, #6c63ff);">
+                    <i class="fa-solid fa-clock" style="margin-right:4px;"></i> Horarios: ${escapeHtml(toolResult.recommendations.map(r => r.time).join(', '))}
+                </div>`;
+            } else if (toolResult.reservation) {
+                const r = toolResult.reservation;
+                const items = r.items || [];
+                const itemList = items.length ? items.map(i => `${i.name} x${i.quantity || 1}`).join(', ') : '';
+                toolMeta = `<div style="margin-top:8px; padding:8px 10px; background:rgba(40,167,69,.08); border-radius:6px; font-size:12px; border-left:3px solid rgba(40,167,69,.5);">
+                    <div style="font-weight:600; margin-bottom:4px;"><i class="fa-solid fa-check-circle" style="color:rgba(40,167,69,.8); margin-right:4px;"></i> Reserva Confirmada</div>
+                    <div>Cliente: ${escapeHtml(r.customer_name)} | Tel: ${escapeHtml(r.phone)}</div>
+                    <div>Fecha: ${escapeHtml(r.reservation_date)} ${escapeHtml(r.reservation_time)}</div>
+                    <div>Mesa: ${escapeHtml(r.table?.name || 'Para llevar')}</div>
+                    ${itemList ? `<div>Pedido: ${escapeHtml(itemList)}</div>` : ''}
+                    <div style="font-weight:600; margin-top:4px;">Total: Bs ${Number(r.total || 0).toFixed(2)}</div>
+                </div>`;
+            }
+        }
+
+        const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '';
+        return `<div class="content-card" style="margin-bottom:10px; background:${bg}; border:1px solid ${border};">
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px;">
+                <strong style="font-size:13px;">${escapeHtml(label)}</strong>
+                <small class="saas-muted-line">${escapeHtml(time)}</small>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.45;">${escapeHtml(msg.content || '')}</div>
+            ${toolMeta}
+        </div>`;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
 function renderSaasPendingPayments() {
     const container = document.getElementById('saas-pending-payments');
     if (!container) return;
 
     const tenants = state.saasAdmin?.tenants || [];
-    const pending = tenants.filter(t => t.subscription_status === 'pending_payment');
+    const filters = state.saasAdmin?.filters?.payments || {};
+    const search = (filters.search || '').toLowerCase();
+    const pending = tenants.filter(t => t.subscription_status === 'pending_payment' && (!search || `${t.name || ''} ${t.slug || ''} ${t.plan_code || ''}`.toLowerCase().includes(search)));
 
     if (pending.length === 0) {
         container.innerHTML = '<div class="saas-empty-panel"><i class="fa-solid fa-circle-check"></i><strong>No hay pagos pendientes</strong><span>Cuando un cliente solicite activación por pago manual aparecerá aquí.</span></div>';
@@ -172,7 +318,7 @@ function renderSaasTenantsTable() {
     const statusFilter = state.saasAdmin?.statusFilter;
 
     if (searchQuery) {
-        tenants = tenants.filter(t => (t.name || '').toLowerCase().includes(searchQuery) || (t.slug || '').toLowerCase().includes(searchQuery));
+        tenants = tenants.filter(t => `${t.name || ''} ${t.slug || ''} ${t.owner_name || ''} ${t.owner_email || ''} ${t.plan_code || ''}`.toLowerCase().includes(searchQuery));
     }
     if (statusFilter && statusFilter !== 'all') {
         tenants = tenants.filter(t => t.subscription_status === statusFilter);
@@ -247,7 +393,13 @@ function renderSaasBranchesTable() {
     const tbody = document.getElementById('saas-branches-body');
     if (!tbody) return;
 
-    const branches = state.saasAdmin?.branches || [];
+    const filters = state.saasAdmin?.filters?.branches || {};
+    const search = (filters.search || '').toLowerCase();
+    const branches = (state.saasAdmin?.branches || []).filter(branch => {
+        const matchesSearch = !search || `${branch.name || ''} ${branch.tenant_name || ''}`.toLowerCase().includes(search);
+        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'active' ? branch.active : !branch.active);
+        return matchesSearch && matchesStatus;
+    });
     if (branches.length === 0) {
         tbody.innerHTML = renderSaasEmptyState('No hay sucursales registradas', 'Crea una sucursal desde el formulario superior.', 5);
         return;
@@ -291,7 +443,14 @@ function renderSaasUsersTable() {
     const tbody = document.getElementById('saas-users-body');
     if (!tbody) return;
 
-    const users = state.saasAdmin?.users || [];
+    const filters = state.saasAdmin?.filters?.users || {};
+    const search = (filters.search || '').toLowerCase();
+    const users = (state.saasAdmin?.users || []).filter(user => {
+        const matchesSearch = !search || `${user.name || ''} ${user.email || ''} ${user.tenant_name || ''} ${user.branch_name || ''}`.toLowerCase().includes(search);
+        const matchesRole = !filters.role || filters.role === 'all' || user.role === filters.role;
+        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'active' ? user.active : !user.active);
+        return matchesSearch && matchesRole && matchesStatus;
+    });
     if (users.length === 0) {
         tbody.innerHTML = renderSaasEmptyState('No hay usuarios registrados', 'Crea usuarios por tenant y sucursal desde el formulario superior.', 7);
         return;

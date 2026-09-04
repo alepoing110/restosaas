@@ -12,7 +12,9 @@ let state = {
         nombre_restaurante: 'RestoCloud',
         direccion: 'Calle Sucre #123, Local Central',
         telefono: 'Telf: 4567890 - Cochabamba',
-        pais: 'Bolivia'
+        pais: 'Bolivia',
+        whatsapp_number: '',
+        whatsapp_phone_id: ''
     },
     features: {
         pos: true,
@@ -32,10 +34,16 @@ let state = {
     products: [],
     tables: [],
     cart: [],
+    cartPromo: null,
+    cartSuggestedPromos: [],
+    cartCouponCode: '',
+    cartDiscountAmount: 0,
+    cartDiscountLabel: '',
     session: null,
     authUser: null,
     tenant: null,
     branch: null,
+    authorizedBranches: [],
     permissions: [],
     subscription: null,
     saasAdmin: {
@@ -43,6 +51,9 @@ let state = {
         branches: [],
         users: [],
         plans: [],
+        chatbotConversations: [],
+        chatbotMessages: [],
+        chatbotSelectedConversationId: null,
         summary: {
             tenants: 0,
             branches: 0,
@@ -58,6 +69,19 @@ let state = {
     cajaMovimientos: [],
     cajaCierres: [],
     reportContext: null,
+    financialReport: null,
+    branchComparison: null,
+    cashFlow: null,
+    receivables: null,
+    customers: [],
+    selectedCustomerProfile: null,
+    crmConversations: [],
+    crmConversationMessages: [],
+    selectedCrmConversationId: null,
+    customerSegment: 'all',
+    controlReport: null,
+    refundsReport: null,
+    promoPlans: [],
     reservations: [],
     reservationsDate: todayLocal(),
     reservationCart: [],
@@ -104,6 +128,7 @@ function applyServerState(data) {
         'authUser',
         'tenant',
         'branch',
+        'authorizedBranches',
         'permissions',
         'subscription',
         'saasAdmin',
@@ -112,6 +137,15 @@ function applyServerState(data) {
         'cajaMovimientos',
         'cajaCierres',
         'reportContext',
+        'financialReport',
+        'branchComparison',
+        'cashFlow',
+        'receivables',
+        'customers',
+        'crmConversations',
+        'controlReport',
+        'refundsReport',
+        'promoPlans',
         'reservations',
         'reservationsDate',
         'salsas'
@@ -172,12 +206,50 @@ async function loadStateForTab(tabId) {
     if (tabId === 'dashboard') return true;
 
     try {
+        if (tabId === 'financial') {
+            const containerId = 'screen-financial';
+            if (window.LoadingState) window.LoadingState.show(containerId, 'Cargando datos...');
+            const [financialReport, branchComparison, cashFlow, receivables, controlReport] = await Promise.all([
+                AppApi.getFinancialReport(),
+                AppApi.getBranchComparison(),
+                AppApi.getCashFlow(),
+                AppApi.getReceivables(),
+                AppApi.getControlReport()
+            ]);
+            applyServerState({ financialReport, branchComparison, cashFlow, receivables, controlReport });
+            if (window.LoadingState) window.LoadingState.hide(containerId);
+            const retry = document.getElementById('financial-retry');
+            if (retry) retry.style.display = 'none';
+            if (typeof window.renderFinancial === 'function') window.renderFinancial();
+            return true;
+        }
+
         const loaders = {
             'pos': AppApi.getPosState,
             'active-orders': AppApi.getActiveOrders,
-            'menu-config': AppApi.getInventory,
+            'menu-config': async () => {
+                const inventory = await AppApi.getInventory();
+                try {
+                    const promoPlans = await AppApi.getPromoPlans();
+                    return { ...inventory, promoPlans: promoPlans.plans || promoPlans };
+                } catch (_) {
+                    return inventory;
+                }
+            },
             'inventory': AppApi.getInventory,
-            'reports': AppApi.getReports,
+            'reports': async () => {
+                const data = await AppApi.getReports();
+                try {
+                    const refundsData = await AppApi.getRefundsReport();
+                    return { ...data, refundsReport: refundsData };
+                } catch (_) {
+                    return data;
+                }
+            },
+            'customers': async () => {
+                const [customers, conversations] = await Promise.all([AppApi.getCustomers(), AppApi.getChatbotConversations()]);
+                return { customers: customers.customers || [], crmConversations: conversations.conversations || [] };
+            },
             'reservations': async () => {
                 const date = state.reservationsDate || todayLocal();
                 const [catalogData, reservationsData] = await Promise.all([
@@ -197,6 +269,8 @@ async function loadStateForTab(tabId) {
             'menu-config': 'screen-menu-config',
             'inventory': 'screen-inventory',
             'reports': 'screen-reports',
+            'financial': 'screen-financial',
+            'customers': 'screen-customers',
             'reservations': 'screen-reservations',
             'saas-admin': 'screen-saas-admin'
         };
@@ -223,6 +297,8 @@ async function loadStateForTab(tabId) {
             'menu-config': 'screen-menu-config',
             'inventory': 'screen-inventory',
             'reports': 'screen-reports',
+            'financial': 'screen-financial',
+            'customers': 'screen-customers',
             'reservations': 'screen-reservations',
             'saas-admin': 'screen-saas-admin'
         };
@@ -230,6 +306,13 @@ async function loadStateForTab(tabId) {
         const containerId = containerMap[tabId];
         if (containerId && window.LoadingState) {
             window.LoadingState.hide(containerId);
+        }
+
+        if (tabId === 'financial') {
+            const periodLabel = document.getElementById('financial-period-label');
+            if (periodLabel) periodLabel.textContent = `No se pudo cargar Finanzas: ${e.message || 'error desconocido'}`;
+            const retry = document.getElementById('financial-retry');
+            if (retry) retry.style.display = '';
         }
 
         showToast(
@@ -263,11 +346,15 @@ function updateBusinessDOM() {
     const bizAddressInput = document.getElementById('biz-address-input');
     const bizPhoneInput = document.getElementById('biz-phone-input');
     const bizCountryInput = document.getElementById('biz-country-input');
+    const bizWhatsappInput = document.getElementById('biz-whatsapp-input');
+    const bizWhatsappPhoneIdInput = document.getElementById('biz-whatsapp-phone-id-input');
 
     if (bizNameInput) bizNameInput.value = state.business.nombre_restaurante;
     if (bizAddressInput) bizAddressInput.value = state.business.direccion;
     if (bizPhoneInput) bizPhoneInput.value = state.business.telefono;
     if (bizCountryInput) bizCountryInput.value = state.business.pais || 'Bolivia';
+    if (bizWhatsappInput) bizWhatsappInput.value = state.business.whatsapp_number || '';
+    if (bizWhatsappPhoneIdInput) bizWhatsappPhoneIdInput.value = state.business.whatsapp_phone_id || '';
 }
 
 function showUpgradePrompt(featureName) {
@@ -300,6 +387,8 @@ async function handleSaveBusinessInfo(e) {
     const direccion = document.getElementById('biz-address-input').value.trim();
     const telefono = document.getElementById('biz-phone-input').value.trim();
     const pais = document.getElementById('biz-country-input').value || 'Bolivia';
+    const whatsappNumber = document.getElementById('biz-whatsapp-input').value.trim();
+    const whatsappPhoneId = document.getElementById('biz-whatsapp-phone-id-input').value.trim();
 
     if (!nombre || !direccion || !telefono) {
         showToast('Complete todos los campos del establecimiento.', 'error');
@@ -311,9 +400,13 @@ async function handleSaveBusinessInfo(e) {
             nombre_restaurante: nombre,
             direccion: direccion,
             telefono: telefono,
-            pais: pais
+            pais: pais,
+            whatsapp_number: whatsappNumber,
+            whatsapp_phone_id: whatsappPhoneId
         });
         state.business.pais = pais;
+        state.business.whatsapp_number = whatsappNumber;
+        state.business.whatsapp_phone_id = whatsappPhoneId;
         showToast('Datos del establecimiento guardados.', 'success');
         await loadStateForTab('menu-config');
     } catch (err) {
@@ -364,29 +457,6 @@ function prependSaleHistory(order) {
 async function saveItemOnServer(type, item) {
     try {
         const data = await AppApi.request('save_item', { type: type, ...item });
-
-        if (data.status === 'success' && typeof AppApi.request === 'function') {
-            const productType = type === 'extra' ? 'refresco' : type;
-            const price = item.price || 0;
-            const stock = item.stock || 0;
-
-            const existingProduct = (state.products || []).find(p => p.id === item.id);
-            const menuId = existingProduct ? existingProduct.menu_id : null;
-
-            try {
-                await AppApi.request('save_product', {
-                    id: item.id,
-                    name: item.name,
-                    type: productType,
-                    price: price,
-                    stock: stock,
-                    menu_id: menuId
-                });
-            } catch (e) {
-                console.warn('Failed to save product record:', e);
-            }
-        }
-
         return data.status === 'success';
     } catch (e) {
         console.error("Save item error: ", e);

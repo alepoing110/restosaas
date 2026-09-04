@@ -10,10 +10,9 @@ $allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://simplefoot.ifree.page',
-    'http://simplefoot.ifree.page',
 ];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-if ($origin !== '' && in_array($origin, $allowedOrigins)) {
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: " . $origin);
 }
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
@@ -31,6 +30,10 @@ require_once __DIR__ . '/backend/api/dashboard.php';
 require_once __DIR__ . '/backend/api/orders.php';
 require_once __DIR__ . '/backend/api/inventory.php';
 require_once __DIR__ . '/backend/api/cash.php';
+require_once __DIR__ . '/backend/api/financial.php';
+require_once __DIR__ . '/backend/api/receivables.php';
+require_once __DIR__ . '/backend/api/refunds.php';
+require_once __DIR__ . '/backend/api/promos.php';
 require_once __DIR__ . '/backend/api/tables.php';
 require_once __DIR__ . '/backend/api/reservations.php';
 require_once __DIR__ . '/backend/api/saas.php';
@@ -39,6 +42,12 @@ require_once __DIR__ . '/backend/api/categories.php';
 require_once __DIR__ . '/backend/api/stock.php';
 require_once __DIR__ . '/backend/api/discounts.php';
 require_once __DIR__ . '/backend/api/ws-broadcast.php';
+require_once __DIR__ . '/backend/api/chatbot-admin.php';
+require_once __DIR__ . '/backend/api/chatbot-simulate.php';
+require_once __DIR__ . '/backend/api/chatbot-simulate-local.php';
+require_once __DIR__ . '/backend/api/chatbot-tools.php';
+require_once __DIR__ . '/backend/agent/conversation.php';
+require_once __DIR__ . '/backend/agent/whatsapp.php';
 
 // Parse request payload
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -53,6 +62,7 @@ if (!is_array($input)) {
     $input = [];
 }
 $input = array_merge($_GET, $input);
+unset($input['action']);
 
 $authContext = resolveAuthContext($pdo);
 $publicActions = getPublicActions();
@@ -63,22 +73,26 @@ if (!in_array($action, $publicActions, true) && $action !== '' && !$authContext)
     exit;
 }
 
-if (!touchUserSession($pdo, $authContext)) {
+if (!in_array($action, $publicActions, true) && $authContext && !touchUserSession($pdo, $authContext)) {
+    ensureSessionStarted();
+    session_destroy();
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"], $params["secure"], $params["httponly"]
+        );
+    }
     http_response_code(401);
     echo json_encode(["status" => "error", "message" => "Sesión expirada por inactividad. Inicie sesión nuevamente."]);
     exit;
 }
 
-// CSRF Protection: validate token on mutating requests (also for logged-in users on public actions)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!in_array($action, $publicActions, true) || $authContext)) {
-    requireCsrfToken();
-}
-
 function errorResponse($action, Throwable $e) {
-    http_response_code(500);
+    $isClientError = $e instanceof InvalidArgumentException;
+    http_response_code($isClientError ? 400 : 500);
 
     $logDir = __DIR__ . '/storage/logs';
-    if (!is_dir($logDir)) mkdir($logDir, 0777, true);
+    if (!is_dir($logDir)) mkdir($logDir, 0750, true);
 
     $logEntry = [
         'timestamp' => date('c'),
@@ -98,7 +112,7 @@ function errorResponse($action, Throwable $e) {
 
     error_log("[RestoCloud][$action] " . $e->getMessage());
 
-    echo json_encode(["status" => "error", "message" => "Error interno del servidor"]);
+    echo json_encode(["status" => "error", "message" => $isClientError ? $e->getMessage() : "Error interno del servidor"]);
 }
 
 // ==========================================================================
@@ -111,6 +125,7 @@ $actionHandlers = [
     'admin_login'                 => 'handle_admin_login',
     'auth_me'                     => 'handle_auth_me',
     'auth_logout'                 => 'handle_auth_logout',
+    'switch_branch'               => 'handle_switch_branch',
 
     // State / read-only
     'get_state'                   => 'handle_get_state',
@@ -119,6 +134,21 @@ $actionHandlers = [
     'get_inventory'               => 'handle_get_inventory',
     'get_reports'                 => 'handle_get_reports',
     'get_dashboard'               => 'handle_get_dashboard',
+    'get_financial_report'        => 'handle_get_financial_report',
+    'get_branch_comparison'       => 'handle_get_branch_comparison',
+    'get_cash_flow'               => 'handle_get_cash_flow',
+    'get_control_report'          => 'handle_get_control_report',
+    'get_customers'               => 'handle_get_customers',
+    'get_customer_profile'        => 'handle_get_customer_profile',
+    'get_receivables'             => 'handle_get_receivables',
+    'get_refunds_report'          => 'handle_get_refunds_report',
+    'create_refund'               => 'handle_create_refund',
+    'suggest_promos'              => 'handle_suggest_promos',
+    'validate_promo'              => 'handle_validate_promo',
+    'apply_promo_coupon'          => 'handle_apply_promo_coupon',
+    'get_promo_plans'             => 'handle_get_promo_plans',
+    'save_promo_plan'             => 'handle_save_promo_plan',
+    'delete_promo_plan'           => 'handle_delete_promo_plan',
 
     // Orders
     'save_order'                  => 'handle_save_order',
@@ -143,6 +173,12 @@ $actionHandlers = [
     'delete_caja_movimiento'      => 'handle_delete_caja_movimiento',
     'save_caja_cierre'            => 'handle_save_caja_cierre',
     'reset_data'                  => 'handle_reset_data',
+    'save_financial_expense'      => 'handle_save_financial_expense',
+    'delete_financial_expense'    => 'handle_delete_financial_expense',
+    'save_customer'               => 'handle_save_customer',
+    'save_customer_interaction'   => 'handle_save_customer_interaction',
+    'save_collection_task'        => 'handle_save_collection_task',
+    'save_receivable_payment'     => 'handle_save_receivable_payment',
 
     // Tables
     'save_table'                  => 'handle_save_table',
@@ -158,6 +194,8 @@ $actionHandlers = [
     'save_reservation'            => 'handle_save_reservation',
     'update_reservation_status'   => 'handle_update_reservation_status',
     'delete_reservation'          => 'handle_delete_reservation',
+    'verify_bot_reservations'     => 'handle_verify_bot_reservations',
+    'mark_bot_reservations_printed' => 'handle_mark_bot_reservations_printed',
 
     // SaaS Admin
     'get_saas_admin'              => 'handle_get_saas_admin',
@@ -204,21 +242,100 @@ $actionHandlers = [
     'save_discount'               => 'handle_save_discount',
     'delete_discount'             => 'handle_delete_discount',
     'calculate_discount'          => 'handle_calculate_discount',
+
+    // Chatbot admin
+    'get_chatbot_conversations'   => 'handle_get_chatbot_conversations',
+    'get_chatbot_messages'        => 'handle_get_chatbot_messages',
+    'chatbot_simulate'            => 'handle_chatbot_simulate',
+    'chatbot_close_conversation'  => 'handle_chatbot_close_conversation',
+    'delete_chatbot_conversation' => 'handle_delete_chatbot_conversation',
+    'chatbot_simulate_local'      => 'handle_chatbot_simulate_local',
+    'chatbot_save_reply_local'    => 'handle_chatbot_save_reply_local',
+    'chatbot_execute_tool'        => 'handle_chatbot_execute_tool',
+    'update_chatbot_attention'    => 'handle_update_chatbot_attention',
+    'send_human_whatsapp_reply'   => 'handle_send_human_whatsapp_reply',
+
 ];
 
+// HTTP policy lives beside the router so new actions cannot accidentally skip
+// method enforcement, CSRF, or rate limiting.
+$readActions = [
+    'auth_me', 'get_state', 'get_pos_state', 'get_active_orders', 'get_inventory',
+    'get_reports', 'get_dashboard', 'get_financial_report', 'get_branch_comparison', 'get_cash_flow', 'get_control_report', 'get_customers', 'get_customer_profile', 'get_receivables', 'get_refunds_report', 'get_promo_plans', 'get_products_by_menu', 'get_daily_report',
+    'get_reservations', 'get_saas_admin', 'saas_get_plans', 'get_tenant_users',
+    'get_categories', 'export_tenant_data', 'get_stock_history', 'get_stock_report',
+    'get_discounts', 'get_chatbot_conversations', 'get_chatbot_messages',
+];
+$postActions = array_values(array_diff(array_keys($actionHandlers), $readActions));
+$publicPostActions = ['auth_login', 'admin_login', 'public_register'];
+
 if ($action === '' || $action === null) {
+    http_response_code(400);
     echo json_encode(["status" => "error", "message" => "No action specified"]);
     exit;
 }
 
 if (!isset($actionHandlers[$action])) {
+    http_response_code(404);
     echo json_encode(["status" => "error", "message" => "Acción desconocida o no soportada"]);
     exit;
 }
 
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$allowedMethod = in_array($action, $readActions, true) ? 'GET' : 'POST';
+if ($requestMethod !== $allowedMethod) {
+    http_response_code(405);
+    header('Allow: ' . $allowedMethod . ', OPTIONS');
+    echo json_encode(["status" => "error", "message" => "Método HTTP no permitido para esta acción"]);
+    exit;
+}
+
+if ($requestMethod === 'POST' && !in_array($action, $publicPostActions, true)) {
+    requireCsrfToken();
+}
+
+if ($requestMethod === 'POST' && $authContext && !in_array($action, $publicPostActions, true)) {
+    $rlKey = 'mutating:' . $authContext['user_id'] . ':' . $action;
+    $rl = checkRateLimit($rlKey, 30, 60);
+    if (!empty($rl['locked'])) {
+        http_response_code(429);
+        echo json_encode(["status" => "error", "message" => "Demasiadas solicitudes. Espere {$rl['retry_after']} segundos."]);
+        exit;
+    }
+}
+
 $handler = $actionHandlers[$action];
 try {
+    set_error_handler(function($severity, $message, $file, $line) {
+        throw new ErrorException($message, 0, $severity, $file, $line);
+    });
+
+    ob_start();
     $handler($pdo, $authContext, $input);
+    $output = ob_get_clean();
+
+    restore_error_handler();
+
+    if ($authContext && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $newToken = generateCsrfToken();
+        $data = json_decode($output, true);
+        if (is_array($data)) {
+            $data['csrf_token'] = $newToken;
+            echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        } else {
+            error_log("[RestoCloud] Non-JSON handler output for action=$action: " . substr($output, 0, 500));
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Error interno del servidor', 'csrf_token' => $newToken]);
+        }
+    } else {
+        $data = json_decode($output, true);
+        if (is_array($data)) {
+            echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        } else {
+            echo $output;
+        }
+    }
 } catch (Throwable $e) {
+    restore_error_handler();
     errorResponse($action, $e);
 }

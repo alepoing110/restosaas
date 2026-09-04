@@ -69,6 +69,11 @@ function nowLocal() {
     return `${yr}-${mo}-${dy}T${hr}:${mn}:${sc}`;
 }
 
+function getSaleTime(sale) {
+    if (sale && sale.soldAt) return sale.soldAt;
+    return sale ? sale.timestamp : null;
+}
+
 function todayLocal() {
     return nowLocal().slice(0, 10);
 }
@@ -115,6 +120,7 @@ window.formatCurrency = formatCurrency;
 window.formatTime = formatTime;
 window.nowLocal = nowLocal;
 window.todayLocal = todayLocal;
+window.getSaleTime = getSaleTime;
 window.escapeHtml = escapeHtml;
 window.setButtonLoading = setButtonLoading;
 window.debounce = debounce;

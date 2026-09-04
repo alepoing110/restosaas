@@ -38,8 +38,10 @@ $tenantClients = [];
 echo "Server listening on 0.0.0.0:$port\n";
 echo "Waiting for connections...\n";
 
-$lastActivityFile = sys_get_temp_dir() . '/restocloud_ws_activity.log';
-$eventFile = sys_get_temp_dir() . '/restocloud_ws_events.jsonl';
+$wsStorageDir = __DIR__ . '/../storage/ws';
+if (!is_dir($wsStorageDir)) @mkdir($wsStorageDir, 0750, true);
+$lastActivityFile = $wsStorageDir . '/restocloud_ws_activity.log';
+$eventFile = $wsStorageDir . '/restocloud_ws_events.jsonl';
 $lastEventCheck = 0;
 
 while (true) {
@@ -110,19 +112,19 @@ while (true) {
             if ($type === 'auth') {
                 $tenantId = $message['tenant_id'] ?? '';
                 $branchId = $message['branch_id'] ?? '';
-                $token = $message['token'] ?? '';
+                $sessionToken = $message['session_token'] ?? '';
 
-                if (!$tenantId || !$branchId) {
-                    $errMsg = json_encode(['type' => 'auth_error', 'message' => 'tenant_id y branch_id requeridos']);
+                if (!$tenantId || !$branchId || !$sessionToken) {
+                    $errMsg = json_encode(['type' => 'auth_error', 'message' => 'tenant_id, branch_id y session_token requeridos']);
                     @socket_write($client, $errMsg . "\n");
                     continue;
                 }
 
                 try {
-                    $stmt = $pdo->prepare("SELECT u.id FROM `users` u JOIN `tenants` t ON t.id = u.tenant_id JOIN `branches` b ON b.id = u.branch_id WHERE u.tenant_id = :tid AND u.branch_id = :bid AND u.active = 1 AND t.active = 1 AND b.active = 1 LIMIT 1");
-                    $stmt->execute(['tid' => $tenantId, 'bid' => $branchId]);
+                    $stmt = $pdo->prepare("SELECT u.id FROM `users` u JOIN `tenants` t ON t.id = u.tenant_id JOIN `branches` b ON b.id = u.branch_id JOIN `user_sessions` s ON s.user_id = u.id WHERE u.tenant_id = :tid AND u.branch_id = :bid AND s.id = :session_token AND s.ended_at IS NULL AND u.active = 1 AND t.active = 1 AND b.active = 1 LIMIT 1");
+                    $stmt->execute(['tid' => $tenantId, 'bid' => $branchId, 'session_token' => $sessionToken]);
                     if (!$stmt->fetch()) {
-                        $errMsg = json_encode(['type' => 'auth_error', 'message' => 'Tenant o branch inválido']);
+                        $errMsg = json_encode(['type' => 'auth_error', 'message' => 'Sesión inválida o expirada']);
                         @socket_write($client, $errMsg . "\n");
                         continue;
                     }

@@ -9,6 +9,11 @@
  * In production, run this script on each deploy instead.
  */
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('CLI only');
+}
+
 // Auto-detect environment for CLI (migrate.php runs from terminal)
 // Check file paths for InfinityFree indicators
 $cwd = strtolower(getcwd());
@@ -39,6 +44,9 @@ if (is_file($envFile)) {
     }
 }
 
+putenv('RC_ENV_FILE=' . $envFile);
+$_ENV['RC_ENV_FILE'] = $envFile;
+
 $host = getenv('DB_HOST') ?: '127.0.0.1';
 $user = getenv('DB_USER') ?: 'root';
 $pass = getenv('DB_PASS') ?: '';
@@ -47,13 +55,11 @@ $db_name = getenv('DB_NAME') ?: 'pos_pension';
 $force = in_array('--force', $argv ?? []);
 
 try {
-    $pdo = new PDO("mysql:host=$host;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    $pdo->exec("USE `$db_name`");
+    // CLI is the only place allowed to bootstrap schema. Web requests only connect.
+    putenv('RUN_MIGRATIONS=1');
+    $_ENV['RUN_MIGRATIONS'] = '1';
+    require_once __DIR__ . '/db.php';
+    require_once __DIR__ . '/backend/api/orders.php';
 
     // Ensure _migrations table exists
     $pdo->exec("CREATE TABLE IF NOT EXISTS `_migrations` (
@@ -69,7 +75,7 @@ try {
     $applied = 0;
     $skipped = 0;
     foreach ($migrations as $name => $sql) {
-        if (in_array($name, $appliedMigrations) && !$force) {
+        if (in_array($name, $appliedMigrations, true)) {
             $skipped++;
             continue;
         }
@@ -79,29 +85,34 @@ try {
             echo "  [OK] $name\n";
             $applied++;
         } catch (Throwable $e) {
-            echo "  [SKIP] $name: " . $e->getMessage() . "\n";
+            $msg = $e->getMessage();
+            if (stripos($msg, 'Duplicate') !== false || stripos($msg, 'already exists') !== false) {
+                $pdo->prepare("INSERT IGNORE INTO `_migrations` (`name`, `applied_at`) VALUES (:name, NOW())")->execute(['name' => $name]);
+                echo "  [SKIP] $name (already applied)\n";
+                $skipped++;
+            } else {
+                echo "  [ERROR] $name: $msg\n";
+                throw $e;
+            }
         }
     }
 
-    // Seed legacy tenant
-    $legacyTenantId = 'tenant_legacy';
-    $legacyBranchId = 'branch_main';
-    $legacyUserId = 'user_owner_legacy';
-    $legacyUserEmail = 'owner@legacy.restocloud.local';
-    $legacyPasswordHash = password_hash('admin12345', PASSWORD_DEFAULT);
-
-    $pdo->prepare("INSERT IGNORE INTO `tenants` (`id`, `slug`, `name`, `business_type`, `plan_level`) VALUES (:id, :slug, :name, 'restaurante', 'premium')")->execute(['id' => $legacyTenantId, 'slug' => 'legacy', 'name' => 'Legacy RestoCloud']);
-    $pdo->prepare("INSERT IGNORE INTO `branches` (`id`, `tenant_id`, `name`) VALUES (:id, :tenant_id, :name)")->execute(['id' => $legacyBranchId, 'tenant_id' => $legacyTenantId, 'name' => 'Sucursal Principal']);
-    $pdo->prepare("INSERT IGNORE INTO `tenant_subscriptions` (`id`, `tenant_id`, `plan_code`, `status`, `starts_at`) VALUES (:id, :tenant_id, 'legacy', 'trial', NOW())")->execute(['id' => 'sub_legacy', 'tenant_id' => $legacyTenantId]);
-    $pdo->prepare("INSERT IGNORE INTO `users` (`id`, `tenant_id`, `branch_id`, `name`, `email`, `password_hash`, `role`) VALUES (:id, :tenant_id, :branch_id, :name, :email, :password_hash, 'super_admin')")->execute(['id' => $legacyUserId, 'tenant_id' => $legacyTenantId, 'branch_id' => $legacyBranchId, 'name' => 'Owner Legacy', 'email' => $legacyUserEmail, 'password_hash' => $legacyPasswordHash]);
-
-    // Backfill tenant/branch on legacy data
-    $tenantTables = ['config_precios', 'config_general', 'inventario_sopa', 'segundos', 'platos_extras', 'gaseosas', 'pedidos', 'caja_movimientos', 'caja_cierres_historico', 'menus', 'products', 'tables_config', 'sopas'];
-    foreach ($tenantTables as $tableName) {
-        try {
-            $pdo->prepare("UPDATE `$tableName` SET `tenant_id` = :tid, `branch_id` = :bid WHERE `tenant_id` IS NULL OR `branch_id` IS NULL")->execute(['tid' => $legacyTenantId, 'bid' => $legacyBranchId]);
-        } catch (Throwable $e) {}
+    // Populate normalized sales history for orders created before v101-v103.
+    $backfillCheck = $pdo->query("SELECT COUNT(*) FROM `pedido_items`")->fetchColumn();
+    $ordersStmt = $pdo->query("SELECT `id`, `items`, `payment_method`, `total`, `paid`, `tenant_id`, `branch_id` FROM `pedidos` WHERE `tenant_id` IS NOT NULL AND `branch_id` IS NOT NULL");
+    $backfilled = 0;
+    $existsStmt = $pdo->prepare("SELECT 1 FROM `pedido_items` WHERE `order_id` = :order_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id LIMIT 1");
+    while ($order = $ordersStmt->fetch(PDO::FETCH_ASSOC)) {
+        $existsStmt->execute(['order_id' => $order['id'], 'tenant_id' => $order['tenant_id'], 'branch_id' => $order['branch_id']]);
+        if ($existsStmt->fetchColumn()) continue;
+        persistOrderHistory($pdo, [
+            'tenant_id' => $order['tenant_id'],
+            'branch_id' => $order['branch_id'],
+            'user_id' => null
+        ], (string)$order['id'], json_decode($order['items'], true) ?: [], $order['payment_method'], (float)$order['total'], !empty($order['paid']));
+        $backfilled++;
     }
+    echo "Normalized order history: $backfilled orders backfilled (existing rows: $backfillCheck).\n";
 
     echo "\nMigration complete: $applied applied, $skipped skipped.\n";
 } catch (Throwable $e) {
