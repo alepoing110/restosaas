@@ -359,14 +359,13 @@ function openSalsaSelectModal(productData, callback) {
         if (salsas.length === 0) {
             listEl.innerHTML = '<p style="color:var(--text-muted); font-size:13px; text-align:center; padding:12px;">No hay salsas disponibles</p>';
         } else {
-            salsas.forEach((s, idx) => {
-                const price = parseFloat(s.price) || 0;
-                const priceText = price > 0 ? ` (+ Bs ${price.toFixed(2)})` : ' (Gratis)';
+            salsas.forEach(s => {
+                const priceText = ' (Incluida)';
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--border);';
                 row.innerHTML = `
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; flex:1;">
-                        <input type="checkbox" class="salsa-check" data-salsa-id="${s.id}" data-salsa-name="${escapeHtml(s.name)}" data-salsa-price="${price}" onchange="updateSalsaPriceHint()">
+                        <input type="checkbox" class="salsa-check" data-salsa-id="${s.id}" data-salsa-name="${escapeHtml(s.name)}" data-salsa-price="0" onchange="updateSalsaPriceHint()">
                         <span>${escapeHtml(s.name)}<span style="color:var(--text-muted); font-size:11px;">${priceText}</span></span>
                     </label>
                     <select class="form-select salsa-mode-select" style="width:auto; font-size:11px; padding:2px 4px;" data-salsa-id="${s.id}">
@@ -419,7 +418,7 @@ function confirmSalsaSelection() {
             salsaId: salsaId,
             salsaName: cb.dataset.salsaName,
             salsaMode: modeSelect ? modeSelect.value : 'banar',
-            salsaPrice: parseFloat(cb.dataset.salsaPrice) || 0
+            salsaPrice: 0
         });
     });
 
@@ -435,3 +434,23 @@ window.openSalsaSelectModal = openSalsaSelectModal;
 window.updateSalsaPriceHint = updateSalsaPriceHint;
 window.closeSalsaSelectModal = closeSalsaSelectModal;
 window.confirmSalsaSelection = confirmSalsaSelection;
+
+function openAccompanimentSelectModal(productData, callback) {
+    const accompaniments = (state.accompaniments || []).filter(item => Number(item.active) !== 0);
+    const maxIncluded = Math.max(0, Number(productData.max_included_accompaniments || 0));
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop open';
+    modal.innerHTML = `<div class="modal-content modal-content--sm" style="max-width:460px;"><div class="modal-header"><h3><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</h3><button class="btn-close-modal" type="button" aria-label="Cerrar">&times;</button></div><div class="modal-body"><p class="modal-subtitle"><strong>${escapeHtml(productData.name || '')}</strong></p><p class="text-muted" style="font-size:12px;">Los primeros ${maxIncluded} acompañamiento(s) son incluidos. Los adicionales se cobran como extra.</p><div class="accompaniment-select-list">${accompaniments.length ? accompaniments.map(item => `<label style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);"><span><input type="checkbox" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-price="${Number(item.price_extra || 0)}"> ${escapeHtml(item.name)}</span><strong>Extra: ${formatCurrency(item.price_extra || 0)}</strong></label>`).join('') : '<p class="text-muted">No hay acompañamientos disponibles.</p>'}</div></div><div class="modal-actions"><button class="btn btn-outline" type="button" data-cancel>Cancelar</button><button class="btn btn-primary" type="button" data-confirm>Confirmar</button></div></div>`;
+    const close = () => modal.remove();
+    modal.querySelector('.btn-close-modal').addEventListener('click', () => { close(); callback(null); });
+    modal.querySelector('[data-cancel]').addEventListener('click', () => { close(); callback(null); });
+    modal.querySelector('[data-confirm]').addEventListener('click', () => {
+        const selected = Array.from(modal.querySelectorAll('input:checked')).map((input, index) => ({ accompanimentId: input.dataset.id, accompanimentName: input.dataset.name, accompanimentMode: index < maxIncluded ? 'included' : 'extra', accompanimentPrice: index < maxIncluded ? 0 : Number(input.dataset.price || 0) }));
+        showToast(selected.length ? `${selected.length} acompañamiento(s) seleccionado(s).` : 'Sin acompañamientos seleccionados.', selected.length ? 'success' : 'info');
+        close();
+        callback(selected);
+    });
+    document.body.appendChild(modal);
+}
+
+window.openAccompanimentSelectModal = openAccompanimentSelectModal;

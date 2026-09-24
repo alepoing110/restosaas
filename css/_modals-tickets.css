@@ -267,6 +267,77 @@
     font-size: 11px;
 }
 
+.ticket-minimal {
+    width: 100%;
+    box-sizing: border-box;
+    color: #000;
+    font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+.ticket-minimal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 4px;
+}
+
+.ticket-minimal-header strong {
+    font-size: 13px;
+}
+
+.ticket-minimal-meta,
+.ticket-minimal-location {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 3px 0;
+    overflow-wrap: anywhere;
+}
+
+.ticket-minimal-location {
+    justify-content: center;
+    border-bottom: 1px dashed #000;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ticket-minimal-table {
+    margin: 4px 0;
+    table-layout: fixed;
+}
+
+.ticket-minimal-table th,
+.ticket-minimal-table td {
+    padding: 3px 1px;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+}
+
+.ticket-minimal-totals {
+    border-top: 1px dashed #000;
+    padding-top: 3px;
+}
+
+.ticket-minimal-totals > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 1px 0;
+}
+
+.ticket-minimal-grand-total {
+    border-top: 1px solid #000;
+    margin-top: 2px;
+    padding-top: 3px !important;
+    font-size: 13px;
+    font-weight: 800;
+}
+
 /* Wider drinks restock report modal. Kept here because this file owns the
    base .modal-content sizing and is loaded after report-specific styles. */
 #modal-drinks-report .modal-content.modal-content--drinks {

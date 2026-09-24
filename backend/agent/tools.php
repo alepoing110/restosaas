@@ -76,6 +76,7 @@ function chatbot_tool_definitions(): array
                                     'name' => ['type' => 'string'],
                                     'quantity' => ['type' => 'integer'],
                                     'price' => ['type' => 'number'],
+                                    'accompaniments' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['accompanimentId' => ['type' => 'string']]], 'description' => 'Acompañamientos seleccionados para este plato.'],
                                 ],
                             ],
                         ],
@@ -154,7 +155,8 @@ function chatbot_get_menu(PDO $pdo, array $businessContext, string $category = '
         }
         if ($price <= 0) continue;
 
-        if (!empty($product['menu_id']) && !in_array($product['menu_id'], $activeMenuIds, true)) continue;
+        // Los refrescos están disponibles en todos los menús activos.
+        if ($type !== 'refresco' && !empty($product['menu_id']) && !in_array($product['menu_id'], $activeMenuIds, true)) continue;
 
         if ($category === 'almuerzo' && !in_array($type, $almuerzoTypes, true)) continue;
         if ($category === 'extras' && !in_array($type, $extrasTypes, true)) continue;
@@ -166,6 +168,8 @@ function chatbot_get_menu(PDO $pdo, array $businessContext, string $category = '
             'price' => $price,
             'stock' => (int)($product['stock'] ?? 0),
             'accepts_salsa' => (bool)($product['accepts_salsa'] ?? false),
+            'accepts_accompaniment' => (bool)($product['accepts_accompaniment'] ?? false),
+            'max_included_accompaniments' => (int)($product['max_included_accompaniments'] ?? 0),
         ];
     }
 
@@ -178,7 +182,10 @@ function chatbot_get_menu(PDO $pdo, array $businessContext, string $category = '
         error_log('[chatbot] salsas query failed: ' . $e->getMessage());
     }
 
-    $result = ['items' => $menu, 'category' => $category, 'salsas' => $salsas];
+    $accompaniments = array_values(array_map(static fn($item) => [
+        'id' => $item['id'], 'name' => $item['name'], 'price_extra' => (float)$item['price_extra']
+    ], array_filter($catalog['accompaniments'] ?? [], static fn($item) => !empty($item['active']))));
+    $result = ['items' => $menu, 'category' => $category, 'salsas' => $salsas, 'accompaniments' => $accompaniments];
     if ($category === 'almuerzo' && $almuerzoPrice > 0) {
         $result['combo_price'] = $almuerzoPrice;
         $result['combo_note'] = 'El almuerzo completo (una sopa + un segundo) cuesta un precio fijo de Bs ' . number_format($almuerzoPrice, 2) . '. NO se suman los precios individuales.';
@@ -226,6 +233,7 @@ function chatbot_create_reservation(PDO $pdo, array $businessContext, string $co
     }
 
     $requestedItems = [];
+    $requestedAccompaniments = [];
     foreach ($items as $item) {
         $productId = trim((string)($item['product_id'] ?? ''));
         $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT);
@@ -233,6 +241,9 @@ function chatbot_create_reservation(PDO $pdo, array $businessContext, string $co
             throw new RuntimeException('Cada plato debe incluir un product_id y una cantidad válida.');
         }
         $requestedItems[$productId] = ($requestedItems[$productId] ?? 0) + $quantity;
+        if (!empty($item['accompaniments']) && is_array($item['accompaniments'])) {
+            $requestedAccompaniments[$productId] = array_merge($requestedAccompaniments[$productId] ?? [], $item['accompaniments']);
+        }
     }
 
     $pdo->beginTransaction();
@@ -255,7 +266,8 @@ function chatbot_create_reservation(PDO $pdo, array $businessContext, string $co
             $prices[$price['id']] = (float)$price['valor'];
         }
 
-        $productStmt = $pdo->prepare("SELECT `id`, `name`, `type`, `price`, `stock` FROM `products` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1 FOR UPDATE");
+        $productStmt = $pdo->prepare("SELECT `id`, `name`, `type`, `price`, `stock`, `accepts_accompaniment`, `max_included_accompaniments` FROM `products` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1 FOR UPDATE");
+        $accompanimentStmt = $pdo->prepare("SELECT `id`, `name`, `price_extra` FROM `acompanamientos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1");
         $items = [];
         foreach ($requestedItems as $productId => $quantity) {
             $productStmt->execute([
@@ -278,32 +290,30 @@ function chatbot_create_reservation(PDO $pdo, array $businessContext, string $co
             if ($price <= 0) {
                 throw new RuntimeException('El plato "' . $product['name'] . '" no tiene un precio configurado.');
             }
+            $canonicalAccompaniments = [];
+            foreach ($requestedAccompaniments[$productId] ?? [] as $index => $accompaniment) {
+                if (empty($product['accepts_accompaniment'])) throw new RuntimeException('El plato "' . $product['name'] . '" no permite acompañamientos.');
+                $accompanimentStmt->execute(['id' => (string)($accompaniment['accompanimentId'] ?? $accompaniment['id'] ?? ''), 'tenant_id' => $businessContext['tenant_id'], 'branch_id' => $businessContext['branch_id']]);
+                $canonicalAccompaniment = $accompanimentStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$canonicalAccompaniment) throw new RuntimeException('Uno de los acompañamientos ya no está disponible.');
+                $included = $index < max(0, (int)$product['max_included_accompaniments']);
+                $canonicalAccompaniments[] = ['accompanimentId' => $canonicalAccompaniment['id'], 'accompanimentName' => $canonicalAccompaniment['name'], 'accompanimentMode' => $included ? 'included' : 'extra', 'accompanimentPrice' => $included ? 0.0 : (float)$canonicalAccompaniment['price_extra']];
+            }
             $items[] = [
                 'product_id' => $product['id'],
                 'name' => $product['name'],
                 'type' => $product['type'],
                 'quantity' => $quantity,
                 'price' => $price,
+                'accompaniments' => $canonicalAccompaniments,
             ];
         }
 
         $items = chatbot_normalize_reservation_items($items, (float)($prices['almuerzo'] ?? 0), $deliveryType);
 
-        $total = array_reduce($items, fn(float $sum, array $item): float => $sum + ($item['price'] * $item['quantity']), 0.0);
-        $stockStmt = $pdo->prepare("UPDATE `products` SET `stock` = `stock` - :qty WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `stock` >= :qty");
-        foreach ($requestedItems as $productId => $quantity) {
-            $stockStmt->execute([
-                'qty' => $quantity,
-                'id' => $productId,
-                'tenant_id' => $businessContext['tenant_id'],
-                'branch_id' => $businessContext['branch_id'],
-            ]);
-            if ($stockStmt->rowCount() !== 1) {
-                throw new RuntimeException('El stock cambió mientras procesábamos la reserva. Inténtalo nuevamente.');
-            }
-        }
-
+        $total = array_reduce($items, fn(float $sum, array $item): float => $sum + (($item['price'] + array_sum(array_column($item['accompaniments'] ?? [], 'accompanimentPrice'))) * $item['quantity']), 0.0);
         $reservationId = 'res_' . bin2hex(random_bytes(8));
+        reserveStock($pdo, $businessContext, 'reservation', $reservationId, $items);
         $itemsJson = json_encode($items, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $stmt = $pdo->prepare("INSERT INTO `reservations` (`id`, `tenant_id`, `branch_id`, `customer_id`, `customer_name`, `phone`, `party_size`, `delivery_type`, `reservation_date`, `reservation_time`, `table_id`, `items`, `total`, `notes`, `status`, `source`, `verification_status`, `created_at`, `updated_at`) VALUES (:id, :tenant_id, :branch_id, :customer_id, :customer_name, :phone, :party_size, :delivery_type, :reservation_date, :reservation_time, NULL, :items, :total, :notes, 'pendiente', 'bot', 'pendiente', NOW(), NOW())");
         $stmt->execute([
@@ -393,6 +403,7 @@ function chatbot_normalize_reservation_items(array $items, float $almuerzoPrice,
             'sopaName' => $sopas[$sopaIndex]['name'],
             'segundoId' => $segundos[$segundoIndex]['product_id'],
             'segundoName' => $segundos[$segundoIndex]['name'],
+            'accompaniments' => !empty($segundos[$segundoIndex]['accompaniments']) ? $segundos[$segundoIndex]['accompaniments'] : ($sopas[$sopaIndex]['accompaniments'] ?? []),
         ];
         $sopas[$sopaIndex]['quantity'] -= $quantity;
         $segundos[$segundoIndex]['quantity'] -= $quantity;
@@ -413,6 +424,7 @@ function chatbot_normalize_reservation_items(array $items, float $almuerzoPrice,
             'serviceType' => $serviceType,
             $isSopa ? 'sopaId' : 'segundoId' => $item['product_id'],
             $isSopa ? 'sopaName' : 'segundoName' => $item['name'],
+            'accompaniments' => $item['accompaniments'] ?? [],
         ];
     }
 
@@ -428,6 +440,7 @@ function chatbot_normalize_reservation_items(array $items, float $almuerzoPrice,
             'detail' => '',
             'serviceType' => $serviceType,
             $isExtra ? 'extraId' : 'platoId' => $item['product_id'],
+            'accompaniments' => $item['accompaniments'] ?? [],
         ];
     }
 

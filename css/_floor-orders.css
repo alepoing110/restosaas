@@ -258,6 +258,17 @@
     transform: translateY(-2px);
 }
 
+.order-card.map-focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(46, 196, 182, 0.2), var(--shadow-md);
+    animation: order-card-map-focus 0.7s ease-in-out 2;
+}
+
+@keyframes order-card-map-focus {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
 .order-card.priority-takeout {
     border-left: 4px solid var(--warning);
 }
@@ -441,19 +452,58 @@
     gap: 10px;
 }
 /* Partial order cancellation */
+#modal-cancel-order .modal-content {
+    width: min(680px, calc(100vw - 32px));
+    max-width: 680px;
+    max-height: calc(100dvh - 32px);
+    display: flex;
+    flex-direction: column;
+}
+
+#modal-cancel-order .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+#modal-cancel-order .modal-actions {
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: 16px 24px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+}
+
 .cancel-order-items {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 280px;
+    max-height: min(52vh, 480px);
     overflow-y: auto;
+    scrollbar-gutter: stable;
     padding: 8px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg-main);
 }
 
+.cancel-order-items::-webkit-scrollbar {
+    width: 10px;
+}
+
+.cancel-order-items::-webkit-scrollbar-thumb {
+    background: var(--border-strong, #9ca3af);
+    border: 2px solid var(--bg-main);
+    border-radius: 999px;
+}
+
+.cancel-order-items::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
 .cancel-order-select-all {
+    position: sticky;
+    top: -8px;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -461,6 +511,7 @@
     border-bottom: 1px solid var(--border);
     font-size: 11px;
     font-weight: 700;
+    background: var(--bg-main);
 }
 
 .cancel-order-item {
@@ -509,6 +560,19 @@
 }
 
 @media (max-width: 480px) {
+    #modal-cancel-order .modal-content {
+        width: calc(100vw - 16px);
+        max-height: calc(100dvh - 16px);
+    }
+
+    #modal-cancel-order .modal-actions {
+        padding: 12px 16px 16px;
+    }
+
+    .cancel-order-items {
+        max-height: 42vh;
+    }
+
     .cancel-order-item {
         grid-template-columns: auto minmax(0, 1fr);
     }

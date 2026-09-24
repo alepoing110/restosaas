@@ -13,6 +13,7 @@
 require_once __DIR__ . '/../db.php';
 
 $port = (int)($argv[1] ?? 8080);
+$bindHost = rc_env('WS_BIND_HOST', '127.0.0.1');
 
 echo "RestoCloud WebSocket Server starting on port $port...\n";
 
@@ -24,7 +25,7 @@ if (!$socket) {
 socket_set_option($socket, SOL_SOCKET, SO_REUSEADDR, 1);
 socket_set_option($socket, SOL_SOCKET, SO_KEEPALIVE, 1);
 
-if (!@socket_bind($socket, '0.0.0.0', $port)) {
+if (!@socket_bind($socket, $bindHost, $port)) {
     die("Failed to bind to port $port: " . socket_strerror(socket_last_error($socket)) . "\n");
 }
 
@@ -34,8 +35,9 @@ socket_set_nonblock($socket);
 $clients = [];
 $clientInfo = [];
 $tenantClients = [];
+$branchClients = [];
 
-echo "Server listening on 0.0.0.0:$port\n";
+echo "Server listening on $bindHost:$port\n";
 echo "Waiting for connections...\n";
 
 $wsStorageDir = __DIR__ . '/../storage/ws';
@@ -92,6 +94,9 @@ while (true) {
                 $info = $clientInfo[(int)$client] ?? [];
                 echo "Disconnected: {$info['addr']}:{$info['port']}\n";
                 unset($tenantClients[$info['tenant_id']][(int)$client]);
+                if (isset($info['tenant_id'], $info['branch_id'], $branchClients[$info['tenant_id']][$info['branch_id']])) {
+                    unset($branchClients[$info['tenant_id']][$info['branch_id']][(int)$client]);
+                }
                 unset($clientInfo[(int)$client]);
                 socket_close($client);
                 unset($clients[$index]);
@@ -141,6 +146,13 @@ while (true) {
                     $tenantClients[$tenantId] = [];
                 }
                 $tenantClients[$tenantId][(int)$client] = $client;
+                if (!isset($branchClients[$tenantId])) {
+                    $branchClients[$tenantId] = [];
+                }
+                if (!isset($branchClients[$tenantId][$branchId])) {
+                    $branchClients[$tenantId][$branchId] = [];
+                }
+                $branchClients[$tenantId][$branchId][(int)$client] = $client;
 
                 $authOk = json_encode(['type' => 'auth_ok', 'tenant_id' => $tenantId]);
                 @socket_write($client, $authOk . "\n");
@@ -150,29 +162,6 @@ while (true) {
                 $pong = json_encode(['type' => 'pong', 'timestamp' => date('c')]);
                 @socket_write($client, $pong . "\n");
 
-            } elseif (in_array($type, ['order.created', 'order.updated', 'order.completed', 'order.cancelled', 'order.appended', 'stock.changed', 'reservation.changed'])) {
-                $tenantId = $clientInfo[(int)$client]['tenant_id'] ?? '';
-                $branchId = $clientInfo[(int)$client]['branch_id'] ?? '';
-
-                $broadcast = json_encode([
-                    'type' => $type,
-                    'data' => $message['data'] ?? [],
-                    'from_branch' => $branchId,
-                    'timestamp' => date('c')
-                ]);
-
-                if (isset($tenantClients[$tenantId])) {
-                    foreach ($tenantClients[$tenantId] as $cId => $cClient) {
-                        @socket_write($cClient, $broadcast . "\n");
-                    }
-                }
-
-                file_put_contents($lastActivityFile, json_encode([
-                    'type' => $type,
-                    'tenant_id' => $tenantId,
-                    'branch_id' => $branchId,
-                    'timestamp' => date('c')
-                ]) . "\n", FILE_APPEND | LOCK_EX);
             }
         }
     }
@@ -189,14 +178,19 @@ while (true) {
                     if (!$event || !isset($event['type'])) continue;
 
                     $tenantId = $event['tenant_id'] ?? '';
+                    $branchId = $event['branch_id'] ?? '';
                     $broadcast = json_encode([
                         'type' => $event['type'],
                         'data' => $event['data'] ?? [],
-                        'from_branch' => $event['branch_id'] ?? '',
+                        'from_branch' => $branchId,
                         'timestamp' => $event['timestamp'] ?? date('c')
                     ]);
 
-                    if (isset($tenantClients[$tenantId])) {
+                    if ($branchId && isset($branchClients[$tenantId][$branchId])) {
+                        foreach ($branchClients[$tenantId][$branchId] as $cId => $cClient) {
+                            @socket_write($cClient, $broadcast . "\n");
+                        }
+                    } elseif (isset($tenantClients[$tenantId])) {
                         foreach ($tenantClients[$tenantId] as $cId => $cClient) {
                             @socket_write($cClient, $broadcast . "\n");
                         }

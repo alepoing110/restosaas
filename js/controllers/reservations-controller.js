@@ -2,6 +2,8 @@
 // RESERVATIONS CONTROLLER
 // ==========================================================================
 
+const botReservationSelection = new Set();
+
 function changeReservationsDate(dateStr) {
     state.reservationsDate = dateStr;
     if (typeof window.saveUiContext === 'function') window.saveUiContext({ reservationsDate: dateStr });
@@ -25,6 +27,82 @@ function filterReservations(filter) {
     renderReservations();
 }
 
+function toggleBotReservationSelection(reservationId, selected) {
+    const reservation = (state.reservations || []).find(res => res.id === reservationId);
+    const canSelect = reservation
+        && reservation.source === 'bot'
+        && ['pendiente', 'confirmada'].includes(reservation.status)
+        && !reservation.kitchen_printed_at;
+
+    if (!canSelect) {
+        botReservationSelection.delete(reservationId);
+    } else if (selected) {
+        botReservationSelection.add(reservationId);
+    } else {
+        botReservationSelection.delete(reservationId);
+    }
+    renderReservations();
+}
+
+function toggleAllBotReservations(selected) {
+    const eligible = (state.reservations || []).filter(res =>
+        res.source === 'bot'
+        && ['pendiente', 'confirmada'].includes(res.status)
+        && !res.kitchen_printed_at
+    );
+
+    if (selected) {
+        eligible.forEach(res => botReservationSelection.add(res.id));
+    } else {
+        eligible.forEach(res => botReservationSelection.delete(res.id));
+    }
+    renderReservations();
+}
+
+async function verifyAndPrintBotReservations() {
+    const selectedIds = Array.from(botReservationSelection);
+    if (selectedIds.length === 0) {
+        showToast('Seleccione al menos una reserva del bot.', 'warning');
+        return;
+    }
+
+    const reservations = selectedIds
+        .map(id => (state.reservations || []).find(res => res.id === id))
+        .filter(res => res
+            && res.source === 'bot'
+            && ['pendiente', 'confirmada'].includes(res.status)
+            && !res.kitchen_printed_at);
+
+    if (reservations.length === 0) {
+        botReservationSelection.clear();
+        renderReservations();
+        showToast('Las reservas seleccionadas ya no están disponibles.', 'warning');
+        return;
+    }
+
+    const confirmed = await window.ConfirmDialog.show(
+        `¿Verificar ${reservations.length} reserva${reservations.length === 1 ? '' : 's'} del bot?`,
+        { title: 'Verificar reservas del bot', confirmText: 'Sí, verificar', type: 'success' }
+    );
+    if (!confirmed) return;
+
+    try {
+        const verifyData = await AppApi.verifyBotReservations(reservations.map(res => res.id));
+        if (verifyData.status !== 'success') {
+            showToast(verifyData.message || 'No se pudieron verificar las reservas.', 'error');
+            return;
+        }
+
+        reservations.forEach(res => { res.verification_status = 'verificada'; });
+        showToast(`${reservations.length} reserva${reservations.length === 1 ? '' : 's'} verificada${reservations.length === 1 ? '' : 's'}.`, 'success');
+        botReservationSelection.clear();
+        await loadReservationsForDate(state.reservationsDate);
+    } catch (e) {
+        console.error('[RESERVATIONS] Error verificando reservas del bot:', e);
+        showToast(e.message || 'Error al verificar reservas del bot.', 'error');
+    }
+}
+
 function onReservationTypeChange() {
     const type = document.getElementById('reservation-form-type').value;
     const tableGroup = document.getElementById('reservation-form-table-group');
@@ -34,6 +112,10 @@ function onReservationTypeChange() {
     if (type !== 'para_servirse') {
         document.getElementById('reservation-form-table').value = '';
     }
+    const pickupGroup = document.getElementById('reservation-form-pickup-group');
+    const pickupInput = document.getElementById('reservation-form-pickup-time');
+    if (pickupGroup) pickupGroup.style.display = type === 'para_llevar' ? '' : 'none';
+    if (pickupInput) pickupInput.required = type === 'para_llevar';
 }
 
 async function loadReservationsForDate(dateStr) {
@@ -106,6 +188,7 @@ function buildReservationOrder(reservation, overrides = {}) {
         platoId: it.platoId || null,
         extraId: it.extraId || null,
         salsas: it.salsas || [],
+        accompaniments: it.accompaniments || [],
         // Older reservations stored the service mode as a preparation note.
         detail: sanitizeReservationDetail(it.detail),
         serviceType: it.serviceType || fallbackServiceType
@@ -119,13 +202,23 @@ function buildReservationOrder(reservation, overrides = {}) {
             : `${reservation.customer_name} (Reserva - Llevar)`,
         deliveryType,
         customerId: reservation.customer_id || null,
+        reservationId: reservation.id || null,
         items,
         total: reservation.total || 0,
         status: 'pendiente',
         notes: reservation.notes || '',
+        kitchenNote: reservation.kitchen_note || reservation.kitchenNote || '',
+        waiterNote: reservation.waiter_note || reservation.waiterNote || reservation.notes || '',
+        pickupTime: reservation.pickup_time || reservation.pickupTime || '',
         reservationTime: reservation.reservation_time || '',
         reservationDate: reservation.reservation_date || '',
         timestamp: reservation.created_at || nowLocal(),
+        createdByUserId: reservation.created_by_user_id || null,
+        createdByName: reservation.created_by_name || null,
+        confirmedByUserId: reservation.confirmed_by_user_id || null,
+        confirmedByName: reservation.confirmed_by_name || null,
+        paidByUserId: reservation.paid_by_user_id || null,
+        paidByName: reservation.paid_by_name || null,
         ...overrides
     };
 }
@@ -193,6 +286,12 @@ async function confirmReservationForMesa(res) {
             return;
         }
 
+        if (window.PrintJobs) {
+            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
+            const takeoutItems = (newOrder.items || []).filter(item => item.serviceType === 'llevar');
+            if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+        }
+
         const statusData = await AppApi.updateReservationStatus(res.id, 'completada');
         if (statusData.status !== 'success') {
             showToast('Pedido creado pero error al actualizar reserva.', 'warning');
@@ -206,15 +305,6 @@ async function confirmReservationForMesa(res) {
         showToast(`Reserva enviada a comanda. Mesa ${tableName} asignada.`, 'success');
         await loadReservationsForDate(state.reservationsDate);
 
-        try {
-            if (window.TicketPrinter) {
-                window.TicketPrinter.printKitchen(newOrder);
-            } else {
-                window.openTicketModal(newOrder, 'kitchen');
-            }
-        } catch (e) {
-            console.error('[RESERVATIONS] Error abriendo ticket de cocina:', e);
-        }
     } catch (e) {
         showToast('Error al confirmar reserva.', 'error');
     }
@@ -268,6 +358,9 @@ function editReservation(id) {
     document.getElementById('reservation-form-time').value = (res.reservation_time || '').substring(0, 5);
     document.getElementById('reservation-form-table').value = res.table_id || '';
     document.getElementById('reservation-form-notes').value = res.notes || '';
+    document.getElementById('reservation-form-kitchen-note').value = res.kitchen_note || '';
+    document.getElementById('reservation-form-pickup-time').value = (res.pickup_time || '').substring(0, 5);
+    onReservationTypeChange();
 
     const tableGroup = document.getElementById('reservation-form-table-group');
     if (tableGroup) {
@@ -311,6 +404,9 @@ function resetReservationForm() {
     document.getElementById('reservation-form-time').value = '';
     document.getElementById('reservation-form-table').value = '';
     document.getElementById('reservation-form-notes').value = '';
+    document.getElementById('reservation-form-kitchen-note').value = '';
+    document.getElementById('reservation-form-pickup-time').value = '';
+    onReservationTypeChange();
 
     const tableGroup = document.getElementById('reservation-form-table-group');
     if (tableGroup) tableGroup.style.display = '';
@@ -578,6 +674,8 @@ async function handleSaveReservation(e) {
     const time = document.getElementById('reservation-form-time').value;
     const tableId = deliveryType === 'para_servirse' ? document.getElementById('reservation-form-table').value : '';
     const notes = document.getElementById('reservation-form-notes').value.trim();
+    const kitchenNote = document.getElementById('reservation-form-kitchen-note').value.trim();
+    const pickupTime = document.getElementById('reservation-form-pickup-time').value;
     const cart = (state.reservationCart || []).map(item => ({
         ...item,
         detail: sanitizeReservationDetail(item.detail)
@@ -595,6 +693,10 @@ async function handleSaveReservation(e) {
         showToast('Cantidad de personas inválida.', 'error');
         return;
     }
+    if (deliveryType === 'para_llevar' && !pickupTime) {
+        showToast('Indique la hora de recojo para la reserva.', 'warning');
+        return;
+    }
 
     try {
         const data = await AppApi.saveReservation({
@@ -609,7 +711,10 @@ async function handleSaveReservation(e) {
             table_id: tableId,
             items: cart,
             total: total,
-            notes: notes
+            notes: notes,
+            kitchen_note: kitchenNote,
+            waiter_note: notes,
+            pickup_time: deliveryType === 'para_llevar' ? pickupTime : null
         });
         if (data.status === 'success') {
             showToast(id ? 'Reserva actualizada.' : 'Reserva creada con éxito.', 'success');
@@ -622,20 +727,14 @@ async function handleSaveReservation(e) {
                     table_id: tableId,
                     items: cart,
                     total,
-                    notes,
+                     notes,
+                     kitchen_note: kitchenNote,
+                     waiter_note: notes,
+                     pickup_time: pickupTime,
                     reservation_time: time,
                     reservation_date: date
                 });
 
-                try {
-                    if (window.TicketPrinter) {
-                        window.TicketPrinter.printKitchen(reservationOrder);
-                    } else if (typeof window.openTicketModal === 'function') {
-                        window.openTicketModal(reservationOrder, 'kitchen');
-                    }
-                } catch (ticketErr) {
-                    console.error('[RESERVATIONS] Error al previsualizar comanda de reserva:', ticketErr);
-                }
             }
 
             resetReservationForm();
@@ -761,6 +860,12 @@ async function confirmReservationPayment() {
             return;
         }
 
+        if (window.PrintJobs) {
+            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
+            PrintJobs.printPayment(newOrder);
+            if (newOrder.deliveryType !== 'mesa') PrintJobs.printCustomer(newOrder);
+        }
+
         const statusData = await AppApi.updateReservationStatus(_resPaymentReservationId, 'completada');
         if (statusData.status !== 'success') {
             showToast('Pedido creado pero error al actualizar reserva.', 'warning');
@@ -771,15 +876,6 @@ async function confirmReservationPayment() {
         showToast('Reserva cobrada y registrada.', 'success');
         await loadReservationsForDate(state.reservationsDate);
 
-        try {
-            if (window.TicketPrinter) {
-                window.TicketPrinter.printReceipt(newOrder);
-            } else {
-                window.openTicketModal(newOrder, 'client');
-            }
-        } catch (e) {
-            console.error('Error abriendo ticket modal:', e);
-        }
     } catch (e) {
         console.error('[RESERVATIONS] Error al cobrar reserva:', e);
         showToast(e.message || 'Error al procesar cobro de reserva.', 'error');
@@ -892,41 +988,12 @@ async function selectReservationTable(tableId) {
     }
 }
 
-function printReservationComanda(reservationId) {
-    const reservation = (state.reservations || []).find(r => r.id === reservationId);
-    if (!reservation) {
-        showToast('Reserva no encontrada.', 'error');
-        return;
-    }
-
-    const items = reservation.items || [];
-    if (items.length === 0) {
-        showToast('La reserva no tiene items para imprimir.', 'warning');
-        return;
-    }
-
-    const order = buildReservationOrder(reservation);
-
-    try {
-        if (window.TicketPrinter) {
-            window.TicketPrinter.printKitchen(order);
-        } else if (typeof window.openTicketModal === 'function') {
-            window.openTicketModal(order, 'kitchen');
-        } else {
-            showToast('Impresora no disponible.', 'warning');
-        }
-    } catch (ticketErr) {
-        console.error('[RESERVATIONS] Error al imprimir comanda:', ticketErr);
-        showToast('Error al imprimir comanda.', 'error');
-    }
-}
-
 window.changeReservationsDate = changeReservationsDate;
 window.searchReservations = searchReservations;
 window.filterReservations = filterReservations;
 window.toggleBotReservationSelection = toggleBotReservationSelection;
 window.toggleAllBotReservations = toggleAllBotReservations;
-window.verifyAndPrintBotReservations = verifyAndPrintBotReservations;
+window.verifyBotReservations = verifyAndPrintBotReservations;
 window.onReservationTypeChange = onReservationTypeChange;
 window.toggleReservationForm = toggleReservationForm;
 window.resetReservationForm = resetReservationForm;
@@ -935,7 +1002,6 @@ window.confirmReservation = confirmReservation;
 window.cancelReservation = cancelReservation;
 window.deleteReservation = deleteReservation;
 window.editReservation = editReservation;
-window.printReservationComanda = printReservationComanda;
 window.switchReservationCatalogTab = switchReservationCatalogTab;
 window.setReservationCatalogSearch = setReservationCatalogSearch;
 window.addReservationMealToCart = addReservationMealToCart;

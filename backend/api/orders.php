@@ -46,6 +46,96 @@ function orderHistoryPayments($paymentMethod, float $total, bool $paid): array {
     return $payments;
 }
 
+function canonicalizeOrderItems(PDO $pdo, array $authContext, array $items): array {
+    $pricesStmt = $pdo->prepare("SELECT `id`, `valor` FROM `config_precios` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+    $pricesStmt->execute(tenantParams($authContext));
+    $basePrices = [];
+    foreach ($pricesStmt->fetchAll(PDO::FETCH_ASSOC) as $price) $basePrices[$price['id']] = (float)$price['valor'];
+    $productStmt = $pdo->prepare("SELECT `id`, `name`, `type`, `price`, `stock`, `accepts_salsa`, `accepts_accompaniment`, `max_included_accompaniments` FROM `products` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1 FOR UPDATE");
+    $salsaStmt = $pdo->prepare("SELECT `id`, `name`, `price` FROM `salsas` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1");
+    $accompanimentStmt = $pdo->prepare("SELECT `id`, `name`, `price_extra` FROM `acompanamientos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1");
+    $loadProduct = static function (string $id, string $expectedType) use ($productStmt, $authContext): array {
+        $productStmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        $product = $productStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$product || $product['type'] !== $expectedType) throw new InvalidArgumentException('Producto no disponible para el pedido.');
+        return $product;
+    };
+    $canonical = [];
+    usort($items, static function ($a, $b) {
+        $aKey = ($a['sopaId'] ?? '') . ($a['segundoId'] ?? '') . ($a['platoId'] ?? '') . ($a['extraId'] ?? '') . ($a['product_id'] ?? '');
+        $bKey = ($b['sopaId'] ?? '') . ($b['segundoId'] ?? '') . ($b['platoId'] ?? '') . ($b['extraId'] ?? '') . ($b['product_id'] ?? '');
+        return strcmp($aKey, $bKey);
+    });
+    foreach ($items as $item) {
+        if (!is_array($item)) throw new InvalidArgumentException('Producto de pedido inválido.');
+        $type = (string)($item['type'] ?? '');
+        $quantity = max(1, (int)($item['quantity'] ?? $item['qty'] ?? 1));
+        $line = $item;
+        $line['qty'] = $quantity;
+        if ($type === 'almuerzo') {
+            $sopa = $loadProduct((string)($item['sopaId'] ?? ''), 'sopa');
+            $segundo = $loadProduct((string)($item['segundoId'] ?? ''), 'segundo');
+            $line['name'] = 'Almuerzo Completo';
+            $line['sopaId'] = $sopa['id'];
+            $line['sopaName'] = $sopa['name'];
+            $line['segundoId'] = $segundo['id'];
+            $line['segundoName'] = $segundo['name'];
+            $line['price'] = (float)($basePrices['almuerzo'] ?? 0);
+            $canUseSalsa = !empty($sopa['accepts_salsa']) || !empty($segundo['accepts_salsa']);
+            $accompanimentProduct = !empty($segundo['accepts_accompaniment']) ? $segundo : $sopa;
+        } else {
+            $field = match ($type) {
+                'sopa' => 'sopaId', 'segundo' => 'segundoId', 'plato_extra' => 'platoId', 'extra' => 'extraId', 'salsa' => 'salsaId', 'acompanamiento' => 'accompanimentId', default => null,
+            };
+            $productType = $type === 'extra' ? 'refresco' : $type;
+            if (!$field || !in_array($productType, ['sopa', 'segundo', 'plato_extra', 'refresco', 'salsa', 'acompanamiento'], true)) throw new InvalidArgumentException('Tipo de producto inválido.');
+            $catalogId = (string)($item[$field] ?? $item['product_id'] ?? '');
+            if ($type === 'salsa') {
+                $salsaStmt->execute(['id' => $catalogId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+                $salsa = $salsaStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$salsa) throw new InvalidArgumentException('Salsa no disponible para el pedido.');
+                $product = ['id' => $salsa['id'], 'name' => $salsa['name'], 'type' => 'salsa', 'price' => (float)$salsa['price'], 'stock' => 0, 'accepts_salsa' => 0, 'accepts_accompaniment' => 0, 'max_included_accompaniments' => 0];
+            } elseif ($type === 'acompanamiento') {
+                $accompanimentStmt->execute(['id' => $catalogId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+                $accompaniment = $accompanimentStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$accompaniment) throw new InvalidArgumentException('Acompañamiento no disponible para el pedido.');
+                $product = ['id' => $accompaniment['id'], 'name' => $accompaniment['name'], 'type' => 'acompanamiento', 'price' => (float)$accompaniment['price_extra'], 'stock' => 0, 'accepts_salsa' => 0, 'accepts_accompaniment' => 0, 'max_included_accompaniments' => 0];
+            } else {
+                $product = $loadProduct($catalogId, $productType);
+            }
+            $line[$field] = $product['id'];
+            $line['product_id'] = $product['id'];
+            $line['name'] = $product['name'];
+            if ($type === 'sopa') $line['sopaName'] = $product['name'];
+            if ($type === 'segundo') $line['segundoName'] = $product['name'];
+            $line['price'] = (float)$product['price'] > 0 ? (float)$product['price'] : (float)($basePrices[$type] ?? 0);
+            $canUseSalsa = !empty($product['accepts_salsa']);
+            $accompanimentProduct = $product;
+        }
+        if ((float)$line['price'] < 0 || ($type !== 'extra' && (float)$line['price'] <= 0)) throw new InvalidArgumentException('El producto no tiene un precio configurado.');
+        $line['salsas'] = [];
+        foreach (($item['salsas'] ?? []) as $salsa) {
+            if (!$canUseSalsa) throw new InvalidArgumentException('El producto seleccionado no permite salsa.');
+            $salsaStmt->execute(['id' => (string)($salsa['salsaId'] ?? ''), 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+            $canonicalSalsa = $salsaStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$canonicalSalsa) throw new InvalidArgumentException('La salsa seleccionada no está disponible.');
+            $line['salsas'][] = ['salsaId' => $canonicalSalsa['id'], 'salsaName' => $canonicalSalsa['name'], 'salsaPrice' => $canUseSalsa ? 0.0 : (float)$canonicalSalsa['price'], 'salsaMode' => $canUseSalsa ? 'incluida' : 'aparte'];
+        }
+        $line['accompaniments'] = [];
+        $maxIncluded = !empty($accompanimentProduct['accepts_accompaniment']) ? max(0, (int)$accompanimentProduct['max_included_accompaniments']) : 0;
+        foreach (($item['accompaniments'] ?? []) as $index => $accompaniment) {
+            if (empty($accompanimentProduct['accepts_accompaniment'])) throw new InvalidArgumentException('El producto seleccionado no permite acompañamientos.');
+            $accompanimentStmt->execute(['id' => (string)($accompaniment['accompanimentId'] ?? $accompaniment['id'] ?? ''), 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+            $canonicalAccompaniment = $accompanimentStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$canonicalAccompaniment) throw new InvalidArgumentException('El acompañamiento seleccionado no está disponible.');
+            $mode = $index < $maxIncluded ? 'included' : 'extra';
+            $line['accompaniments'][] = ['accompanimentId' => $canonicalAccompaniment['id'], 'accompanimentName' => $canonicalAccompaniment['name'], 'accompanimentMode' => $mode, 'accompanimentPrice' => $mode === 'extra' ? (float)$canonicalAccompaniment['price_extra'] : 0.0];
+        }
+        $canonical[] = $line;
+    }
+    return $canonical;
+}
+
 function persistOrderHistory(PDO $pdo, array $authContext, string $orderId, array $items, $paymentMethod, float $total, bool $paid, ?array $discounts = null, ?array $appliedPromo = null): void {
     $scope = ['order_id' => $orderId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']];
     $deleteItems = $pdo->prepare("DELETE FROM `pedido_items` WHERE `order_id` = :order_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
@@ -144,6 +234,10 @@ function handle_save_order(PDO $pdo, ?array $authContext, array $input): void {
 
     $isCredit = $paymentMethod === 'credito';
     $customerName = trim((string)$input['customer']);
+    $kitchenNote = mb_substr(trim((string)($input['kitchenNote'] ?? $input['kitchen_note'] ?? '')), 0, 500);
+    $waiterNote = mb_substr(trim((string)($input['waiterNote'] ?? $input['waiter_note'] ?? '')), 0, 500);
+    $pickupTime = trim((string)($input['pickupTime'] ?? $input['pickup_time'] ?? ''));
+    if ($pickupTime !== '' && !preg_match('/^\d{2}:\d{2}$/', $pickupTime)) $pickupTime = '';
     $customerId = '';
     $dueDate = null;
     $creditOverrideReason = trim((string)($input['credit_override_reason'] ?? ''));
@@ -194,10 +288,59 @@ function handle_save_order(PDO $pdo, ?array $authContext, array $input): void {
         }
     }
     if (($paid || $isCredit || $input['status'] === 'completado') && $soldAt === null) $soldAt = date('Y-m-d H:i:s');
-    
+
+    if ($soldAt) {
+        $saleDate = substr($soldAt, 0, 10);
+        $closedCheck = $pdo->prepare("SELECT 1 FROM `caja_cierres_historico` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `fecha` = :date LIMIT 1");
+        $closedCheck->execute(['tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id'], 'date' => $saleDate]);
+        if ($closedCheck->fetchColumn()) throw new InvalidArgumentException('La fecha de venta pertenece a un día ya cerrado. Registre la operación en la fecha operativa actual.');
+    }
+
     if ($isCredit) $paid = 0;
     $pdo->beginTransaction();
     try {
+    _backfillProductsForTenant($pdo, $authContext);
+    $input['items'] = canonicalizeOrderItems($pdo, $authContext, $input['items']);
+    $subtotal = 0.0;
+    foreach ($input['items'] as $item) {
+        $salsaTotal = array_sum(array_map(static fn($salsa) => (float)($salsa['salsaPrice'] ?? 0), $item['salsas'] ?? []));
+        $accompanimentTotal = array_sum(array_map(static fn($accompaniment) => (float)($accompaniment['accompanimentPrice'] ?? 0), $item['accompaniments'] ?? []));
+        $subtotal += ((float)$item['price'] + $salsaTotal + $accompanimentTotal) * (int)$item['qty'];
+    }
+    $requestedDiscount = (float)($input['discountTotal'] ?? $input['discount_total'] ?? 0);
+    $discountTotal = max(0, min($requestedDiscount, $subtotal));
+    $input['subtotal'] = round($subtotal, 2);
+    $input['discountTotal'] = round($discountTotal, 2);
+    $input['total'] = round($subtotal - $discountTotal, 2);
+     $existingOrder = $pdo->prepare("SELECT `id`, `closure_id`, `status` FROM `pedidos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id FOR UPDATE");
+    $existingOrder->execute(['id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+    $existingOrderRow = $existingOrder->fetch(PDO::FETCH_ASSOC);
+    if ($existingOrderRow && !empty($existingOrderRow['closure_id'])) throw new InvalidArgumentException('El pedido ya está incluido en un cierre de caja.');
+    $orderExists = (bool)$existingOrderRow;
+
+    if ($orderExists) {
+        $existingStatus = $existingOrderRow['status'] ?? 'pendiente';
+        if ($existingStatus === 'completado') throw new InvalidArgumentException('El pedido ya está cobrado y no puede modificarse.');
+        if ($existingStatus === 'anulado') throw new InvalidArgumentException('El pedido está anulado y no puede modificarse.');
+    }
+
+    if ($paid && !$isCredit) {
+        $decodedPayment = is_array($paymentMethod) ? $paymentMethod : json_decode((string)$paymentMethod, true);
+        if (is_array($decodedPayment)) {
+            $paymentSum = 0.0;
+            $allowedParts = ['efectivo', 'qr', 'tarjeta', 'transferencia', 'otro'];
+            foreach ($decodedPayment as $method => $amount) {
+                if (!in_array($method, $allowedParts, true) || !is_numeric($amount) || (float)$amount < 0) {
+                    throw new InvalidArgumentException('Método de pago inválido o monto negativo: ' . $method);
+                }
+                $paymentSum += (float)$amount;
+            }
+            if (abs(round($paymentSum, 2) - round((float)$input['total'], 2)) > 0.01) {
+                throw new InvalidArgumentException('La suma de pagos (' . number_format($paymentSum, 2) . ') no coincide con el total (' . number_format((float)$input['total'], 2) . ')');
+            }
+        }
+    }
+
     if ($isCredit) {
         $customerStmt = $pdo->prepare("SELECT credit_limit FROM `clientes` WHERE id = :id AND tenant_id = :tenant_id AND active = 1 FOR UPDATE");
         $customerStmt->execute(['id' => $customerId, 'tenant_id' => $authContext['tenant_id']]);
@@ -215,12 +358,19 @@ function handle_save_order(PDO $pdo, ?array $authContext, array $input): void {
             }
         }
     }
-    $stmt = $pdo->prepare("INSERT INTO `pedidos` (`id`, `customer`, `items`, `total`, `payment_method`, `service_state`, `status`, `timestamp`, `tenant_id`, `branch_id`, `delivery_type`, `paid`, `sold_at`, `customer_id`, `due_date`, `subtotal`, `discount_total`, `applied_promo`, `coupon_code`)
-        VALUES (:id, :customer, :items, :total, :payment_method, :service_state, :status, :timestamp, :tenant_id, :branch_id, :delivery_type, :paid, :sold_at, :customer_id, :due_date, :subtotal, :discount_total, :applied_promo, :coupon_code)
-        ON DUPLICATE KEY UPDATE `customer` = VALUES(`customer`), `items` = VALUES(`items`), `total` = VALUES(`total`), `payment_method` = VALUES(`payment_method`), `service_state` = VALUES(`service_state`), `status` = VALUES(`status`), `delivery_type` = VALUES(`delivery_type`), `paid` = VALUES(`paid`), `sold_at` = VALUES(`sold_at`), `customer_id` = VALUES(`customer_id`), `due_date` = VALUES(`due_date`), `subtotal` = VALUES(`subtotal`), `discount_total` = VALUES(`discount_total`), `applied_promo` = VALUES(`applied_promo`), `coupon_code` = VALUES(`coupon_code`)");
+    $stmt = $pdo->prepare("INSERT INTO `pedidos` (`id`, `customer`, `created_by_user_id`, `created_by_name`, `paid_by_user_id`, `paid_by_name`, `kitchen_note`, `waiter_note`, `pickup_time`, `items`, `total`, `payment_method`, `service_state`, `status`, `timestamp`, `tenant_id`, `branch_id`, `delivery_type`, `paid`, `sold_at`, `customer_id`, `reservation_id`, `due_date`, `subtotal`, `discount_total`, `applied_promo`, `coupon_code`)
+        VALUES (:id, :customer, :created_by_user_id, :created_by_name, :paid_by_user_id, :paid_by_name, :kitchen_note, :waiter_note, :pickup_time, :items, :total, :payment_method, :service_state, :status, :timestamp, :tenant_id, :branch_id, :delivery_type, :paid, :sold_at, :customer_id, :reservation_id, :due_date, :subtotal, :discount_total, :applied_promo, :coupon_code)
+         ON DUPLICATE KEY UPDATE `customer` = VALUES(`customer`), `kitchen_note` = VALUES(`kitchen_note`), `waiter_note` = VALUES(`waiter_note`), `pickup_time` = VALUES(`pickup_time`), `items` = VALUES(`items`), `total` = VALUES(`total`), `payment_method` = VALUES(`payment_method`), `service_state` = VALUES(`service_state`), `status` = VALUES(`status`), `delivery_type` = VALUES(`delivery_type`), `paid` = VALUES(`paid`), `paid_by_user_id` = IF(VALUES(`paid`) = 1, VALUES(`paid_by_user_id`), `paid_by_user_id`), `paid_by_name` = IF(VALUES(`paid`) = 1, VALUES(`paid_by_name`), `paid_by_name`), `sold_at` = VALUES(`sold_at`), `customer_id` = VALUES(`customer_id`), `reservation_id` = VALUES(`reservation_id`), `due_date` = VALUES(`due_date`), `subtotal` = VALUES(`subtotal`), `discount_total` = VALUES(`discount_total`), `applied_promo` = VALUES(`applied_promo`), `coupon_code` = VALUES(`coupon_code`)");
     $stmt->execute([
         'id' => $input['id'],
-        'customer' => $input['customer'],
+         'customer' => $input['customer'],
+         'created_by_user_id' => $authContext['user_id'] ?? null,
+         'created_by_name' => $authContext['user_name'] ?? null,
+         'paid_by_user_id' => ($paid && !$isCredit) ? ($authContext['user_id'] ?? null) : null,
+         'paid_by_name' => ($paid && !$isCredit) ? ($authContext['user_name'] ?? null) : null,
+        'kitchen_note' => $kitchenNote ?: null,
+        'waiter_note' => $waiterNote ?: null,
+        'pickup_time' => $pickupTime ?: null,
         'items' => json_encode($input['items']),
         'total' => (float)$input['total'],
         'payment_method' => $paymentMethod,
@@ -233,28 +383,30 @@ function handle_save_order(PDO $pdo, ?array $authContext, array $input): void {
         'paid' => $paid,
         'sold_at' => $soldAt,
         'customer_id' => $customerId ?: null,
+        'reservation_id' => !empty($input['reservationId']) ? (string)$input['reservationId'] : null,
         'due_date' => $dueDate,
         'subtotal' => isset($input['subtotal']) ? (float)$input['subtotal'] : null,
         'discount_total' => isset($input['discountTotal']) ? (float)$input['discountTotal'] : ((float)($input['discount_total'] ?? 0)),
         'applied_promo' => !empty($input['appliedPromo']) ? json_encode($input['appliedPromo']) : null,
         'coupon_code' => !empty($input['couponCode']) ? $input['couponCode'] : null
     ]);
-    if ($stmt->rowCount() === 0 && $pdo->lastInsertId() === '0') {
-        $pdo->rollBack();
-        echo json_encode(["status" => "error", "message" => "Pedido ya existe o no se pudo guardar"]);
-        return;
+    if ($input['status'] === 'anulado') releaseStock($pdo, $authContext, 'order', (string)$input['id']);
+    elseif (!empty($input['reservationId']) && !$orderExists) transferStockReservation($pdo, $authContext, (string)$input['reservationId'], (string)$input['id'], $input['items'], (string)($input['status'] ?? 'pendiente'));
+    else reserveStock($pdo, $authContext, 'order', (string)$input['id'], $input['items']);
+    if ($paid && !$isCredit && !empty($input['reservationId'])) {
+        $pdo->prepare("UPDATE `reservations` SET `paid_by_user_id` = :user_id, `paid_by_name` = :user_name, `updated_at` = NOW() WHERE `id` = :reservation_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id")->execute(['user_id' => $authContext['user_id'] ?? null, 'user_name' => $authContext['user_name'] ?? null, 'reservation_id' => (string)$input['reservationId'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     }
     if ($customerId !== '') {
         $pdo->prepare("UPDATE `clientes` SET `last_seen_at` = NOW(), `updated_at` = NOW() WHERE `id` = :id AND `tenant_id` = :tenant_id")->execute(['id' => $customerId, 'tenant_id' => $authContext['tenant_id']]);
     }
     persistOrderHistory($pdo, $authContext, (string)$input['id'], $input['items'], $paymentMethod, (float)$input['total'], (bool)$paid, $input['appliedDiscounts'] ?? $input['discounts'] ?? $input['applied_discounts'] ?? null, $input['appliedPromo'] ?? $input['applied_promo'] ?? null);
     if ($isCredit) syncOrderReceivable($pdo, $authContext, (string)$input['id'], $customerId, (float)$input['total'], $dueDate);
+    writeAuditLog($pdo, $authContext, 'order.save', 'pedido', $input['id'], ['status' => $input['status'], 'credit_override_reason' => $creditOverrideReason ?: null]);
     $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    writeAuditLog($pdo, $authContext, 'order.save', 'pedido', $input['id'], ['status' => $input['status'], 'credit_override_reason' => $creditOverrideReason ?: null]);
     broadcastWebSocketEvent('order.created', [
         'id' => $input['id'],
         'status' => $input['status'],
@@ -318,21 +470,33 @@ function handle_complete_order(PDO $pdo, ?array $authContext, array $input): voi
     } else {
         $soldAt = date('Y-m-d H:i:s');
     }
+
+    $saleDate = substr($soldAt, 0, 10);
+    $closedCheck = $pdo->prepare("SELECT 1 FROM `caja_cierres_historico` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `fecha` = :date LIMIT 1");
+    $closedCheck->execute(['tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id'], 'date' => $saleDate]);
+    if ($closedCheck->fetchColumn()) {
+        echo json_encode(["status" => "error", "message" => "La fecha de venta pertenece a un día ya cerrado. Registre la operación en la fecha operativa actual."]);
+        return;
+    }
     
     $pdo->beginTransaction();
-    $orderStmt = $pdo->prepare("SELECT `items`, `total` FROM `pedidos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente' FOR UPDATE");
+    $orderStmt = $pdo->prepare("SELECT `items`, `total`, `reservation_id` FROM `pedidos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente' FOR UPDATE");
     $orderStmt->execute(['id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     $existingOrder = $orderStmt->fetch(PDO::FETCH_ASSOC);
-    $stmt = $pdo->prepare("UPDATE `pedidos` SET `status` = 'completado', `payment_method` = :method, `paid` = 1, `sold_at` = :sold_at WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente'");
-    $stmt->execute(['method' => $paymentMethod, 'sold_at' => $soldAt, 'id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+    $stmt = $pdo->prepare("UPDATE `pedidos` SET `status` = 'completado', `payment_method` = :method, `paid` = 1, `paid_by_user_id` = :paid_by_user_id, `paid_by_name` = :paid_by_name, `sold_at` = :sold_at WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente'");
+    $stmt->execute(['method' => $paymentMethod, 'paid_by_user_id' => $authContext['user_id'] ?? null, 'paid_by_name' => $authContext['user_name'] ?? null, 'sold_at' => $soldAt, 'id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     if ($stmt->rowCount() === 0) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         echo json_encode(["status" => "error", "message" => "Pedido no encontrado o ya fue procesado"]);
         return;
     }
+    if (!empty($existingOrder['reservation_id'])) {
+        $reservationPaid = $pdo->prepare("UPDATE `reservations` SET `paid_by_user_id` = :user_id, `paid_by_name` = :user_name, `updated_at` = NOW() WHERE `id` = :reservation_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+        $reservationPaid->execute(['user_id' => $authContext['user_id'] ?? null, 'user_name' => $authContext['user_name'] ?? null, 'reservation_id' => $existingOrder['reservation_id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+    }
     persistOrderHistory($pdo, $authContext, (string)$input['id'], json_decode($existingOrder['items'] ?? '[]', true) ?: [], $paymentMethod, (float)($existingOrder['total'] ?? 0), true, array_key_exists('appliedDiscounts', $input) ? $input['appliedDiscounts'] : null);
-    $pdo->commit();
     writeAuditLog($pdo, $authContext, 'order.complete', 'pedido', $input['id']);
+    $pdo->commit();
     broadcastWebSocketEvent('order.completed', ['id' => $input['id']], $authContext);
     echo json_encode(["status" => "success"]);
 }
@@ -340,6 +504,7 @@ function handle_complete_order(PDO $pdo, ?array $authContext, array $input): voi
 function orderCancellationLineTotal(array $item, float $quantity): float {
     $unitPrice = (float)($item['price'] ?? 0);
     foreach (($item['salsas'] ?? []) as $salsa) $unitPrice += (float)($salsa['salsaPrice'] ?? 0);
+    foreach (($item['accompaniments'] ?? []) as $accompaniment) $unitPrice += (float)($accompaniment['accompanimentPrice'] ?? 0);
     return round($unitPrice * $quantity, 2);
 }
 
@@ -376,6 +541,7 @@ function handle_cancel_order(PDO $pdo, ?array $authContext, array $input): void 
     $orderItems = array_values($rawItems);
     $isFullCancellation = !$requestedItems;
     $remainingItems = [];
+    $cancelledItems = [];
     $cancelledTotal = 0.0;
 
     if (!$isFullCancellation) {
@@ -383,7 +549,7 @@ function handle_cancel_order(PDO $pdo, ?array $authContext, array $input): void 
         foreach ($requestedItems as $requested) {
             $lineNo = (int)($requested['line_no'] ?? -1);
             $quantity = (float)($requested['quantity'] ?? 0);
-            if ($lineNo < 0 || !isset($orderItems[$lineNo]) || $quantity <= 0) {
+            if ($lineNo < 0 || !isset($orderItems[$lineNo]) || $quantity <= 0 || floor($quantity) !== $quantity) {
                 throw new InvalidArgumentException('Producto o cantidad de cancelación inválida');
             }
             $available = (float)($orderItems[$lineNo]['qty'] ?? $orderItems[$lineNo]['quantity'] ?? 1);
@@ -396,6 +562,11 @@ function handle_cancel_order(PDO $pdo, ?array $authContext, array $input): void 
             $cancelQuantity = min($originalQuantity, (float)($requestedByLine[$lineNo] ?? 0));
             $remainingQuantity = $originalQuantity - $cancelQuantity;
             $cancelledTotal += orderCancellationLineTotal($item, $cancelQuantity);
+            if ($cancelQuantity > 0) {
+                $cancelledItem = $item;
+                $cancelledItem['qty'] = (int)$cancelQuantity;
+                $cancelledItems[] = $cancelledItem;
+            }
             if ($remainingQuantity > 0.0001) {
                 $item['qty'] = $remainingQuantity;
                 $remainingItems[] = $item;
@@ -406,20 +577,30 @@ function handle_cancel_order(PDO $pdo, ?array $authContext, array $input): void 
     }
 
     if ($isFullCancellation) {
+        releaseStock($pdo, $authContext, 'order', (string)$inputId);
         $stmt = $pdo->prepare("UPDATE `pedidos` SET `status` = 'anulado' WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
         $stmt->execute(['id' => $inputId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     } else {
-        $newTotal = max(0, round((float)$order['total'] - $cancelledTotal, 2));
-        $stmt = $pdo->prepare("UPDATE `pedidos` SET `items` = :items, `total` = :total WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente'");
-        $stmt->execute(['items' => json_encode($remainingItems, JSON_UNESCAPED_UNICODE), 'total' => $newTotal, 'id' => $inputId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        releaseStock($pdo, $authContext, 'order', (string)$inputId, $cancelledItems);
+        $newSubtotal = 0.0;
+        foreach ($remainingItems as $ri) {
+            $salsaTotal = array_sum(array_map(static fn($s) => (float)($s['salsaPrice'] ?? 0), $ri['salsas'] ?? []));
+            $accompanimentTotal = array_sum(array_map(static fn($a) => (float)($a['accompanimentPrice'] ?? 0), $ri['accompaniments'] ?? []));
+            $newSubtotal += ((float)($ri['price'] ?? 0) + $salsaTotal + $accompanimentTotal) * (int)($ri['qty'] ?? $ri['quantity'] ?? 1);
+        }
+        $newSubtotal = round($newSubtotal, 2);
+        $previousDiscount = max(0, min((float)($order['discount_total'] ?? 0), $newSubtotal));
+        $newTotal = max(0, round($newSubtotal - $previousDiscount, 2));
+        $stmt = $pdo->prepare("UPDATE `pedidos` SET `items` = :items, `total` = :total, `subtotal` = :subtotal, `discount_total` = :discount_total WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente'");
+        $stmt->execute(['items' => json_encode($remainingItems, JSON_UNESCAPED_UNICODE), 'total' => $newTotal, 'subtotal' => $newSubtotal, 'discount_total' => $previousDiscount, 'id' => $inputId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
         $order['items'] = json_encode($remainingItems, JSON_UNESCAPED_UNICODE);
         $order['total'] = $newTotal;
         persistOrderHistory($pdo, $authContext, (string)$inputId, $remainingItems, $order['payment_method'] ?? 'efectivo', $newTotal, !empty($order['paid']), null);
     }
-    $pdo->commit();
     $afterOrder = $order;
     if ($isFullCancellation) $afterOrder['status'] = 'anulado';
     writeAuditLog($pdo, $authContext, $isFullCancellation ? 'order.cancel' : 'order.cancel_partial', 'pedido', $inputId, ['cancelled_items' => $requestedItems], $input['reason'] ?? null, $beforeOrder, $afterOrder);
+    $pdo->commit();
     broadcastWebSocketEvent($isFullCancellation ? 'order.cancelled' : 'order.updated', ['id' => $inputId], $authContext);
     echo json_encode(["status" => "success", "full_cancelled" => $isFullCancellation, "order" => [
         'id' => $inputId,
@@ -449,51 +630,100 @@ function handle_append_order_items(PDO $pdo, ?array $authContext, array $input):
         return;
     }
 
-    $existingItems = json_decode($order['items'], true) ?? [];
-    $addedTotal = 0;
+    $wasPaid = !empty($order['paid']);
     $markPaid = !empty($input['markPaid']);
+    $newPaymentMethod = $input['paymentMethod'] ?? null;
+    if ($wasPaid && !$markPaid) {
+        throw new InvalidArgumentException('La comanda ya está pagada. Debe registrar el pago de los nuevos productos.');
+    }
+    if (($wasPaid || $markPaid) && $newPaymentMethod === null) {
+        throw new InvalidArgumentException('Seleccione el método de pago para los nuevos productos.');
+    }
+
+    $existingItems = json_decode($order['items'], true) ?? [];
+    _backfillProductsForTenant($pdo, $authContext);
+    $newItems = canonicalizeOrderItems($pdo, $authContext, $newItems);
+    $addedTotal = 0;
     foreach ($newItems as $item) {
-        $newItem = [
-            'type' => $item['type'] ?? 'segundo',
-            'name' => $item['name'] ?? '',
-            'price' => (float)($item['price'] ?? 0),
-            'quantity' => (int)($item['quantity'] ?? 1),
-            'serviceType' => $item['serviceType'] ?? 'servirse'
-        ];
+        $newItem = $item;
+        $newItem['serviceType'] = $item['serviceType'] ?? 'servirse';
+        $newItem['isAdditional'] = true;
+        $newItem['addedByUserId'] = $authContext['user_id'] ?? null;
+        $newItem['addedByName'] = $authContext['user_name'] ?? null;
+        $newItem['addedAt'] = date('c');
         if ($markPaid) {
             $newItem['paid'] = true;
         }
-        if (!empty($item['sopaId'])) {
-            $newItem['sopaId'] = $item['sopaId'];
-            $newItem['sopaName'] = $item['sopaName'] ?? '';
-        }
-        if (!empty($item['segundoId'])) {
-            $newItem['segundoId'] = $item['segundoId'];
-            $newItem['segundoName'] = $item['segundoName'] ?? '';
-        }
-        if (!empty($item['platoId'])) {
-            $newItem['platoId'] = $item['platoId'];
-        }
-        if (!empty($item['extraId'])) {
-            $newItem['extraId'] = $item['extraId'];
-        }
         $existingItems[] = $newItem;
-        $addedTotal += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? 1);
+        $addedTotal += orderCancellationLineTotal($newItem, (int)$newItem['qty']);
     }
 
-    $newTotal = (float)$order['total'] + $addedTotal;
-    $stmt = $pdo->prepare("UPDATE `pedidos` SET `items` = :items, `total` = :total WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+    if ($wasPaid || $markPaid) {
+        $allowedPaymentMethods = ['efectivo', 'qr', 'tarjeta'];
+        if (is_array($newPaymentMethod)) {
+            $newPaymentSum = 0.0;
+            foreach ($newPaymentMethod as $method => $amount) {
+                if (!in_array($method, $allowedPaymentMethods, true) || !is_numeric($amount) || (float)$amount < 0) {
+                    throw new InvalidArgumentException('Método de pago inválido para los nuevos productos.');
+                }
+                $newPaymentSum += (float)$amount;
+            }
+        } else {
+            if (!in_array((string)$newPaymentMethod, $allowedPaymentMethods, true)) {
+                throw new InvalidArgumentException('Método de pago inválido para los nuevos productos.');
+            }
+            $newPaymentSum = $addedTotal;
+        }
+        if (abs(round($newPaymentSum, 2) - round($addedTotal, 2)) > 0.01) {
+            throw new InvalidArgumentException('El pago de los nuevos productos no coincide con su total.');
+        }
+    }
+
+    reserveStock($pdo, $authContext, 'order', $orderId, $existingItems);
+    $newSubtotal = 0.0;
+    foreach ($existingItems as $item) {
+        $newSubtotal += orderCancellationLineTotal($item, (int)($item['qty'] ?? $item['quantity'] ?? 1));
+    }
+    $existingDiscount = max(0, min((float)($order['discount_total'] ?? 0), $newSubtotal));
+    $newTotal = round($newSubtotal - $existingDiscount, 2);
+
+    $finalPaid = $wasPaid || $markPaid;
+    $historyPaymentMethod = $order['payment_method'] ?? 'efectivo';
+    if ($finalPaid) {
+        $paymentParts = [];
+        $paymentRows = $pdo->prepare("SELECT `payment_method`, `amount` FROM `pedido_pagos` WHERE `order_id` = :order_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+        $paymentRows->execute(['order_id' => $orderId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        foreach ($paymentRows->fetchAll(PDO::FETCH_ASSOC) as $paymentRow) {
+            $method = (string)($paymentRow['payment_method'] ?? 'efectivo');
+            $paymentParts[$method] = ($paymentParts[$method] ?? 0) + (float)$paymentRow['amount'];
+        }
+        if (!$paymentParts) {
+            foreach (orderHistoryPayments($historyPaymentMethod, (float)($order['total'] ?? 0), true) as $method => $amount) {
+                $paymentParts[$method] = ($paymentParts[$method] ?? 0) + $amount;
+            }
+        }
+        foreach (orderHistoryPayments($newPaymentMethod, $addedTotal, true) as $method => $amount) {
+            $paymentParts[$method] = ($paymentParts[$method] ?? 0) + $amount;
+        }
+        $historyPaymentMethod = $paymentParts;
+    }
+
+    $stmt = $pdo->prepare("UPDATE `pedidos` SET `items` = :items, `subtotal` = :subtotal, `discount_total` = :discount_total, `total` = :total, `paid` = :paid, `payment_method` = :payment_method WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
     $stmt->execute([
         'items' => json_encode($existingItems, JSON_UNESCAPED_UNICODE),
+        'subtotal' => round($newSubtotal, 2),
+        'discount_total' => round($existingDiscount, 2),
         'total' => $newTotal,
+        'paid' => $finalPaid ? 1 : 0,
+        'payment_method' => is_array($historyPaymentMethod) ? json_encode($historyPaymentMethod, JSON_UNESCAPED_UNICODE) : $historyPaymentMethod,
         'id' => $orderId,
         'tenant_id' => $authContext['tenant_id'],
         'branch_id' => $authContext['branch_id']
     ]);
 
-    persistOrderHistory($pdo, $authContext, $orderId, $existingItems, $order['payment_method'] ?? 'efectivo', $newTotal, $markPaid || !empty($order['paid']));
-    $pdo->commit();
+    persistOrderHistory($pdo, $authContext, $orderId, $existingItems, $historyPaymentMethod, $newTotal, $finalPaid);
     writeAuditLog($pdo, $authContext, 'order.items.append', 'pedido', $orderId, ['added_count' => count($newItems), 'new_total' => $newTotal]);
+    $pdo->commit();
     broadcastWebSocketEvent('order.appended', ['id' => $orderId, 'total' => $newTotal], $authContext);
     echo json_encode(["status" => "success", "total" => $newTotal, "items" => $existingItems]);
 }
@@ -512,7 +742,7 @@ function handle_annul_sale(PDO $pdo, ?array $authContext, array $input): void {
 
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("SELECT * FROM `pedidos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'completado' FOR UPDATE");
+        $stmt = $pdo->prepare("SELECT * FROM `pedidos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `status` = 'completado' FOR UPDATE");
         $stmt->execute(['id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$order) {
@@ -521,63 +751,22 @@ function handle_annul_sale(PDO $pdo, ?array $authContext, array $input): void {
             return;
         }
 
-        $items = json_decode($order['items'], true);
-        if (is_array($items)) {
-            foreach ($items as $item) {
-                $type = isset($item['type']) ? $item['type'] : '';
-                $qty = isset($item['quantity']) ? max(1, (int)$item['quantity']) : 1;
+        releaseStock($pdo, $authContext, 'order', (string)$input['id']);
 
-                if ($type === 'almuerzo' || $type === 'sopa') {
-                    $sopaId = isset($item['sopaId']) ? $item['sopaId'] : '';
-                    if ($sopaId) {
-                        $stmtSopa = $pdo->prepare("UPDATE `sopas` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                        $stmtSopa->execute(['qty' => $qty, 'id' => $sopaId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                    }
-                    if ($type === 'almuerzo') {
-                        $segId = isset($item['segundoId']) ? $item['segundoId'] : '';
-                        if ($segId) {
-                            $stmtSeg = $pdo->prepare("UPDATE `segundos` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                            $stmtSeg->execute(['qty' => $qty, 'id' => $segId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                        }
-                    }
-                } else if ($type === 'segundo') {
-                    $segId = isset($item['segundoId']) ? $item['segundoId'] : '';
-                    if ($segId) {
-                        $stmtSeg2 = $pdo->prepare("UPDATE `segundos` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                        $stmtSeg2->execute(['qty' => $qty, 'id' => $segId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                    }
-                } else if ($type === 'plato_extra') {
-                    $peId = isset($item['platoId']) ? $item['platoId'] : '';
-                    if ($peId) {
-                        $stmtPe = $pdo->prepare("UPDATE `platos_extras` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                        $stmtPe->execute(['qty' => $qty, 'id' => $peId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                    }
-                } else if ($type === 'extra') {
-                    $extId = isset($item['extraId']) ? $item['extraId'] : (isset($item['id']) ? $item['id'] : '');
-                    if ($extId) {
-                        $stmtExt = $pdo->prepare("UPDATE `gaseosas` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                        $stmtExt->execute(['qty' => $qty, 'id' => $extId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                    }
-                } else if ($type === 'salsa') {
-                    $salsaId = isset($item['salsaId']) ? $item['salsaId'] : (isset($item['id']) ? $item['id'] : '');
-                    if ($salsaId) {
-                        $stmtSalsa = $pdo->prepare("UPDATE `salsas` SET `stock` = GREATEST(0, `stock` + :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-                        $stmtSalsa->execute(['qty' => $qty, 'id' => $salsaId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
-                    }
-                }
-            }
+        if (($order['payment_method'] ?? '') === 'credito') {
+            $pdo->prepare("UPDATE `cuentas_por_cobrar` SET `status` = 'cancelada', `balance` = 0 WHERE `order_id` = :order_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` <> 'cancelada'")->execute(['order_id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
         }
 
         $stmt = $pdo->prepare("UPDATE `pedidos` SET `status` = 'anulado' WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
         $stmt->execute(['id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        $afterOrder = $order;
+        $afterOrder['status'] = 'anulado';
+        writeAuditLog($pdo, $authContext, 'sale.annul', 'pedido', $input['id'], [], $input['reason'] ?? null, $order, $afterOrder);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
 
-    $afterOrder = $order;
-    $afterOrder['status'] = 'anulado';
-    writeAuditLog($pdo, $authContext, 'sale.annul', 'pedido', $input['id'], [], $input['reason'] ?? null, $order, $afterOrder);
     echo json_encode(["status" => "success"]);
 }

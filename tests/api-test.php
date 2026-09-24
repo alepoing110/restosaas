@@ -127,16 +127,26 @@ assert_test('WhatsApp rejects requests without an app secret', !whatsapp_validat
 
 $webhookContent = file_get_contents(__DIR__ . '/../webhook.php');
 $toolsAgentContent = file_get_contents(__DIR__ . '/../backend/agent/tools.php');
+$helpersApiContent = file_get_contents(__DIR__ . '/../backend/api/helpers.php');
+$ordersApiContent = file_get_contents(__DIR__ . '/../backend/api/orders.php');
+$llmContent = file_get_contents(__DIR__ . '/../backend/llm.php');
 assert_test('Webhook enqueues events for asynchronous processing', str_contains($webhookContent, 'whatsapp_enqueue_event'));
 assert_test('Webhook rejects unknown WhatsApp numbers', str_contains($webhookContent, 'Número de WhatsApp no configurado'));
 $whatsappContent = file_get_contents(__DIR__ . '/../backend/agent/whatsapp.php');
 assert_test('WhatsApp parser iterates all entries and changes', str_contains($whatsappContent, 'foreach (($payload[\'entry\'] ?? []) as $entry)') && str_contains($whatsappContent, 'foreach (($entry[\'changes\'] ?? []) as $change)'));
 assert_test('Reservation tool requires delivery type and items', str_contains($toolsAgentContent, "'delivery_type', 'items'"));
-assert_test('Reservation prices are read from canonical product data', str_contains($toolsAgentContent, 'SELECT `id`, `name`, `type`, `price`, `stock` FROM `products`'));
-assert_test('Reservation stock update is conditional', str_contains($toolsAgentContent, 'AND `stock` >= :qty'));
+assert_test('Reservation prices are read from canonical product data', str_contains($toolsAgentContent, 'FROM `products` WHERE `id` = :id') && str_contains($toolsAgentContent, '`price`, `stock`'));
+assert_test('Reservation stock update is conditional', str_contains($helpersApiContent, 'function reserveStock') && str_contains($helpersApiContent, 'AND `stock` >= :check_qty'));
+assert_test('Paid order append requires a new payment', str_contains($ordersApiContent, 'La comanda ya está pagada') && str_contains($ordersApiContent, "'paymentMethod'") && str_contains($ordersApiContent, 'pedido_pagos'));
 assert_test('Reservation creation uses a transaction', str_contains($toolsAgentContent, '$pdo->beginTransaction()') && str_contains($toolsAgentContent, '$pdo->rollBack()'));
+assert_test('Gemini uses the OpenAI-compatible endpoint', str_contains($llmContent, 'generativelanguage.googleapis.com/v1beta/openai'));
 $workerContent = file_get_contents(__DIR__ . '/../whatsapp-worker.php');
 assert_test('Worker retries failed WhatsApp events', str_contains($workerContent, "'received', 'failed', 'ready'") && str_contains($workerContent, 'next_attempt_at'));
+
+$cashContent = file_get_contents(__DIR__ . '/../backend/api/cash.php');
+assert_test('Cash close uses a dedicated idempotent handler', str_contains($cashContent, 'function handle_close_cash_day') && str_contains($cashContent, 'already_closed'));
+assert_test('Cash close requires pending-order review', str_contains($cashContent, 'requires_pending_review') && str_contains($cashContent, 'pending_reviewed'));
+assert_test('Cash close preserves pending orders', !str_contains($cashContent, 'DELETE FROM `pedidos`'));
 
 // ==========================================================================
 // Test 4: CSRF protection
@@ -154,7 +164,6 @@ assert_test('auth payload includes authorized branches', str_contains($authConte
 echo "\n[4b] SaaS Isolation and Catalog\n";
 $saasContent = file_get_contents(__DIR__ . '/../backend/api/saas.php');
 $inventoryContent = file_get_contents(__DIR__ . '/../backend/api/inventory.php');
-$helpersApiContent = file_get_contents(__DIR__ . '/../backend/api/helpers.php');
 assert_test('branch access migration exists', str_contains(file_get_contents(__DIR__ . '/../db_migrations.php'), 'user_branch_access'));
 assert_test('branch switch handler exists', str_contains(file_get_contents(__DIR__ . '/../backend/api/auth.php'), 'function handle_switch_branch'));
 assert_test('tenant onboarding initializes template', str_contains($saasContent, 'initializeBranchTemplate'));
@@ -164,6 +173,16 @@ assert_test('product menu association is scoped', str_contains($inventoryContent
 assert_test('branch template helper exists', str_contains($helpersApiContent, 'function initializeBranchTemplate'));
 assert_test('public registration grants branch access', str_contains($saasContent, 'INSERT INTO `user_branch_access`'));
 assert_test('public registration initializes branch template', str_contains($saasContent, 'initializeBranchTemplate($pdo, $tenantId, $branchId, $nombreRestaurante)'));
+
+echo "\n[4c] Catalog Validation\n";
+$categoriesContent = file_get_contents(__DIR__ . '/../backend/api/categories.php');
+$dashboardContent = file_get_contents(__DIR__ . '/../backend/api/dashboard.php');
+assert_test('catalog validates IDs, names, money and stock strictly', str_contains($inventoryContent, 'function catalogId') && str_contains($inventoryContent, 'function catalogName') && str_contains($inventoryContent, 'function catalogMoney') && str_contains($inventoryContent, 'function catalogInteger'));
+assert_test('catalog prevents duplicate names per entity and branch', str_contains($inventoryContent, 'function assertCatalogNameAvailable'));
+assert_test('catalog validates accompaniment limits and boolean fields', str_contains($inventoryContent, 'catalogBoolean') && str_contains($inventoryContent, "'máximo de acompañamientos incluidos', 0, 20"));
+assert_test('catalog deletes require an existing scoped record', str_contains($inventoryContent, 'El registro ya no existe o no pertenece a esta sucursal.'));
+assert_test('categories validate types and transactional reorder', str_contains($categoriesContent, "throw new InvalidArgumentException('Tipo de categoría inválido.')") && str_contains($categoriesContent, '$pdo->beginTransaction()'));
+assert_test('base prices require nonnegative two-decimal amounts', str_contains($dashboardContent, "'/^\\d+(?:\\.\\d{1,2})?$/"));
 
 // ==========================================================================
 // Test 5: JS modules deduplication

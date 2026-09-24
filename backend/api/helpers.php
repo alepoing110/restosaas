@@ -19,24 +19,30 @@ function _backfillProductsForTenant(PDO $pdo, array $authContext): void {
     ];
     foreach ($tables as $catalogTable => $productType) {
         try {
-            $hasPrice = in_array($catalogTable, ['platos_extras', 'gaseosas'], true);
-            $hasSalsa = in_array($catalogTable, ['segundos', 'sopas', 'platos_extras'], true);
-            if ($hasPrice) {
+            if ($catalogTable === 'gaseosas') {
                 $pdo->prepare("
-                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `tenant_id`, `branch_id`)
-                    SELECT c.`id`, c.`name`, :ptype, COALESCE(c.`price`, 0), COALESCE(c.`stock`, 0), NULL, 1, COALESCE(c.`accepts_salsa`, 0), c.`tenant_id`, c.`branch_id`
+                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `tenant_id`, `branch_id`)
+                    SELECT c.`id`, c.`name`, :gaseosa_type, COALESCE(c.`price`, 0), COALESCE(c.`stock`, 0), NULL, 1, c.`tenant_id`, c.`branch_id`
                     FROM `$catalogTable` c
-                    WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id
-                    ON DUPLICATE KEY UPDATE `price` = VALUES(`price`), `stock` = VALUES(`stock`), `accepts_salsa` = VALUES(`accepts_salsa`), `active` = 1
-                ")->execute(array_merge(['ptype' => $productType], $params));
+                    WHERE c.`tenant_id` = :gaseosa_tenant_id AND c.`branch_id` = :gaseosa_branch_id
+                    ON DUPLICATE KEY UPDATE `type` = VALUES(`type`), `price` = VALUES(`price`), `name` = VALUES(`name`), `active` = VALUES(`active`)
+                ")->execute([
+                    'gaseosa_type' => $productType,
+                    'gaseosa_tenant_id' => $params['tenant_id'],
+                    'gaseosa_branch_id' => $params['branch_id']
+                ]);
             } else {
                 $pdo->prepare("
-                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `tenant_id`, `branch_id`)
-                    SELECT c.`id`, c.`name`, :ptype, 0, COALESCE(c.`stock`, 0), NULL, 1, COALESCE(c.`accepts_salsa`, 0), c.`tenant_id`, c.`branch_id`
+                    INSERT INTO `products` (`id`, `name`, `type`, `price`, `stock`, `menu_id`, `active`, `accepts_salsa`, `accepts_accompaniment`, `max_included_accompaniments`, `tenant_id`, `branch_id`)
+                    SELECT c.`id`, c.`name`, :catalog_type, 0, COALESCE(c.`stock`, 0), NULL, 1, COALESCE(c.`accepts_salsa`, 0), COALESCE(c.`accepts_accompaniment`, 0), COALESCE(c.`max_included_accompaniments`, 0), c.`tenant_id`, c.`branch_id`
                     FROM `$catalogTable` c
-                    WHERE c.`tenant_id` = :tenant_id AND c.`branch_id` = :branch_id
-                    ON DUPLICATE KEY UPDATE `stock` = VALUES(`stock`), `accepts_salsa` = VALUES(`accepts_salsa`), `active` = 1
-                ")->execute(array_merge(['ptype' => $productType], $params));
+                    WHERE c.`tenant_id` = :catalog_tenant_id AND c.`branch_id` = :catalog_branch_id
+                    ON DUPLICATE KEY UPDATE `accepts_salsa` = VALUES(`accepts_salsa`), `accepts_accompaniment` = VALUES(`accepts_accompaniment`), `max_included_accompaniments` = VALUES(`max_included_accompaniments`), `name` = VALUES(`name`), `active` = VALUES(`active`)
+                ")->execute([
+                    'catalog_type' => $productType,
+                    'catalog_tenant_id' => $params['tenant_id'],
+                    'catalog_branch_id' => $params['branch_id']
+                ]);
             }
         } catch (Throwable $e) {
             error_log("[RestoCloud] products backfill failed for $catalogTable: " . $e->getMessage());
@@ -127,6 +133,180 @@ function loadCatalogState(PDO $pdo, array $authContext) {
     });
 }
 
+function menuIsActiveNow(array $menu): bool {
+    if (empty($menu['active'])) return false;
+    $start = trim((string)($menu['start_time'] ?? ''));
+    $end = trim((string)($menu['end_time'] ?? ''));
+    if ($start === '' || $end === '') return true;
+    $now = date('H:i:s');
+    $start = strlen($start) === 5 ? $start . ':00' : $start;
+    $end = strlen($end) === 5 ? $end . ':00' : $end;
+    return $start <= $end ? ($now >= $start && $now <= $end) : ($now >= $start || $now <= $end);
+}
+
+function normalizeStockUsage(array $items): array {
+    $usage = [];
+    $add = static function ($productId, $quantity) use (&$usage): void {
+        $productId = trim((string)$productId);
+        $quantity = (int)$quantity;
+        if ($productId === '' || $quantity <= 0) return;
+        $usage[$productId] = ($usage[$productId] ?? 0) + $quantity;
+    };
+    foreach ($items as $item) {
+        if (!is_array($item)) continue;
+        $quantity = max(1, (int)($item['quantity'] ?? $item['qty'] ?? 1));
+        $type = (string)($item['type'] ?? '');
+        if ($type === 'almuerzo') {
+            $add($item['sopaId'] ?? null, $quantity);
+            $add($item['segundoId'] ?? null, $quantity);
+            continue;
+        }
+        $productId = match ($type) {
+            'sopa' => $item['sopaId'] ?? $item['product_id'] ?? null,
+            'segundo' => $item['segundoId'] ?? $item['product_id'] ?? null,
+            'plato_extra' => $item['platoId'] ?? $item['product_id'] ?? null,
+            'extra', 'refresco' => $item['extraId'] ?? $item['product_id'] ?? null,
+            'salsa' => null,
+            'acompanamiento' => null,
+            default => $item['product_id'] ?? null,
+        };
+        $add($productId, $quantity);
+    }
+    return $usage;
+}
+
+function recordProductStockEvent(PDO $pdo, array $authContext, string $productId, int $before, int $change, int $after, string $eventType, string $referenceType, string $referenceId): void {
+    try {
+        $stmt = $pdo->prepare("SELECT `name` FROM `products` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+        $stmt->execute(['id' => $productId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
+        $name = $stmt->fetchColumn();
+        if (!$name) return;
+        $stmt = $pdo->prepare("INSERT INTO `stock_history` (`id`, `tenant_id`, `branch_id`, `item_type`, `item_id`, `event_type`, `quantity_before`, `quantity_change`, `quantity_after`, `reference_type`, `reference_id`, `created_at`) VALUES (:id, :tenant_id, :branch_id, 'product', :item_id, :event_type, :before, :change, :after, :reference_type, :reference_id, NOW())");
+        $stmt->execute(['id' => 'stk_' . bin2hex(random_bytes(12)), 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'item_id' => $productId, 'event_type' => $eventType, 'before' => $before, 'change' => $change, 'after' => $after, 'reference_type' => $referenceType, 'reference_id' => $referenceId]);
+    } catch (Throwable $e) {
+        error_log('[RestoCloud] stock history write failed: ' . $e->getMessage());
+    }
+}
+
+function reserveStock(PDO $pdo, array $authContext, string $referenceType, string $referenceId, array $items): void {
+    $usage = normalizeStockUsage($items);
+    $scope = ['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'reference_type' => $referenceType, 'reference_id' => $referenceId];
+    $existing = $pdo->prepare("SELECT `quantity`, `status` FROM `stock_reservations` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = :reference_type AND `reference_id` = :reference_id AND `product_id` = :product_id FOR UPDATE");
+    $deduct = $pdo->prepare("UPDATE `products` SET `stock` = `stock` - :deduct_qty WHERE `id` = :product_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1 AND `stock` >= :check_qty");
+    $stock = $pdo->prepare("SELECT `stock` FROM `products` WHERE `id` = :product_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+    $insert = $pdo->prepare("INSERT INTO `stock_reservations` (`id`, `tenant_id`, `branch_id`, `reference_type`, `reference_id`, `product_id`, `quantity`, `status`) VALUES (:id, :tenant_id, :branch_id, :reference_type, :reference_id, :product_id, :quantity, 'active')");
+    foreach ($usage as $productId => $quantity) {
+        $params = $scope + ['product_id' => $productId];
+        $existing->execute($params);
+        $row = $existing->fetch(PDO::FETCH_ASSOC);
+        $previousQuantity = ($row && $row['status'] === 'active') ? (int)$row['quantity'] : 0;
+        if ($previousQuantity > $quantity) throw new InvalidArgumentException('No se puede reducir una reserva sin cancelar los productos.');
+        if ($previousQuantity === $quantity) continue;
+        $change = $quantity - $previousQuantity;
+        $deduct->execute([
+            'tenant_id' => $authContext['tenant_id'],
+            'branch_id' => $authContext['branch_id'],
+            'product_id' => $productId,
+            'deduct_qty' => $change,
+            'check_qty' => $change
+        ]);
+        if ($deduct->rowCount() !== 1) throw new InvalidArgumentException('Stock insuficiente o producto no disponible.');
+        $stock->execute([
+            'product_id' => $productId,
+            'tenant_id' => $authContext['tenant_id'],
+            'branch_id' => $authContext['branch_id']
+        ]);
+        $after = (int)$stock->fetchColumn();
+        if ($row) {
+            $pdo->prepare("UPDATE `stock_reservations` SET `quantity` = :quantity, `status` = 'active', `released_at` = NULL WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = :reference_type AND `reference_id` = :reference_id AND `product_id` = :product_id")->execute([
+                'quantity' => $quantity,
+                'tenant_id' => $authContext['tenant_id'],
+                'branch_id' => $authContext['branch_id'],
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'product_id' => $productId
+            ]);
+        } else {
+            $insert->execute([
+                'id' => 'sr_' . bin2hex(random_bytes(12)),
+                'tenant_id' => $authContext['tenant_id'],
+                'branch_id' => $authContext['branch_id'],
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'product_id' => $productId,
+                'quantity' => $quantity
+            ]);
+        }
+        recordProductStockEvent($pdo, $authContext, $productId, $after + $change, -$change, $after, 'deduct', $referenceType, $referenceId);
+    }
+}
+
+function releaseStock(PDO $pdo, array $authContext, string $referenceType, string $referenceId, ?array $items = null): void {
+    $usage = $items === null ? null : normalizeStockUsage($items);
+    $scope = ['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'reference_type' => $referenceType, 'reference_id' => $referenceId];
+    $stmt = $pdo->prepare("SELECT `product_id`, `quantity` FROM `stock_reservations` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = :reference_type AND `reference_id` = :reference_id AND `status` = 'active' FOR UPDATE");
+    $stmt->execute($scope);
+    $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $restore = $pdo->prepare("UPDATE `products` SET `stock` = `stock` + :quantity WHERE `id` = :product_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+    $stock = $pdo->prepare("SELECT `stock` FROM `products` WHERE `id` = :product_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+    foreach ($reservations as $reservation) {
+        $productId = $reservation['product_id'];
+        $requested = $usage[$productId] ?? 0;
+        $quantity = $usage === null ? (int)$reservation['quantity'] : min((int)$reservation['quantity'], $requested);
+        if ($quantity <= 0) continue;
+        $params = $scope + ['product_id' => $productId, 'quantity' => $quantity];
+        $restore->execute([
+            'quantity' => $quantity,
+            'product_id' => $productId,
+            'tenant_id' => $authContext['tenant_id'],
+            'branch_id' => $authContext['branch_id']
+        ]);
+        $stock->execute([
+            'product_id' => $productId,
+            'tenant_id' => $authContext['tenant_id'],
+            'branch_id' => $authContext['branch_id']
+        ]);
+        $after = (int)$stock->fetchColumn();
+        if ($quantity >= (int)$reservation['quantity']) {
+            $pdo->prepare("UPDATE `stock_reservations` SET `status` = 'released', `released_at` = NOW() WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = :reference_type AND `reference_id` = :reference_id AND `product_id` = :product_id")->execute([
+                'tenant_id' => $authContext['tenant_id'],
+                'branch_id' => $authContext['branch_id'],
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'product_id' => $productId
+            ]);
+        } else {
+            $pdo->prepare("UPDATE `stock_reservations` SET `quantity` = `quantity` - :quantity WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = :reference_type AND `reference_id` = :reference_id AND `product_id` = :product_id")->execute([
+                'quantity' => $quantity,
+                'tenant_id' => $authContext['tenant_id'],
+                'branch_id' => $authContext['branch_id'],
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'product_id' => $productId
+            ]);
+        }
+        recordProductStockEvent($pdo, $authContext, $productId, $after - $quantity, $quantity, $after, 'restore', $referenceType, $referenceId);
+    }
+}
+
+function transferStockReservation(PDO $pdo, array $authContext, string $reservationId, string $orderId, array $items, string $orderStatus = 'pendiente'): void {
+    $scope = ['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'reservation_id' => $reservationId];
+    $rows = $pdo->prepare("SELECT `product_id`, `quantity` FROM `stock_reservations` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = 'reservation' AND `reference_id` = :reservation_id AND `status` = 'active' FOR UPDATE");
+    $rows->execute($scope);
+    $reservedUsage = [];
+    foreach ($rows->fetchAll(PDO::FETCH_ASSOC) as $row) $reservedUsage[$row['product_id']] = (int)$row['quantity'];
+    $requestedUsage = normalizeStockUsage($items);
+    foreach ($reservedUsage as $productId => $reservedQty) {
+        if (!isset($requestedUsage[$productId]) || $requestedUsage[$productId] < $reservedQty) {
+            throw new InvalidArgumentException('Los productos del pedido no cubren la reserva de stock.');
+        }
+    }
+    $stmt = $pdo->prepare("UPDATE `stock_reservations` SET `reference_type` = 'order', `reference_id` = :order_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `reference_type` = 'reservation' AND `reference_id` = :reservation_id AND `status` = 'active'");
+    $stmt->execute($scope + ['order_id' => $orderId]);
+    $resStatus = $orderStatus === 'completado' ? 'completada' : 'confirmada';
+    $pdo->prepare("UPDATE `reservations` SET `order_id` = :order_id, `status` = :res_status, `updated_at` = NOW() WHERE `id` = :reservation_id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `order_id` IS NULL")->execute($scope + ['order_id' => $orderId, 'res_status' => $resStatus]);
+}
+
 function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
     $params = tenantParams($authContext);
 
@@ -153,6 +333,8 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
         $s['stock'] = (int)$s['stock'];
         $s['active'] = isset($s['active']) ? (bool)$s['active'] : true;
         $s['accepts_salsa'] = isset($s['accepts_salsa']) ? (bool)$s['accepts_salsa'] : false;
+        $s['accepts_accompaniment'] = !empty($s['accepts_accompaniment']);
+        $s['max_included_accompaniments'] = (int)($s['max_included_accompaniments'] ?? 0);
     }
     unset($s);
 
@@ -163,6 +345,8 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
         $p['price'] = (float)$p['price'];
         $p['stock'] = (int)$p['stock'];
         $p['accepts_salsa'] = isset($p['accepts_salsa']) ? (bool)$p['accepts_salsa'] : false;
+        $p['accepts_accompaniment'] = !empty($p['accepts_accompaniment']);
+        $p['max_included_accompaniments'] = (int)($p['max_included_accompaniments'] ?? 0);
     }
     unset($p);
 
@@ -184,6 +368,8 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
             $s['stock'] = (int)$s['stock'];
             $s['active'] = isset($s['active']) ? (bool)$s['active'] : true;
             $s['accepts_salsa'] = isset($s['accepts_salsa']) ? (bool)$s['accepts_salsa'] : false;
+            $s['accepts_accompaniment'] = !empty($s['accepts_accompaniment']);
+            $s['max_included_accompaniments'] = (int)($s['max_included_accompaniments'] ?? 0);
             $sopas[] = $s;
         }
         unset($s);
@@ -206,13 +392,27 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
         error_log("[RestoCloud] loadCatalogState salsas query failed: " . $e->getMessage());
     }
 
+    $accompaniments = [];
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM `acompanamientos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id ORDER BY `name`");
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll() as $accompaniment) {
+            $accompaniment['price_extra'] = (float)$accompaniment['price_extra'];
+            $accompaniment['active'] = (bool)$accompaniment['active'];
+            $accompaniments[] = $accompaniment;
+        }
+    } catch (Throwable $e) {
+        error_log("[RestoCloud] loadCatalogState acompanamientos query failed: " . $e->getMessage());
+    }
+
     $menus = [];
     try {
         $stmt = $pdo->prepare("SELECT * FROM `menus` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id ORDER BY `name` ASC");
         $stmt->execute($params);
         $menuRows = $stmt->fetchAll();
         foreach ($menuRows as &$m) {
-            $m['active'] = (bool)$m['active'];
+            $m['active'] = !empty($m['active']);
+            $m['available_now'] = menuIsActiveNow($m);
             $menus[] = $m;
         }
         unset($m);
@@ -229,6 +429,9 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
             $p['price'] = (float)$p['price'];
             $p['stock'] = (int)$p['stock'];
             $p['active'] = (bool)$p['active'];
+            $p['accepts_salsa'] = !empty($p['accepts_salsa']);
+            $p['accepts_accompaniment'] = !empty($p['accepts_accompaniment']);
+            $p['max_included_accompaniments'] = (int)($p['max_included_accompaniments'] ?? 0);
             $products[] = $p;
         }
         unset($p);
@@ -244,6 +447,7 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
         "platosExtras" => $platosExtras,
         "extras" => $extras,
         "salsas" => $salsas,
+        "accompaniments" => $accompaniments,
         "menus" => $menus,
         "products" => $products,
         "tables" => loadTables($pdo, $authContext)
@@ -280,6 +484,9 @@ function normalizeOrders(array $orders) {
         $order['paymentMethod'] = $order['payment_method'];
         $order['delivery_type'] = $order['delivery_type'] ?? 'mesa';
         $order['deliveryType'] = $order['delivery_type'];
+        $order['kitchenNote'] = $order['kitchen_note'] ?? '';
+        $order['waiterNote'] = $order['waiter_note'] ?? '';
+        $order['pickupTime'] = $order['pickup_time'] ?? null;
         $order['serviceState'] = $order['service_state'] ?? null;
         $order['paid'] = !empty($order['paid']);
         $ts = $order['timestamp'] ?? '';
@@ -300,6 +507,10 @@ function normalizeOrders(array $orders) {
         $order['subtotal'] = isset($order['subtotal']) ? (float)$order['subtotal'] : null;
         $order['discountTotal'] = (float)($order['discount_total'] ?? 0);
         $order['couponCode'] = $order['coupon_code'] ?? null;
+        $order['createdByUserId'] = $order['created_by_user_id'] ?? null;
+        $order['createdByName'] = $order['created_by_name'] ?? null;
+        $order['paidByUserId'] = $order['paid_by_user_id'] ?? null;
+        $order['paidByName'] = $order['paid_by_name'] ?? null;
         $appliedPromoRaw = $order['applied_promo'] ?? null;
         $order['appliedPromo'] = $appliedPromoRaw ? json_decode($appliedPromoRaw, true) : null;
         unset($order['discount_total'], $order['applied_promo'], $order['coupon_code']);

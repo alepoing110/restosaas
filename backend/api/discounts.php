@@ -48,6 +48,7 @@ function handle_save_discount(PDO $pdo, ?array $authContext, array $input): void
     }
 
     $applicableTypesJson = $applicableTypes ? json_encode($applicableTypes) : null;
+    $pdo->beginTransaction();
 
     if ($id) {
         $stmt = $pdo->prepare("UPDATE `discounts` SET `name` = :name, `type` = :type, `value` = :value, `min_quantity` = :min_qty, `free_quantity` = :free_qty, `applicable_types` = :app_types, `start_date` = :start_date, `end_date` = :end_date, `active` = :active WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
@@ -70,6 +71,7 @@ function handle_save_discount(PDO $pdo, ?array $authContext, array $input): void
 
     cacheInvalidateTenant('catalog', $tid, $bid);
     writeAuditLog($pdo, $authContext, 'discount.save', 'discount', $id);
+    $pdo->commit();
     echo json_encode(["status" => "success", "id" => $id]);
 }
 
@@ -80,6 +82,7 @@ function handle_delete_discount(PDO $pdo, ?array $authContext, array $input): vo
         echo json_encode(["status" => "error", "message" => "ID requerido"]);
         return;
     }
+    $pdo->beginTransaction();
 
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
@@ -88,6 +91,7 @@ function handle_delete_discount(PDO $pdo, ?array $authContext, array $input): vo
 
     cacheInvalidateTenant('catalog', $tid, $bid);
     writeAuditLog($pdo, $authContext, 'discount.delete', 'discount', $id);
+    $pdo->commit();
     echo json_encode(["status" => "success"]);
 }
 

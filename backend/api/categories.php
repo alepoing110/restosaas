@@ -19,26 +19,28 @@ function handle_get_categories(PDO $pdo, ?array $authContext, array $input): voi
 
 function handle_save_category(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'inventory');
-    $id = $input['id'] ?? '';
-    $name = trim($input['name'] ?? '');
-    $type = $input['type'] ?? 'general';
-    $sortOrder = isset($input['sort_order']) ? (int)$input['sort_order'] : 0;
-    $active = isset($input['active']) ? (int)$input['active'] : 1;
-
-    if (empty($id) || empty($name)) {
-        echo json_encode(["status" => "error", "message" => "Nombre e ID son requeridos"]);
-        return;
-    }
+    $id = catalogId($input['id'] ?? '');
+    $name = catalogName($input['name'] ?? '');
+    $type = catalogString($input['type'] ?? 'general', 'tipo');
+    $sortOrder = array_key_exists('sort_order', $input) ? catalogInteger($input['sort_order'], 'orden', 0, 10000) : 0;
+    $active = array_key_exists('active', $input) ? catalogBoolean($input['active'], 'estado') : 1;
 
     $validTypes = ['sopa', 'segundo', 'plato_extra', 'refresco', 'general'];
-    if (!in_array($type, $validTypes, true)) $type = 'general';
+    if (!in_array($type, $validTypes, true)) throw new InvalidArgumentException('Tipo de categoría inválido.');
 
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
+    $pdo->beginTransaction();
 
     $checkStmt = $pdo->prepare("SELECT id FROM `categories` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
     $checkStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
     $exists = $checkStmt->fetch();
+    if (!$exists) {
+        $globalId = $pdo->prepare("SELECT `id` FROM `categories` WHERE `id` = :id LIMIT 1");
+        $globalId->execute(['id' => $id]);
+        if ($globalId->fetch()) throw new InvalidArgumentException('El ID ya pertenece a otra categoría.');
+    }
+    assertCatalogNameAvailable($pdo, 'categories', $name, $id, $authContext);
 
     if ($exists) {
         $stmt = $pdo->prepare("UPDATE `categories` SET `name` = :name, `type` = :type, `sort_order` = :sort_order, `active` = :active WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
@@ -49,25 +51,25 @@ function handle_save_category(PDO $pdo, ?array $authContext, array $input): void
     }
 
     writeAuditLog($pdo, $authContext, 'category.save', 'category', $id);
+    $pdo->commit();
     cacheInvalidateTenant('catalog', $tid, $bid);
     echo json_encode(["status" => "success"]);
 }
 
 function handle_delete_category(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'inventory');
-    $id = $input['id'] ?? '';
-    if (empty($id)) {
-        echo json_encode(["status" => "error", "message" => "ID requerido"]);
-        return;
-    }
+    $id = catalogId($input['id'] ?? '');
 
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
+    $pdo->beginTransaction();
 
     $stmt = $pdo->prepare("DELETE FROM `categories` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
     $stmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
+    if ($stmt->rowCount() !== 1) throw new InvalidArgumentException('La categoría ya no existe o no pertenece a esta sucursal.');
 
     writeAuditLog($pdo, $authContext, 'category.delete', 'category', $id);
+    $pdo->commit();
     cacheInvalidateTenant('catalog', $tid, $bid);
     echo json_encode(["status" => "success"]);
 }
@@ -79,15 +81,28 @@ function handle_reorder_categories(PDO $pdo, ?array $authContext, array $input):
         echo json_encode(["status" => "error", "message" => "Formato inválido"]);
         return;
     }
+    if (count($order) > 10000) throw new InvalidArgumentException('La lista de categorías es demasiado extensa.');
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
 
-    $stmt = $pdo->prepare("UPDATE `categories` SET `sort_order` = :sort_order WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
-    foreach ($order as $index => $id) {
-        $stmt->execute(['sort_order' => $index + 1, 'id' => $id, 'tid' => $tid, 'bid' => $bid]);
+    $ids = array_map(static fn($id) => catalogId($id), $order);
+    if (count($ids) !== count(array_unique($ids))) throw new InvalidArgumentException('La lista contiene categorías repetidas.');
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("UPDATE `categories` SET `sort_order` = :sort_order WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+        $existsStmt = $pdo->prepare("SELECT 1 FROM `categories` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+        foreach ($ids as $index => $id) {
+            $existsStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
+            if (!$existsStmt->fetchColumn()) throw new InvalidArgumentException('Una categoría ya no existe o no pertenece a esta sucursal.');
+            $stmt->execute(['sort_order' => $index + 1, 'id' => $id, 'tid' => $tid, 'bid' => $bid]);
+        }
+        writeAuditLog($pdo, $authContext, 'category.reorder', 'category_list');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
     }
 
-    writeAuditLog($pdo, $authContext, 'category.reorder', 'category_list');
     cacheInvalidateTenant('catalog', $tid, $bid);
     echo json_encode(["status" => "success"]);
 }

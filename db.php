@@ -305,6 +305,17 @@ try {
         `branch_id` VARCHAR(50) NULL
     )");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `acompanamientos` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `name` VARCHAR(100) NOT NULL,
+        `price_extra` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `active` TINYINT(1) NOT NULL DEFAULT 1,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        UNIQUE KEY `uniq_acompanamiento_scope_name` (`tenant_id`, `branch_id`, `name`),
+        INDEX `idx_acompanamiento_scope_active` (`tenant_id`, `branch_id`, `active`)
+    )");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS `pedidos` (
         `id` VARCHAR(50) PRIMARY KEY,
         `customer` VARCHAR(150) NOT NULL,
@@ -321,8 +332,26 @@ try {
         `paid` TINYINT(1) NOT NULL DEFAULT 0,
         `sold_at` DATETIME DEFAULT NULL,
         `customer_id` VARCHAR(50) DEFAULT NULL,
-        `due_date` DATE DEFAULT NULL
+        `reservation_id` VARCHAR(50) DEFAULT NULL,
+        `due_date` DATE DEFAULT NULL,
+        UNIQUE KEY `uniq_pedidos_reservation` (`tenant_id`, `branch_id`, `reservation_id`)
     )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `stock_reservations` (
+        `id` VARCHAR(50) PRIMARY KEY,
+        `tenant_id` VARCHAR(26) NOT NULL,
+        `branch_id` VARCHAR(26) NOT NULL,
+        `reference_type` ENUM('order','reservation') NOT NULL,
+        `reference_id` VARCHAR(50) NOT NULL,
+        `product_id` VARCHAR(50) NOT NULL,
+        `quantity` INT NOT NULL,
+        `status` ENUM('active','released') NOT NULL DEFAULT 'active',
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `released_at` DATETIME DEFAULT NULL,
+        UNIQUE KEY `uniq_stock_reservation_reference_product` (`tenant_id`, `branch_id`, `reference_type`, `reference_id`, `product_id`),
+        INDEX `idx_stock_reservation_product` (`tenant_id`, `branch_id`, `product_id`, `status`),
+        INDEX `idx_stock_reservation_reference` (`tenant_id`, `branch_id`, `reference_type`, `reference_id`, `status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `clientes` (
         `id` VARCHAR(50) PRIMARY KEY,
@@ -341,6 +370,7 @@ try {
         `active` TINYINT(1) NOT NULL DEFAULT 1,
         `tenant_id` VARCHAR(26) NOT NULL,
         `branch_id` VARCHAR(26) NOT NULL,
+        `closure_id` VARCHAR(50) DEFAULT NULL,
         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX `idx_clientes_scope_name` (`tenant_id`, `branch_id`, `name`),
         INDEX `idx_clientes_scope_phone` (`tenant_id`, `branch_id`, `phone`)
@@ -356,6 +386,7 @@ try {
         `status` ENUM('pendiente','vencida','pagada','cancelada') NOT NULL DEFAULT 'pendiente',
         `tenant_id` VARCHAR(26) NOT NULL,
         `branch_id` VARCHAR(26) NOT NULL,
+        `closure_id` VARCHAR(50) DEFAULT NULL,
         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         `closed_at` DATETIME DEFAULT NULL,
         UNIQUE KEY `uniq_cxc_order` (`tenant_id`, `branch_id`, `order_id`),
@@ -415,11 +446,13 @@ try {
         `created_by_name` VARCHAR(150) DEFAULT NULL,
         `tenant_id` VARCHAR(26) NOT NULL,
         `branch_id` VARCHAR(26) NOT NULL,
+        `closure_id` VARCHAR(50) DEFAULT NULL,
         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX `idx_pedido_reversiones_order` (`tenant_id`, `branch_id`, `order_id`),
         INDEX `idx_pedido_reversiones_date` (`tenant_id`, `branch_id`, `created_at`),
         INDEX `idx_pedido_reversiones_scope` (`tenant_id`, `branch_id`, `scope`),
-        INDEX `idx_pedido_reversiones_method` (`tenant_id`, `branch_id`, `refund_method`)
+        INDEX `idx_pedido_reversiones_method` (`tenant_id`, `branch_id`, `refund_method`),
+        INDEX `idx_pedido_reversiones_closure` (`tenant_id`, `branch_id`, `closure_id`)
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `pedido_reversion_items` (
@@ -530,8 +563,10 @@ try {
         `tenant_id` VARCHAR(26) NOT NULL,
         `branch_id` VARCHAR(26) NOT NULL,
         `created_by` VARCHAR(26) DEFAULT NULL,
+        `closure_id` VARCHAR(50) DEFAULT NULL,
         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX `idx_gastos_financieros_scope_date` (`tenant_id`, `branch_id`, `fecha`)
+        INDEX `idx_gastos_financieros_scope_date` (`tenant_id`, `branch_id`, `fecha`),
+        INDEX `idx_gastos_financieros_closure` (`tenant_id`, `branch_id`, `closure_id`)
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `caja_cierres_historico` (
@@ -540,6 +575,8 @@ try {
         `caja_inicial` DECIMAL(10,2) NOT NULL,
         `ingresos_efectivo` DECIMAL(10,2) NOT NULL,
         `egresos` DECIMAL(10,2) NOT NULL,
+        `devoluciones_total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `devoluciones_efectivo` DECIMAL(10,2) NOT NULL DEFAULT 0,
         `efectivo_esperado` DECIMAL(10,2) NOT NULL,
         `efectivo_real` DECIMAL(10,2) NOT NULL,
         `diferencia` DECIMAL(10,2) NOT NULL,
@@ -588,7 +625,8 @@ try {
         'pedidos'       => ['delivery_type', 'closure_id', 'tenant_id', 'branch_id', 'service_state', 'paid', 'sold_at'],
         'reservations'  => ['delivery_type', 'items', 'total', 'tenant_id', 'branch_id', 'source', 'verification_status', 'kitchen_printed_at', 'customer_id'],
         'clientes'      => ['phone_normalized', 'whatsapp_phone', 'source', 'marketing_opt_in'],
-        'products'      => ['category_id', 'tenant_id', 'branch_id'],
+        'products'      => ['category_id', 'tenant_id', 'branch_id', 'accepts_accompaniment', 'max_included_accompaniments'],
+        'acompanamientos' => ['id', 'price_extra', 'active', 'tenant_id', 'branch_id'],
     ];
     foreach ($requiredColumns as $table => $columns) {
         foreach ($columns as $col) {

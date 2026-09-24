@@ -36,7 +36,11 @@ function renderPromoPlans() {
 
         const typeLabels = { percentage: 'Porcentaje', fixed: 'Monto fijo', buy_x_get_y: 'Compra X lleva Y', menu_price: 'Precio menú' };
         const typeLabel = typeLabels[plan.type] || plan.type;
-        const valueDisplay = plan.type === 'percentage' ? `${plan.value}%` : `Bs ${Number(plan.value).toFixed(2)}`;
+        const valueDisplay = plan.type === 'percentage'
+            ? `${plan.value}%`
+            : plan.type === 'buy_x_get_y'
+                ? `Compra ${Number(plan.min_quantity || 0)}, lleva ${Number(plan.free_quantity || 0)}`
+                : `Bs ${Number(plan.value).toFixed(2)}`;
 
         const channels = promoParseChannels(plan.channels);
         const channelBadges = channels.map(c => `<span class="badge badge-outline" style="font-size:9px;">${promoChannelLabel(c)}</span>`).join(' ');

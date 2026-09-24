@@ -15,6 +15,13 @@ let state = {
         pais: 'Bolivia',
         whatsapp_number: '',
         whatsapp_phone_id: ''
+        ,print_enabled: '1'
+        ,waiter_ticket_enabled: '0'
+        ,print_paper_width: '80'
+        ,printer_kitchen: ''
+        ,printer_payment: ''
+        ,printer_customer: ''
+        ,printer_waiter: ''
     },
     features: {
         pos: true,
@@ -88,7 +95,8 @@ let state = {
     reservationFilter: 'activas',
     reservationCatalogTab: 'meals',
     reservationCatalogSearch: '',
-    salsas: []
+    salsas: [],
+    accompaniments: []
 };
 
 if (window.AppStore) {
@@ -148,7 +156,8 @@ function applyServerState(data) {
         'promoPlans',
         'reservations',
         'reservationsDate',
-        'salsas'
+        'salsas',
+        'accompaniments'
     ].forEach(key => {
         if (Object.prototype.hasOwnProperty.call(data, key)) {
             patch[key] = data[key];
@@ -355,6 +364,14 @@ function updateBusinessDOM() {
     if (bizCountryInput) bizCountryInput.value = state.business.pais || 'Bolivia';
     if (bizWhatsappInput) bizWhatsappInput.value = state.business.whatsapp_number || '';
     if (bizWhatsappPhoneIdInput) bizWhatsappPhoneIdInput.value = state.business.whatsapp_phone_id || '';
+
+    const printValues = ['print_enabled', 'waiter_ticket_enabled', 'print_paper_width', 'printer_kitchen', 'printer_payment', 'printer_customer', 'printer_waiter'];
+    printValues.forEach(key => {
+        const input = document.getElementById(`${key.replaceAll('_', '-')}-input`);
+        if (!input) return;
+        if (input.type === 'checkbox') input.checked = state.business[key] !== '0' && state.business[key] !== false;
+        else input.value = state.business[key] ?? '';
+    });
 }
 
 function showUpgradePrompt(featureName) {
@@ -412,6 +429,26 @@ async function handleSaveBusinessInfo(e) {
     } catch (err) {
         console.error('save_business_info error:', err);
         showToast(err.message || 'Error al guardar establecimiento.', 'error');
+    }
+}
+
+async function handleSavePrintSettings(e) {
+    e.preventDefault();
+    const settings = {
+        print_enabled: document.getElementById('print-enabled-input')?.checked,
+        waiter_ticket_enabled: document.getElementById('waiter-ticket-enabled-input')?.checked,
+        print_paper_width: document.getElementById('print-paper-width-input')?.value || '80',
+        printer_kitchen: document.getElementById('printer-kitchen-input')?.value.trim() || '',
+        printer_payment: document.getElementById('printer-payment-input')?.value.trim() || '',
+        printer_customer: document.getElementById('printer-customer-input')?.value.trim() || '',
+        printer_waiter: document.getElementById('printer-waiter-input')?.value.trim() || ''
+    };
+    try {
+        await AppApi.request('save_print_settings', settings);
+        Object.entries(settings).forEach(([key, value]) => { state.business[key] = typeof value === 'boolean' ? (value ? '1' : '0') : value; });
+        showToast('Configuración de impresión guardada.', 'success');
+    } catch (err) {
+        showToast(err.message || 'No se pudo guardar la configuración de impresión.', 'error');
     }
 }
 
@@ -500,7 +537,7 @@ function populateMenuSelector() {
     addOption('', '— Sin filtro de menú —');
 
     if (state.menus && state.menus.length > 0) {
-        state.menus.filter(m => m.active).forEach(menu => {
+        state.menus.filter(m => m.available_now ?? Number(m.active) !== 0).forEach(menu => {
             let text = menu.name;
             if (menu.start_time && menu.end_time) {
                 text += ` (${menu.start_time.substring(0,5)}-${menu.end_time.substring(0,5)})`;

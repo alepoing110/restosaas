@@ -23,6 +23,18 @@ require_once 'db.php';
 require_once 'backend/auth.php';
 require_once __DIR__ . '/backend/cache.php';
 
+if (function_exists('rc_env') && rc_env('APP_ENV', 'production') === 'production') {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
+    if (!$isHttps && PHP_SAPI !== 'cli') {
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $uri = $_SERVER['REQUEST_URI'] ?? '/';
+        if ($host !== '') {
+            header('Location: https://' . $host . $uri, true, 308);
+            exit;
+        }
+    }
+}
+
 // Load shared helpers and action handler modules
 require_once __DIR__ . '/backend/api/helpers.php';
 require_once __DIR__ . '/backend/api/auth.php';
@@ -171,6 +183,7 @@ $actionHandlers = [
     'get_daily_report'           => 'handle_get_daily_report',
     'save_caja_movimiento'        => 'handle_save_caja_movimiento',
     'delete_caja_movimiento'      => 'handle_delete_caja_movimiento',
+    'close_cash_day'              => 'handle_close_cash_day',
     'save_caja_cierre'            => 'handle_save_caja_cierre',
     'reset_data'                  => 'handle_reset_data',
     'save_financial_expense'      => 'handle_save_financial_expense',
@@ -188,6 +201,7 @@ $actionHandlers = [
     // Config
     'save_prices'                 => 'handle_save_prices',
     'save_business_info'          => 'handle_save_business_info',
+    'save_print_settings'         => 'handle_save_print_settings',
 
     // Reservations
     'get_reservations'            => 'handle_get_reservations',

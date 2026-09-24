@@ -78,6 +78,23 @@ export function createInitialState() {
     };
 }
 
+function getDistinctStockOrders(st) {
+    const orderIds = new Set();
+    const orders = [];
+    const add = order => {
+        if (order?.id) {
+            if (orderIds.has(order.id)) return;
+            orderIds.add(order.id);
+        }
+        orders.push(order);
+    };
+    (st.activeOrders || []).forEach(add);
+    (st.salesHistory || []).forEach(sale => {
+        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) add(sale);
+    });
+    return orders;
+}
+
 export function getAvailableSoupStock(st) {
     const total = (st.soupStock && st.soupStock.total) || 50;
     let used = 0;
@@ -86,18 +103,10 @@ export function getAvailableSoupStock(st) {
         if (item.type === 'almuerzo' || item.type === 'sopa') used++;
     });
 
-    (st.activeOrders || []).forEach(order => {
+    getDistinctStockOrders(st).forEach(order => {
         (order.items || []).forEach(item => {
             if (item.type === 'almuerzo' || item.type === 'sopa') used++;
         });
-    });
-
-    (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
-            (sale.items || []).forEach(item => {
-                if (item.type === 'almuerzo' || item.type === 'sopa') used++;
-            });
-        }
     });
 
     return Math.max(0, total - used);
@@ -113,18 +122,10 @@ export function getAvailableSegundoStock(st, segundoId) {
         if ((item.type === 'almuerzo' || item.type === 'segundo') && item.segundoId === segundoId) used++;
     });
 
-    (st.activeOrders || []).forEach(order => {
+    getDistinctStockOrders(st).forEach(order => {
         (order.items || []).forEach(item => {
             if ((item.type === 'almuerzo' || item.type === 'segundo') && item.segundoId === segundoId) used++;
         });
-    });
-
-    (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
-            (sale.items || []).forEach(item => {
-                if ((item.type === 'almuerzo' || item.type === 'segundo') && item.segundoId === segundoId) used++;
-            });
-        }
     });
 
     return Math.max(0, total - used);
@@ -140,18 +141,10 @@ export function getAvailablePlatoExtraStock(st, platoId) {
         if (item.type === 'plato_extra' && item.platoId === platoId) used++;
     });
 
-    (st.activeOrders || []).forEach(order => {
+    getDistinctStockOrders(st).forEach(order => {
         (order.items || []).forEach(item => {
             if (item.type === 'plato_extra' && item.platoId === platoId) used++;
         });
-    });
-
-    (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
-            (sale.items || []).forEach(item => {
-                if (item.type === 'plato_extra' && item.platoId === platoId) used++;
-            });
-        }
     });
 
     return Math.max(0, total - used);
@@ -167,18 +160,10 @@ export function getAvailableExtraStock(st, extraId) {
         if (item.type === 'extra' && item.extraId === extraId) used++;
     });
 
-    (st.activeOrders || []).forEach(order => {
+    getDistinctStockOrders(st).forEach(order => {
         (order.items || []).forEach(item => {
             if (item.type === 'extra' && item.extraId === extraId) used++;
         });
-    });
-
-    (st.salesHistory || []).forEach(sale => {
-        if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
-            (sale.items || []).forEach(item => {
-                if (item.type === 'extra' && item.extraId === extraId) used++;
-            });
-        }
     });
 
     return Math.max(0, total - used);

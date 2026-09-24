@@ -173,6 +173,87 @@
     color: var(--text-muted);
 }
 
+/* Accompaniments use their own responsive workspace instead of adding controls to catalog rows. */
+.accompaniments-layout {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, .9fr);
+    gap: clamp(16px, 2vw, 28px);
+    align-items: start;
+}
+
+.catalog-filter-toolbar {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+}
+
+.catalog-filter-toolbar .search-box {
+    min-width: min(280px, 100%);
+    flex: 1 1 280px;
+}
+
+.accompaniment-catalog-card,
+.accompaniment-settings-card {
+    min-width: 0;
+}
+
+.accompaniment-add-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(130px, .4fr) auto;
+    gap: 12px;
+    align-items: end;
+    margin: 18px 0;
+}
+
+.accompaniment-add-form .form-group { margin: 0; }
+.accompaniment-add-form .btn { min-height: 42px; white-space: nowrap; }
+
+.accompaniment-product-settings {
+    display: grid;
+    gap: 18px;
+    max-height: min(62vh, 660px);
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.accompaniment-product-group h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.accompaniment-product-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+
+.accompaniment-product-row strong { overflow-wrap: anywhere; }
+.accompaniment-switch { display: flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; }
+.accompaniment-limit { display: flex; gap: 5px; align-items: center; font-size: 12px; white-space: nowrap; }
+.accompaniment-limit input { width: 52px; padding: 6px; }
+
+@media (max-width: 920px) {
+    .accompaniments-layout { grid-template-columns: 1fr; }
+    .accompaniment-product-settings { max-height: none; overflow: visible; }
+}
+
+@media (max-width: 560px) {
+    .accompaniment-add-form { grid-template-columns: 1fr; gap: 10px; }
+    .accompaniment-add-form .btn { width: 100%; }
+    .accompaniment-product-row { grid-template-columns: 1fr 1fr; }
+    .accompaniment-product-row strong { grid-column: 1 / -1; }
+    .accompaniment-product-row .btn { justify-self: stretch; }
+}
+
 .widget-icon.danger-color {
     background-color: rgba(239, 71, 111, 0.12);
     color: var(--danger);
@@ -1402,17 +1483,74 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 4px;
-    margin-top: 10px;
+    margin-top: 6px;
+    background: var(--bg-main);
 }
-.append-pending-item {
+.append-pending-heading {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 8px;
+    margin-top: 12px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.append-pending-count {
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+}
+.append-pending-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
     font-size: 12px;
     border-bottom: 1px solid var(--border);
 }
 .append-pending-item:last-child { border-bottom: none; }
+.append-pending-qty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font-weight: 800;
+}
+.append-pending-content {
+    flex: 1;
+    min-width: 0;
+}
+.append-pending-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.append-pending-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 7px;
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 10px;
+}
+.append-pending-meta .item-detail-badge { font-size: 10px; }
+.append-pending-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
 .append-items-total-row {
     display: flex;
     justify-content: space-between;

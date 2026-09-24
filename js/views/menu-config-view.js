@@ -16,11 +16,55 @@ function renderMenuConfig() {
     renderPlatosExtrasTable();
     renderExtrasTable();
     renderSalsasTable();
+    renderAccompanimentsTable();
+    renderAccompanimentProductSettings();
 
     const activeSubtab = window.activeMenuConfigSubtab || 'menu-dia';
     if (typeof window.switchMenuConfigSubtab === 'function') {
         window.switchMenuConfigSubtab(activeSubtab);
     }
+}
+
+function renderAccompanimentsTable() {
+    const tbody = document.getElementById('accompaniments-crud-body');
+    if (!tbody) return;
+    const accompaniments = state.accompaniments || [];
+    tbody.innerHTML = accompaniments.length ? accompaniments.map(item => {
+        const isEditing = window.editingAccompanimentId === item.id;
+        const isActive = Number(item.active) !== 0;
+        if (isEditing) {
+            return `<tr>
+                <td><input type="text" class="td-edit-input" id="edit-accompaniment-name-${item.id}" value="${escapeHtml(item.name)}" maxlength="100"></td>
+                <td><input type="number" class="td-edit-input" id="edit-accompaniment-price-${item.id}" value="${Number(item.price_extra || 0).toFixed(2)}" min="0" max="99999999.99" step="0.01"></td>
+                <td>${isActive ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Inactivo</span>'}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <button class="btn btn-primary btn-sm" onclick="saveAccompanimentInline('${item.id}')" title="Guardar"><i class="fa-solid fa-check"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="cancelAccompanimentInline()" title="Cancelar"><i class="fa-solid fa-xmark"></i></button>
+                </td>
+            </tr>`;
+        }
+        return `<tr>
+            <td><strong>${escapeHtml(item.name)}</strong></td>
+            <td>Bs ${Number(item.price_extra || 0).toFixed(2)}</td>
+            <td>${isActive ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Inactivo</span>'}</td>
+            <td style="text-align:right;">
+                <button class="btn-table-action edit" onclick="startEditAccompaniment('${item.id}')" title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="btn-table-action edit" onclick="toggleAccompanimentActive('${item.id}', ${!isActive})" title="${isActive ? 'Desactivar' : 'Activar'}"><i class="fa-solid ${isActive ? 'fa-eye-slash' : 'fa-eye'}"></i></button>
+                <button class="btn-table-action delete" onclick="deleteAccompaniment('${item.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="4" class="text-muted" style="text-align:center;">No hay acompañamientos registrados.</td></tr>';
+}
+
+function renderAccompanimentProductSettings() {
+    const container = document.getElementById('accompaniment-product-settings');
+    if (!container) return;
+    const groups = [
+        ['segundo', 'Segundos', state.seconds || []],
+        ['sopa', 'Sopas', state.sopas || []],
+        ['plato_extra', 'Platos extra', state.platosExtras || []]
+    ];
+    container.innerHTML = groups.map(([type, title, items]) => `<section class="accompaniment-product-group"><h4>${title}</h4>${items.length ? items.map(item => `<div class="accompaniment-product-row"><strong>${escapeHtml(item.name)}</strong><label class="accompaniment-switch"><input id="accompaniment-enabled-${item.id}" type="checkbox" ${item.accepts_accompaniment ? 'checked' : ''} onchange="toggleAcceptsAccompaniment('${type}', '${item.id}', this.checked, this)"><span>Permite</span></label><label class="accompaniment-limit">Incluidos <input id="accompaniment-limit-${item.id}" type="number" min="0" max="20" value="${Number(item.max_included_accompaniments || 0)}" ${item.accepts_accompaniment ? '' : 'disabled'}></label><button class="btn btn-outline btn-sm" type="button" onclick="saveAccompanimentSettings('${type}', '${item.id}')">Guardar</button></div>`).join('') : '<p class="text-muted">No hay productos registrados.</p>'}</section>`).join('');
 }
 
 function getCatalogFilters() {
@@ -66,27 +110,44 @@ function renderMenusTable() {
 
     state.menus.forEach(menu => {
         const tr = document.createElement('tr');
+        const isEditing = window.editingMenuId === menu.id;
+        const isActive = Number(menu.active) !== 0;
         const timeRange = (menu.start_time && menu.end_time) 
             ? `${menu.start_time.substring(0,5)} - ${menu.end_time.substring(0,5)}` 
             : 'Todo el día';
-        const statusBadge = menu.active 
+        const statusBadge = isActive
             ? '<span class="badge badge-success" style="font-size:10px;">Activo</span>' 
             : '<span class="badge badge-muted" style="font-size:10px;">Inactivo</span>';
 
-        tr.innerHTML = `
-            <td><strong>${escapeHtml(menu.name)}</strong></td>
-            <td style="font-size:11px; color: var(--text-muted);">${timeRange}</td>
-            <td>${statusBadge}</td>
-            <td style="text-align:right;">
-                <button class="btn-table-action edit" onclick="openMenuProductsModal('${menu.id}')" title="Gestionar Productos">
-                    <i class="fa-solid fa-boxes-stacked"></i>
-                </button>
-                <button class="btn-table-action edit" onclick="toggleMenuActive('${menu.id}', ${!menu.active})" title="${menu.active ? 'Desactivar' : 'Activar'}">
-                    <i class="fa-solid ${menu.active ? 'fa-eye-slash' : 'fa-eye'}"></i>
-                </button>
-                <button class="btn-table-action delete" onclick="deleteMenu('${menu.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-            </td>
-        `;
+        if (isEditing) {
+            tr.innerHTML = `
+                <td><input type="text" class="td-edit-input" id="edit-menu-name-${menu.id}" value="${escapeHtml(menu.name)}" maxlength="100"></td>
+                <td><div style="display:flex; gap:4px;"><input type="time" class="td-edit-input" id="edit-menu-start-${menu.id}" value="${menu.start_time ? menu.start_time.substring(0, 5) : ''}"><input type="time" class="td-edit-input" id="edit-menu-end-${menu.id}" value="${menu.end_time ? menu.end_time.substring(0, 5) : ''}"></div></td>
+                <td>${statusBadge}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <button class="btn btn-primary btn-sm" onclick="saveMenuInline('${menu.id}')" title="Guardar"><i class="fa-solid fa-check"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="cancelMenuInline()" title="Cancelar"><i class="fa-solid fa-xmark"></i></button>
+                </td>
+            `;
+        } else {
+            tr.innerHTML = `
+                <td><strong>${escapeHtml(menu.name)}</strong></td>
+                <td style="font-size:11px; color: var(--text-muted);">${timeRange}</td>
+                <td>${statusBadge}</td>
+                <td style="text-align:right;">
+                    <button class="btn-table-action edit" onclick="openMenuProductsModal('${menu.id}')" title="Gestionar Productos">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                    </button>
+                    <button class="btn-table-action edit" onclick="startEditMenu('${menu.id}')" title="Editar nombre y horario">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-table-action edit" onclick="toggleMenuActive('${menu.id}', ${!isActive})" title="${isActive ? 'Desactivar' : 'Activar'}">
+                        <i class="fa-solid ${isActive ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <button class="btn-table-action delete" onclick="deleteMenu('${menu.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            `;
+        }
         tbody.appendChild(tr);
     });
 }
@@ -112,7 +173,7 @@ function renderSecondsTable() {
 
         if (isEditing) {
             tr.innerHTML = `
-                <td><input type="text" class="td-edit-input" id="edit-sec-name-${sec.id}" value="${escapeHtml(sec.name)}"></td>
+                <td><input type="text" class="td-edit-input" id="edit-sec-name-${sec.id}" value="${escapeHtml(sec.name)}" maxlength="100"></td>
                 <td style="text-align:center;">${statusBadge}</td>
                 <td style="text-align:center;">
                     <input type="checkbox" class="form-check" id="edit-sec-salsa-${sec.id}" ${hasSalsa ? 'checked' : ''}>
@@ -163,7 +224,7 @@ function renderSopasTable() {
 
         if (isEditing) {
             tr.innerHTML = `
-                <td><input type="text" class="td-edit-input" id="edit-sopa-name-${sopa.id}" value="${escapeHtml(sopa.name)}"></td>
+                <td><input type="text" class="td-edit-input" id="edit-sopa-name-${sopa.id}" value="${escapeHtml(sopa.name)}" maxlength="100"></td>
                 <td style="text-align:center;">${statusBadge}</td>
                 <td style="text-align:center;">
                     <input type="checkbox" class="form-check" id="edit-sopa-salsa-${sopa.id}" ${hasSalsa ? 'checked' : ''}>
@@ -210,7 +271,7 @@ function renderPlatosExtrasTable() {
 
         if (isEditing) {
             tr.innerHTML = `
-                <td><input type="text" class="td-edit-input" id="edit-plato-name-${plato.id}" value="${escapeHtml(plato.name)}"></td>
+                <td><input type="text" class="td-edit-input" id="edit-plato-name-${plato.id}" value="${escapeHtml(plato.name)}" maxlength="100"></td>
                 <td><input type="number" step="0.5" class="td-edit-input" id="edit-plato-price-${plato.id}" value="${plato.price}"></td>
                 <td style="text-align:center;">
                     <input type="checkbox" class="form-check" id="edit-plato-salsa-${plato.id}" ${hasSalsa ? 'checked' : ''}>
@@ -253,7 +314,7 @@ function renderExtrasTable() {
 
         if (isEditing) {
             tr.innerHTML = `
-                <td><input type="text" class="td-edit-input" id="edit-extra-name-${ext.id}" value="${escapeHtml(ext.name)}"></td>
+                <td><input type="text" class="td-edit-input" id="edit-extra-name-${ext.id}" value="${escapeHtml(ext.name)}" maxlength="100"></td>
                 <td><input type="number" step="0.5" class="td-edit-input" id="edit-extra-price-${ext.id}" value="${ext.price}"></td>
                 <td style="text-align:right;">
                     <button class="btn btn-primary btn-sm" onclick="saveExtraInline('${ext.id}')" title="Guardar"><i class="fa-solid fa-check"></i></button>
@@ -294,7 +355,7 @@ function renderSalsasTable() {
 
         if (isEditing) {
             tr.innerHTML = `
-                <td><input type="text" class="td-edit-input" id="edit-salsa-name-${salsa.id}" value="${escapeHtml(salsa.name)}"></td>
+                <td><input type="text" class="td-edit-input" id="edit-salsa-name-${salsa.id}" value="${escapeHtml(salsa.name)}" maxlength="100"></td>
                 <td><input type="number" step="0.5" class="td-edit-input" id="edit-salsa-price-${salsa.id}" value="${salsa.price}"></td>
                 <td style="text-align:center;">${statusBadge}</td>
                 <td style="text-align:right;">

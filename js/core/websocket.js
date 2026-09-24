@@ -12,7 +12,12 @@ const AppWebSocket = (function() {
     let listeners = {};
     let connected = false;
 
+    function isEnabled() {
+        return window.APP_CONFIG?.ENABLE_WEBSOCKET === true;
+    }
+
     function connect(tid, bid) {
+        if (!isEnabled()) return;
         tenantId = tid;
         branchId = bid;
 
@@ -93,6 +98,7 @@ const AppWebSocket = (function() {
     }
 
     function scheduleReconnect() {
+        if (!isEnabled()) return;
         if (reconnectAttempts >= MAX_RECONNECT) {
             console.warn('[WS] Max reconnect attempts reached');
             emit('reconnect_failed', {});

@@ -1,57 +1,6 @@
 <?php
 // Reservation action handlers
 
-function reservationStockUsage(array $items): array {
-    $usage = [];
-    $add = function ($id, $quantity) use (&$usage): void {
-        $id = trim((string)$id);
-        $quantity = (int)$quantity;
-        if ($id !== '' && $quantity > 0) $usage[$id] = ($usage[$id] ?? 0) + $quantity;
-    };
-    foreach ($items as $item) {
-        if (!is_array($item)) continue;
-        $quantity = max(1, (int)($item['quantity'] ?? $item['qty'] ?? 1));
-        $type = $item['type'] ?? '';
-        if ($type === 'almuerzo') {
-            $add($item['sopaId'] ?? null, $quantity);
-            $add($item['segundoId'] ?? null, $quantity);
-            continue;
-        }
-        $id = match ($type) {
-            'sopa' => $item['sopaId'] ?? $item['id'] ?? $item['product_id'] ?? null,
-            'segundo' => $item['segundoId'] ?? $item['id'] ?? $item['product_id'] ?? null,
-            'plato_extra' => $item['platoId'] ?? $item['id'] ?? $item['product_id'] ?? null,
-            'extra', 'refresco' => $item['extraId'] ?? $item['id'] ?? $item['product_id'] ?? null,
-            default => $item['id'] ?? $item['product_id'] ?? null,
-        };
-        $add($id, $quantity);
-    }
-    return $usage;
-}
-
-function syncReservationStock(PDO $pdo, array $authContext, array $previousItems, array $nextItems): void {
-    $previous = reservationStockUsage($previousItems);
-    $next = reservationStockUsage($nextItems);
-    $reserve = $pdo->prepare("UPDATE `products` SET `stock` = `stock` - :quantity WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `active` = 1 AND `stock` >= :quantity");
-    $release = $pdo->prepare("UPDATE `products` SET `stock` = `stock` + :quantity WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach (array_unique(array_merge(array_keys($previous), array_keys($next))) as $productId) {
-        $difference = ($next[$productId] ?? 0) - ($previous[$productId] ?? 0);
-        if ($difference === 0) continue;
-        $params = ['id' => $productId, 'quantity' => abs($difference), 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']];
-        if ($difference > 0) {
-            $reserve->execute($params);
-            if ($reserve->rowCount() !== 1) {
-                throw new InvalidArgumentException('Stock insuficiente o producto no disponible para la reserva.');
-            }
-        } else {
-            $release->execute($params);
-            if ($release->rowCount() !== 1) {
-                throw new InvalidArgumentException('No se pudo restaurar el stock de la reserva.');
-            }
-        }
-    }
-}
-
 function handle_get_reservations(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'settings');
     $date = trim($input['date'] ?? date('Y-m-d'));
@@ -78,6 +27,9 @@ function handle_get_reservations(PDO $pdo, ?array $authContext, array $input): v
         $r['party_size'] = (int)$r['party_size'];
         $r['total'] = (float)($r['total'] ?? 0);
         $r['delivery_type'] = $r['delivery_type'] ?? 'para_servirse';
+        $r['kitchen_note'] = $r['kitchen_note'] ?? '';
+        $r['waiter_note'] = $r['waiter_note'] ?? ($r['notes'] ?? '');
+        $r['pickup_time'] = $r['pickup_time'] ?? null;
         $r['items'] = !empty($r['items']) ? json_decode($r['items'], true) ?? [] : [];
     }
 
@@ -98,6 +50,10 @@ function handle_save_reservation(PDO $pdo, ?array $authContext, array $input): v
     $reservationTime = trim($input['reservation_time'] ?? '');
     $tableId = trim($input['table_id'] ?? '');
     $notes = trim($input['notes'] ?? '');
+    $kitchenNote = mb_substr(trim((string)($input['kitchen_note'] ?? $input['kitchenNote'] ?? '')), 0, 500);
+    $waiterNote = mb_substr(trim((string)($input['waiter_note'] ?? $input['waiterNote'] ?? $notes)), 0, 500);
+    $pickupTime = trim((string)($input['pickup_time'] ?? $input['pickupTime'] ?? ''));
+    if ($pickupTime !== '' && !preg_match('/^\d{2}:\d{2}$/', $pickupTime)) $pickupTime = '';
     $items = is_array($input['items'] ?? null) ? $input['items'] : [];
     $customerId = trim((string)($input['customer_id'] ?? $input['customerId'] ?? ''));
 
@@ -111,6 +67,10 @@ function handle_save_reservation(PDO $pdo, ?array $authContext, array $input): v
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $reservationDate) || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $reservationTime)) {
         echo json_encode(["status" => "error", "message" => "Fecha u hora con formato inválido"]);
+        return;
+    }
+    if ($deliveryType === 'para_llevar' && $pickupTime === '') {
+        echo json_encode(["status" => "error", "message" => "La hora de recojo es requerida para reservas para llevar"]);
         return;
     }
     if ($partySize < 1 || $partySize > 50) {
@@ -146,24 +106,20 @@ function handle_save_reservation(PDO $pdo, ?array $authContext, array $input): v
         }
     }
 
-    $itemsJson = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
-    $total = 0.0;
-    foreach ($items as $item) {
-        $itemPrice = (float)($item['price'] ?? 0);
-        $itemQty = max(1, (int)($item['quantity'] ?? 1));
-        $salsasTotal = array_reduce($item['salsas'] ?? [], fn(float $sum, $salsa): float => $sum + (float)($salsa['salsaPrice'] ?? 0), 0.0);
-        $total += ($itemPrice + $salsasTotal) * $itemQty;
-    }
-
     $pdo->beginTransaction();
     try {
+        _backfillProductsForTenant($pdo, $authContext);
+        $items = canonicalizeOrderItems($pdo, $authContext, $items);
+        $itemsJson = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
+        $total = array_sum(array_map(static fn($item) => orderCancellationLineTotal($item, (int)$item['qty']), $items));
         $previousItems = [];
-        if ($id === '') {
+        $isNewReservation = $id === '';
+        if ($isNewReservation) {
             if ($customerId !== '' && !findTenantCustomer($pdo, $authContext, $customerId)) {
                 throw new InvalidArgumentException('El cliente seleccionado no pertenece a este restaurante.');
             }
             $id = 'res_' . bin2hex(random_bytes(8));
-            $stmt = $pdo->prepare("INSERT INTO `reservations` (`id`, `tenant_id`, `branch_id`, `customer_id`, `customer_name`, `phone`, `party_size`, `delivery_type`, `reservation_date`, `reservation_time`, `table_id`, `items`, `total`, `notes`, `created_at`, `updated_at`) VALUES (:id, :tenant_id, :branch_id, :customer_id, :customer_name, :phone, :party_size, :delivery_type, :reservation_date, :reservation_time, :table_id, :items, :total, :notes, NOW(), NOW())");
+            $stmt = $pdo->prepare("INSERT INTO `reservations` (`id`, `tenant_id`, `branch_id`, `customer_id`, `customer_name`, `created_by_user_id`, `created_by_name`, `phone`, `party_size`, `delivery_type`, `reservation_date`, `reservation_time`, `table_id`, `items`, `total`, `notes`, `kitchen_note`, `waiter_note`, `pickup_time`, `created_at`, `updated_at`) VALUES (:id, :tenant_id, :branch_id, :customer_id, :customer_name, :created_by_user_id, :created_by_name, :phone, :party_size, :delivery_type, :reservation_date, :reservation_time, :table_id, :items, :total, :notes, :kitchen_note, :waiter_note, :pickup_time, NOW(), NOW())");
         } else {
             $currentStmt = $pdo->prepare("SELECT `items`, `status`, `customer_id` FROM `reservations` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id FOR UPDATE");
             $currentStmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
@@ -176,19 +132,32 @@ function handle_save_reservation(PDO $pdo, ?array $authContext, array $input): v
             if ($customerId !== '' && !findTenantCustomer($pdo, $authContext, $customerId)) {
                 throw new InvalidArgumentException('El cliente seleccionado no pertenece a este restaurante.');
             }
-            $stmt = $pdo->prepare("UPDATE `reservations` SET `customer_id` = :customer_id, `customer_name` = :customer_name, `phone` = :phone, `party_size` = :party_size, `delivery_type` = :delivery_type, `reservation_date` = :reservation_date, `reservation_time` = :reservation_time, `table_id` = :table_id, `items` = :items, `total` = :total, `notes` = :notes, `updated_at` = NOW() WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+            $stmt = $pdo->prepare("UPDATE `reservations` SET `customer_id` = :customer_id, `customer_name` = :customer_name, `phone` = :phone, `party_size` = :party_size, `delivery_type` = :delivery_type, `reservation_date` = :reservation_date, `reservation_time` = :reservation_time, `table_id` = :table_id, `items` = :items, `total` = :total, `notes` = :notes, `kitchen_note` = :kitchen_note, `waiter_note` = :waiter_note, `pickup_time` = :pickup_time, `updated_at` = NOW() WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
         }
-        $stmt->execute(['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'customer_id' => $customerId ?: null, 'customer_name' => $customerName, 'phone' => $phone ?: null, 'party_size' => $partySize, 'delivery_type' => $deliveryType, 'reservation_date' => $reservationDate, 'reservation_time' => $reservationTime, 'table_id' => $tableId ?: null, 'items' => $itemsJson, 'total' => $total, 'notes' => $notes ?: null]);
+         $reservationParams = ['id' => $id, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'customer_id' => $customerId ?: null, 'customer_name' => $customerName, 'phone' => $phone ?: null, 'party_size' => $partySize, 'delivery_type' => $deliveryType, 'reservation_date' => $reservationDate, 'reservation_time' => $reservationTime, 'table_id' => $tableId ?: null, 'items' => $itemsJson, 'total' => $total, 'notes' => $notes ?: null, 'kitchen_note' => $kitchenNote ?: null, 'waiter_note' => $waiterNote ?: null, 'pickup_time' => $pickupTime ?: null];
+         if ($isNewReservation) {
+             $reservationParams['created_by_user_id'] = $authContext['user_id'] ?? null;
+             $reservationParams['created_by_name'] = $authContext['user_name'] ?? null;
+         }
+         $stmt->execute($reservationParams);
         if ($customerId !== '') {
             $pdo->prepare("UPDATE `clientes` SET `last_seen_at` = NOW(), `updated_at` = NOW() WHERE `id` = :id AND `tenant_id` = :tenant_id")->execute(['id' => $customerId, 'tenant_id' => $authContext['tenant_id']]);
         }
-        syncReservationStock($pdo, $authContext, $previousItems, $items);
+        $previousUsage = normalizeStockUsage($previousItems);
+        $nextUsage = normalizeStockUsage($items);
+        $released = [];
+        foreach ($previousUsage as $productId => $quantity) {
+            $difference = $quantity - ($nextUsage[$productId] ?? 0);
+            if ($difference > 0) $released[] = ['product_id' => $productId, 'qty' => $difference];
+        }
+        if ($released) releaseStock($pdo, $authContext, 'reservation', $id, $released);
+        reserveStock($pdo, $authContext, 'reservation', $id, $items);
+        writeAuditLog($pdo, $authContext, 'reservation.save', 'reservation', $id);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    writeAuditLog($pdo, $authContext, 'reservation.save', 'reservation', $id);
     echo json_encode(["status" => "success", "id" => $id]);
 }
 
@@ -225,25 +194,37 @@ function handle_update_reservation_status(PDO $pdo, ?array $authContext, array $
         return;
     }
 
+    $statusAttribution = in_array($newStatus, ['confirmada', 'completada'], true);
     $stmt = $pdo->prepare("
-        UPDATE `reservations` SET `status` = :status, `updated_at` = NOW()
+        UPDATE `reservations` SET `status` = :status" . ($statusAttribution ? ", `confirmed_by_user_id` = :confirmed_by_user_id, `confirmed_by_name` = :confirmed_by_name" : '') . ", `updated_at` = NOW()
         WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id
     ");
-    $stmt->execute([
+    $statusParams = [
         'status' => $newStatus,
         'id' => $id,
         'tenant_id' => $authContext['tenant_id'],
         'branch_id' => $authContext['branch_id']
-    ]);
-    if ($newStatus === 'cancelada') {
-        syncReservationStock($pdo, $authContext, json_decode($current['items'] ?? '[]', true) ?: [], []);
+    ];
+    if ($statusAttribution) {
+        $statusParams['confirmed_by_user_id'] = $authContext['user_id'] ?? null;
+        $statusParams['confirmed_by_name'] = $authContext['user_name'] ?? null;
     }
+    $stmt->execute($statusParams);
+    if ($newStatus === 'cancelada') {
+        releaseStock($pdo, $authContext, 'reservation', $id);
+    } elseif ($newStatus === 'completada') {
+        $hasOrderStmt = $pdo->prepare("SELECT 1 FROM `pedidos` WHERE `reservation_id` = :rid AND `tenant_id` = :tid AND `branch_id` = :bid AND `status` != 'anulado' LIMIT 1");
+        $hasOrderStmt->execute(['rid' => $id, 'tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']]);
+        if (!$hasOrderStmt->fetchColumn()) {
+            releaseStock($pdo, $authContext, 'reservation', $id);
+        }
+    }
+    writeAuditLog($pdo, $authContext, 'reservation.status.update', 'reservation', $id, ['status' => $newStatus]);
     $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    writeAuditLog($pdo, $authContext, 'reservation.status.update', 'reservation', $id, ['status' => $newStatus]);
     echo json_encode(["status" => "success"]);
 }
 
@@ -277,15 +258,13 @@ function handle_delete_reservation(PDO $pdo, ?array $authContext, array $input):
         'tenant_id' => $authContext['tenant_id'],
         'branch_id' => $authContext['branch_id']
     ]);
-    if ($row['status'] !== 'cancelada') {
-        syncReservationStock($pdo, $authContext, json_decode($row['items'] ?? '[]', true) ?: [], []);
-    }
+    if ($row['status'] !== 'cancelada') releaseStock($pdo, $authContext, 'reservation', $id);
+    writeAuditLog($pdo, $authContext, 'reservation.delete', 'reservation', $id);
     $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    writeAuditLog($pdo, $authContext, 'reservation.delete', 'reservation', $id);
     echo json_encode(["status" => "success"]);
 }
 

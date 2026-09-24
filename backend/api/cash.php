@@ -2,8 +2,10 @@
 // Cash register (caja) action handlers
 
 function _countOrderItems(PDO $pdo, string $tid, string $bid, string $date): array {
-    $ordCountStmt = $pdo->prepare("SELECT `items` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL AND DATE(`timestamp`) = :date");
-    $ordCountStmt->execute(['tid' => $tid, 'bid' => $bid, 'date' => $date]);
+    [$start, $end] = cashDateRange($date);
+    $saleCondition = "(`sold_at` >= :start AND `sold_at` < :end) OR (`sold_at` IS NULL AND `timestamp` >= :start AND `timestamp` < :end)";
+    $ordCountStmt = $pdo->prepare("SELECT `items` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL AND ($saleCondition)");
+    $ordCountStmt->execute(['tid' => $tid, 'bid' => $bid, 'start' => $start, 'end' => $end]);
     $almuerzos = 0; $segs = 0; $sopas = 0; $extras = 0;
     while ($row = $ordCountStmt->fetch()) {
         $items = json_decode($row['items'], true) ?? [];
@@ -22,6 +24,69 @@ function _financialCashExpenseForDate(PDO $pdo, string $tenantId, string $branch
     $stmt = $pdo->prepare("SELECT COALESCE(SUM(`amount`), 0) FROM `gastos_financieros` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `fecha` = :date AND `payment_method` = 'efectivo'");
     $stmt->execute(['tid' => $tenantId, 'bid' => $branchId, 'date' => $date]);
     return (float)$stmt->fetchColumn();
+}
+
+function cashDateRange(string $date): array {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new InvalidArgumentException('La fecha de cierre es inválida.');
+    $start = new DateTimeImmutable($date . ' 00:00:00');
+    if ($start->format('Y-m-d') !== $date) throw new InvalidArgumentException('La fecha de cierre es inválida.');
+    return [$start->format('Y-m-d H:i:s'), $start->modify('+1 day')->format('Y-m-d H:i:s')];
+}
+
+function cashPaymentBreakdown($paymentMethod, float $total): array {
+    $amounts = ['efectivo' => 0.0, 'qr' => 0.0, 'tarjeta' => 0.0, 'transferencia' => 0.0, 'otro' => 0.0];
+    $decoded = is_array($paymentMethod) ? $paymentMethod : json_decode((string)$paymentMethod, true);
+    if (is_array($decoded)) {
+        foreach ($amounts as $method => $_) $amounts[$method] = max(0, (float)($decoded[$method] ?? 0));
+        return $amounts;
+    }
+    $method = (string)$paymentMethod;
+    $amounts[in_array($method, array_keys($amounts), true) ? $method : ($method === '' ? 'efectivo' : 'otro')] = $total;
+    return $amounts;
+}
+
+function cashCloseData(PDO $pdo, array $authContext, string $date): array {
+    [$start, $end] = cashDateRange($date);
+    $scope = ['tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']];
+    $rangeScope = $scope + ['start' => $start, 'end' => $end];
+    $saleCondition = "(`sold_at` >= :start AND `sold_at` < :end) OR (`sold_at` IS NULL AND `timestamp` >= :start AND `timestamp` < :end)";
+    $salesStmt = $pdo->prepare("SELECT `id`, `items`, `total`, `payment_method` FROM `pedidos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `closure_id` IS NULL AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND ($saleCondition) FOR UPDATE");
+    $salesStmt->execute($rangeScope);
+    $sales = $salesStmt->fetchAll(PDO::FETCH_ASSOC);
+    $paymentBreakdown = cashPaymentBreakdown([], 0);
+    $counts = ['almuerzos' => 0, 'segs' => 0, 'sopas' => 0, 'extras' => 0];
+    $totalRevenue = 0.0;
+    foreach ($sales as $sale) {
+        $total = (float)$sale['total'];
+        $totalRevenue += $total;
+        foreach (cashPaymentBreakdown($sale['payment_method'], $total) as $method => $amount) $paymentBreakdown[$method] += $amount;
+        foreach (json_decode($sale['items'] ?? '[]', true) ?: [] as $item) {
+            $qty = max(1, (int)($item['qty'] ?? $item['quantity'] ?? 1));
+            if (($item['type'] ?? '') === 'almuerzo') { $counts['almuerzos'] += $qty; $counts['segs'] += $qty; $counts['sopas'] += $qty; }
+            elseif (($item['type'] ?? '') === 'segundo') $counts['segs'] += $qty;
+            elseif (($item['type'] ?? '') === 'sopa') $counts['sopas'] += $qty;
+            else $counts['extras'] += $qty;
+        }
+    }
+    $movementStmt = $pdo->prepare("SELECT `id`, `type`, `amount` FROM `caja_movimientos` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `closure_id` IS NULL AND `timestamp` >= :start AND `timestamp` < :end FOR UPDATE");
+    $movementStmt->execute($rangeScope);
+    $movements = $movementStmt->fetchAll(PDO::FETCH_ASSOC);
+    $opening = 0.0; $movementExpenses = 0.0;
+    foreach ($movements as $movement) {
+        if ($movement['type'] === 'apertura') $opening += (float)$movement['amount'];
+        elseif ($movement['type'] === 'egreso') $movementExpenses += (float)$movement['amount'];
+    }
+    $expenseStmt = $pdo->prepare("SELECT `id`, `amount`, `payment_method` FROM `gastos_financieros` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `closure_id` IS NULL AND `fecha` = :date FOR UPDATE");
+    $expenseStmt->execute($scope + ['date' => $date]);
+    $expenses = $expenseStmt->fetchAll(PDO::FETCH_ASSOC);
+    $financialExpenses = 0.0; $cashExpenses = 0.0;
+    foreach ($expenses as $expense) { $financialExpenses += (float)$expense['amount']; if ($expense['payment_method'] === 'efectivo') $cashExpenses += (float)$expense['amount']; }
+    $refundStmt = $pdo->prepare("SELECT `id`, `total_refunded`, `refund_method` FROM `pedido_reversiones` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `closure_id` IS NULL AND `status` = 'aplicada' AND `created_at` >= :start AND `created_at` < :end FOR UPDATE");
+    $refundStmt->execute($rangeScope);
+    $refunds = $refundStmt->fetchAll(PDO::FETCH_ASSOC);
+    $refundTotal = 0.0; $cashRefunds = 0.0;
+    foreach ($refunds as $refund) { $refundTotal += (float)$refund['total_refunded']; if ($refund['refund_method'] === 'efectivo') $cashRefunds += (float)$refund['total_refunded']; }
+    return ['sales' => $sales, 'movements' => $movements, 'expenses' => $expenses, 'refunds' => $refunds, 'counts' => $counts, 'payment_breakdown' => $paymentBreakdown, 'opening' => $opening, 'movement_expenses' => $movementExpenses, 'financial_expenses' => $financialExpenses, 'cash_expenses' => $cashExpenses, 'refund_total' => $refundTotal, 'cash_refunds' => $cashRefunds, 'total_revenue' => $totalRevenue, 'cash_expected' => $opening + $paymentBreakdown['efectivo'] - $movementExpenses - $cashExpenses - $cashRefunds];
 }
 
 function handle_get_daily_report(PDO $pdo, ?array $authContext, array $input): void {
@@ -142,6 +207,10 @@ function handle_save_caja_movimiento(PDO $pdo, ?array $authContext, array $input
     } else {
         $ts = date('Y-m-d H:i:s');
     }
+    $closedDay = $pdo->prepare("SELECT 1 FROM `caja_cierres_historico` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `fecha` = :date LIMIT 1");
+    $closedDay->execute(['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'date' => substr($ts, 0, 10)]);
+    if ($closedDay->fetchColumn()) throw new InvalidArgumentException('El día ya está cerrado. Registre el movimiento en la fecha operativa actual.');
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare("INSERT INTO `caja_movimientos` (`id`, `type`, `description`, `amount`, `timestamp`, `tenant_id`, `branch_id`) 
         VALUES (:id, :type, :description, :amount, :timestamp, :tenant_id, :branch_id)");
     $stmt->execute([
@@ -154,6 +223,7 @@ function handle_save_caja_movimiento(PDO $pdo, ?array $authContext, array $input
         'branch_id' => $authContext['branch_id']
     ]);
     writeAuditLog($pdo, $authContext, 'cash.movement.save', 'caja_movimiento', $input['id']);
+    $pdo->commit();
     echo json_encode(["status" => "success"]);
 }
 
@@ -163,6 +233,7 @@ function handle_delete_caja_movimiento(PDO $pdo, ?array $authContext, array $inp
         echo json_encode(["status" => "error", "message" => "Datos requeridos: id"]);
         return;
     }
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare("DELETE FROM `caja_movimientos` WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL");
     $stmt->execute(['id' => $input['id'], 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     if ($stmt->rowCount() === 0) {
@@ -170,10 +241,75 @@ function handle_delete_caja_movimiento(PDO $pdo, ?array $authContext, array $inp
         return;
     }
     writeAuditLog($pdo, $authContext, 'cash.movement.delete', 'caja_movimiento', $input['id']);
+    $pdo->commit();
     echo json_encode(["status" => "success"]);
 }
 
+function handle_close_cash_day(PDO $pdo, ?array $authContext, array $input): void {
+    requirePermission($authContext, 'settings');
+    $date = trim((string)($input['date'] ?? date('Y-m-d')));
+    $physicalCash = $input['physical_cash'] ?? null;
+    if (!is_numeric($physicalCash) || (float)$physicalCash < 0) throw new InvalidArgumentException('Ingrese el efectivo físico contado.');
+    cashDateRange($date);
+    $pdo->beginTransaction();
+    try {
+        $scope = ['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'date' => $date];
+        $existingStmt = $pdo->prepare("SELECT * FROM `caja_cierres_historico` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `fecha` = :date FOR UPDATE");
+        $existingStmt->execute($scope);
+        $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+        if ($existing) {
+            $pdo->commit();
+            echo json_encode(['status' => 'success', 'already_closed' => true, 'closure' => $existing]);
+            return;
+        }
+        $data = cashCloseData($pdo, $authContext, $date);
+        [, $end] = cashDateRange($date);
+        $pendingStmt = $pdo->prepare("SELECT `id`, `customer`, `timestamp` FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `status` = 'pendiente' AND `paid` = 0 AND `timestamp` < :end ORDER BY `timestamp` ASC FOR UPDATE");
+        $pendingStmt->execute(['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'end' => $end]);
+        $pending = $pendingStmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($pending && empty($input['pending_reviewed'])) {
+            $pdo->commit();
+            echo json_encode(['status' => 'success', 'requires_pending_review' => true, 'pending_orders' => $pending]);
+            return;
+        }
+        $closureId = trim((string)($input['idempotency_key'] ?? ''));
+        if ($closureId === '') $closureId = 'cierre_' . bin2hex(random_bytes(12));
+        $expenses = $data['movement_expenses'] + $data['cash_expenses'];
+        $expectedCash = round($data['cash_expected'], 2);
+        $realCash = round((float)$physicalCash, 2);
+        $stmt = $pdo->prepare("INSERT INTO `caja_cierres_historico` (`id`, `fecha`, `caja_inicial`, `ingresos_efectivo`, `egresos`, `devoluciones_total`, `devoluciones_efectivo`, `efectivo_esperado`, `efectivo_real`, `diferencia`, `utilidad_neta`, `almuerzos_vendidos`, `segundos_vendidos`, `sopas_vendidas`, `extras_vendidos`, `timestamp`, `tenant_id`, `branch_id`) VALUES (:id, :date, :opening, :cash_sales, :expenses, :refund_total, :cash_refunds, :expected, :real, :difference, :profit, :almuerzos, :segundos, :sopas, :extras, NOW(), :tenant_id, :branch_id)");
+        $stmt->execute($scope + ['id' => $closureId, 'opening' => $data['opening'], 'cash_sales' => $data['payment_breakdown']['efectivo'], 'expenses' => $expenses, 'refund_total' => $data['refund_total'], 'cash_refunds' => $data['cash_refunds'], 'expected' => $expectedCash, 'real' => $realCash, 'difference' => round($realCash - $expectedCash, 2), 'profit' => round($data['total_revenue'] - $data['financial_expenses'] - $data['movement_expenses'] - $data['refund_total'], 2), 'almuerzos' => $data['counts']['almuerzos'], 'segundos' => $data['counts']['segs'], 'sopas' => $data['counts']['sopas'], 'extras' => $data['counts']['extras']]);
+        [$start, $end] = cashDateRange($date);
+        $archiveScope = ['closure_id' => $closureId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']];
+        $rangeArchiveScope = $archiveScope + ['start' => $start, 'end' => $end];
+        $saleCondition = "(`sold_at` >= :start AND `sold_at` < :end) OR (`sold_at` IS NULL AND `timestamp` >= :start AND `timestamp` < :end)";
+        $pdo->prepare("UPDATE `pedidos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1) OR `status` = 'anulado') AND ($saleCondition)")->execute($rangeArchiveScope);
+        $pdo->prepare("UPDATE `caja_movimientos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `timestamp` >= :start AND `timestamp` < :end")->execute($rangeArchiveScope);
+        $pdo->prepare("UPDATE `gastos_financieros` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `fecha` = :date")->execute($archiveScope + ['date' => $date]);
+        $pdo->prepare("UPDATE `pedido_reversiones` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND `status` = 'aplicada' AND `created_at` >= :start AND `created_at` < :end")->execute($rangeArchiveScope);
+        writeAuditLog($pdo, $authContext, 'cash.day.close', 'caja_cierre', $closureId, ['date' => $date, 'pending_reviewed' => !empty($input['pending_reviewed'])]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if (stripos($e->getMessage(), 'duplicate') !== false) {
+            $retry = $pdo->prepare("SELECT * FROM `caja_cierres_historico` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `fecha` = :date LIMIT 1");
+            $retry->execute(['tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id'], 'date' => $date]);
+            $closure = $retry->fetch(PDO::FETCH_ASSOC);
+            if ($closure) {
+                echo json_encode(['status' => 'success', 'already_closed' => true, 'closure' => $closure]);
+                return;
+            }
+        }
+        throw $e;
+    }
+    echo json_encode(['status' => 'success', 'already_closed' => false, 'closure' => ['id' => $closureId, 'fecha' => $date, 'efectivo_esperado' => $expectedCash, 'efectivo_real' => $realCash, 'diferencia' => round($realCash - $expectedCash, 2)]]);
+}
+
 function handle_save_caja_cierre(PDO $pdo, ?array $authContext, array $input): void {
+    throw new InvalidArgumentException('Use el cierre diario de caja para registrar un cierre.');
+}
+
+function handle_legacy_save_caja_cierre(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'settings');
     if (!isset($input['id']) || $input['id'] === '' || empty($input['fecha']) || 
         !isset($input['caja_inicial']) || !is_numeric($input['caja_inicial']) ||
@@ -305,88 +441,10 @@ function _createClosure(PDO $pdo, array $authContext, string $closureId, string 
     ]);
 }
 
-function _deductStockFromOrders(PDO $pdo, array $authContext, array $completedOrders): void {
-    $gaseosasUsage = [];
-    $segundosUsage = [];
-    $sopasUsage = [];
-    $platosExtrasUsage = [];
-    $salsasUsage = [];
-
-    foreach ($completedOrders as $order) {
-        $items = json_decode($order['items'], true);
-        if (!is_array($items)) continue;
-        foreach ($items as $item) {
-            $type = $item['type'] ?? '';
-            if ($type === 'almuerzo') {
-                $segId = $item['segundoId'] ?? '';
-                if ($segId) $segundosUsage[$segId] = ($segundosUsage[$segId] ?? 0) + 1;
-                $sopaId = $item['sopaId'] ?? '';
-                if ($sopaId) $sopasUsage[$sopaId] = ($sopasUsage[$sopaId] ?? 0) + 1;
-            } elseif ($type === 'segundo') {
-                $segId = $item['segundoId'] ?? '';
-                if ($segId) $segundosUsage[$segId] = ($segundosUsage[$segId] ?? 0) + 1;
-            } elseif ($type === 'sopa') {
-                $sopaId = $item['sopaId'] ?? '';
-                if ($sopaId) $sopasUsage[$sopaId] = ($sopasUsage[$sopaId] ?? 0) + 1;
-            } elseif ($type === 'plato_extra') {
-                $peId = $item['platoId'] ?? '';
-                if ($peId) $platosExtrasUsage[$peId] = ($platosExtrasUsage[$peId] ?? 0) + 1;
-            } elseif ($type === 'extra') {
-                $extId = $item['extraId'] ?? ($item['id'] ?? '');
-                if ($extId) $gaseosasUsage[$extId] = ($gaseosasUsage[$extId] ?? 0) + 1;
-            } elseif ($type === 'salsa') {
-                $salsaId = $item['salsaId'] ?? ($item['id'] ?? '');
-                if ($salsaId) $salsasUsage[$salsaId] = ($salsasUsage[$salsaId] ?? 0) + 1;
-            }
-        }
-    }
-
-    $tid = $authContext['tenant_id'];
-    $bid = $authContext['branch_id'];
-
-    $stmtG = $pdo->prepare("UPDATE `gaseosas` SET `stock` = GREATEST(0, `stock` - :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach ($gaseosasUsage as $id => $qty) $stmtG->execute(['qty' => $qty, 'id' => $id, 'tenant_id' => $tid, 'branch_id' => $bid]);
-
-    $stmtS = $pdo->prepare("UPDATE `segundos` SET `stock` = GREATEST(0, `stock` - :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach ($segundosUsage as $id => $qty) $stmtS->execute(['qty' => $qty, 'id' => $id, 'tenant_id' => $tid, 'branch_id' => $bid]);
-
-    $stmtPE = $pdo->prepare("UPDATE `platos_extras` SET `stock` = GREATEST(0, `stock` - :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach ($platosExtrasUsage as $id => $qty) $stmtPE->execute(['qty' => $qty, 'id' => $id, 'tenant_id' => $tid, 'branch_id' => $bid]);
-
-    $stmtSp = $pdo->prepare("UPDATE `sopas` SET `stock` = GREATEST(0, `stock` - :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach ($sopasUsage as $id => $qty) $stmtSp->execute(['qty' => $qty, 'id' => $id, 'tenant_id' => $tid, 'branch_id' => $bid]);
-
-    $stmtSa = $pdo->prepare("UPDATE `salsas` SET `stock` = GREATEST(0, `stock` - :qty) WHERE `id` = :id AND `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
-    foreach ($salsasUsage as $id => $qty) $stmtSa->execute(['qty' => $qty, 'id' => $id, 'tenant_id' => $tid, 'branch_id' => $bid]);
-
-    $today = date('Y-m-d');
-    $usageMap = ['gaseosa' => $gaseosasUsage, 'segundo' => $segundosUsage, 'plato_extra' => $platosExtrasUsage, 'sopa' => $sopasUsage, 'salsa' => $salsasUsage];
-    foreach ($usageMap as $itemType => $usage) {
-        $table = getStockTable($itemType);
-        foreach ($usage as $itemId => $soldQty) {
-            $fetchStmt = $pdo->prepare("SELECT `stock`, `name` FROM `$table` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
-            $fetchStmt->execute(['id' => $itemId, 'tid' => $tid, 'bid' => $bid]);
-            $row = $fetchStmt->fetch(PDO::FETCH_ASSOC);
-            if (!$row) continue;
-            $closingStock = (int)$row['stock'];
-            $openingStock = $closingStock + $soldQty;
-            $snapId = 'snap_' . bin2hex(random_bytes(12));
-            $snapStmt = $pdo->prepare("INSERT INTO `stock_daily_snapshot` (`id`, `tenant_id`, `branch_id`, `item_type`, `item_id`, `item_name`, `snapshot_date`, `opening_stock`, `closing_stock`, `sold_count`)
-                VALUES (:id, :tid, :bid, :item_type, :item_id, :item_name, :date, :opening, :closing, :sold)
-                ON DUPLICATE KEY UPDATE `closing_stock` = :closing2, `sold_count` = :sold2");
-            $snapStmt->execute([
-                'id' => $snapId, 'tid' => $tid, 'bid' => $bid,
-                'item_type' => $itemType, 'item_id' => $itemId, 'item_name' => $row['name'],
-                'date' => $today, 'opening' => $openingStock, 'closing' => $closingStock, 'sold' => $soldQty,
-                'closing2' => $closingStock, 'sold2' => $soldQty
-            ]);
-            logStockEvent($pdo, $authContext, $itemType, $itemId, $row['name'], 'deduct', $openingStock, -$soldQty, $closingStock, 'cierre', null);
-        }
-    }
-}
-
 function handle_reset_data(PDO $pdo, ?array $authContext, array $input): void {
     requirePermission($authContext, 'settings');
+    throw new InvalidArgumentException('El cierre diario ya no elimina pedidos. Use close_cash_day.');
+    /* Legacy destructive reset retained below only as migration reference.
     $confirm = $input['confirm'] ?? false;
     if (!$confirm) {
         echo json_encode(["status" => "error", "message" => "Se eliminarán todos los pedidos pendientes. Envíe confirm: true para proceder."]);
@@ -407,12 +465,6 @@ function handle_reset_data(PDO $pdo, ?array $authContext, array $input): void {
         }
     }
 
-    $stmt = $pdo->prepare("SELECT * FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND `closure_id` IS NULL");
-    $stmt->execute(tenantParams($authContext));
-    $completedOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    _deductStockFromOrders($pdo, $authContext, $completedOrders);
-
     if ($closureId) {
         $stmtArchivePedidos = $pdo->prepare("UPDATE `pedidos` SET `closure_id` = :closure_id WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `closure_id` IS NULL AND (`status` IN ('completado', 'anulado') OR (`status` = 'pendiente' AND `paid` = 1))");
         $stmtArchivePedidos->execute(['closure_id' => $closureId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
@@ -421,11 +473,12 @@ function handle_reset_data(PDO $pdo, ?array $authContext, array $input): void {
         $stmtArchiveMovimientos->execute(['closure_id' => $closureId, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $authContext['branch_id']]);
     }
 
-    $stmtDeletePending = $pdo->prepare("DELETE FROM `pedidos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'pendiente' AND `closure_id` IS NULL");
+    $stmtDeletePending = $pdo->prepare("REMOVED: pending orders are preserved by close_cash_day");
     $stmtDeletePending->execute(tenantParams($authContext));
 
     $pdo->commit();
     writeAuditLog($pdo, $authContext, 'cash.reset', 'tenant_day', $closureId);
     cacheInvalidateTenant('catalog', $authContext['tenant_id'], $authContext['branch_id']);
     echo json_encode(["status" => "success"]);
+    */
 }

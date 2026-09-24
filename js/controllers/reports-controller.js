@@ -2,6 +2,12 @@
 // SCREEN 5: REPORTS CONTROLLER
 // ==========================================================================
 
+function sanitizeCsvCell(val) {
+    const s = String(val ?? '');
+    if (/^[=+\-@\t\r\n]/.test(s)) return "'" + s;
+    return s;
+}
+
 function switchReportsSubtab(tabId = 'resumen') {
     const allowedTabs = ['resumen', 'caja', 'ventas', 'ranking', 'historico', 'devoluciones'];
     const activeTab = allowedTabs.includes(tabId) ? tabId : 'resumen';
@@ -176,17 +182,6 @@ window.deleteCajaMovimiento = async function(id) {
             }
         } catch (e) {
             showToast('Error al eliminar movimiento.', 'error');
-        }
-    }
-};
-
-window.openTicketFromHistory = function(saleId) {
-    const sale = state.salesHistory.find(s => s.id === saleId);
-    if (sale) {
-        if (window.TicketPrinter) {
-            window.TicketPrinter.printReceipt(sale);
-        } else {
-            window.openTicketModal(sale, 'client');
         }
     }
 };
@@ -371,8 +366,8 @@ function exportSalesToCSV() {
         const timeStr = formatTime(getSaleTime(sale) || sale.timestamp);
         const pm = parsePaymentMethod(sale.paymentMethod, sale.total);
         const method = pm.label || 'EFECTIVO';
-        const client = escapeHtml(sale.customer);
-        itemsText = itemsText.replace(/"/g, '""');
+        const client = sanitizeCsvCell(sale.customer);
+        itemsText = sanitizeCsvCell(itemsText).replace(/"/g, '""');
         const statusLabel = sale.status === 'anulado' ? 'ANULADO' : 'COBRADO';
         csvContent += `${sale.id.slice(-6).toUpperCase()},${timeStr},"${client}","${itemsText}",${method},${sale.total.toFixed(2)},${statusLabel}\n`;
     });
@@ -391,29 +386,41 @@ function exportSalesToCSV() {
 }
 window.exportSalesToCSV = exportSalesToCSV;
 
+let closingCashDay = false;
+
 async function resetAllData() {
+    if (closingCashDay) return;
+    const realCashEl = document.getElementById('caja-efectivo-real');
+    const physicalCash = Number(realCashEl?.value);
+    if (!Number.isFinite(physicalCash) || physicalCash < 0) {
+        showToast('Ingrese el efectivo físico contado antes de cerrar.', 'warning');
+        return;
+    }
     const confirmed = await window.ConfirmDialog.show(
-        '¿Cerrar caja y reiniciar todo el día? Se archivará el cierre y se limpiarán las comandas activas.',
+        'Se archivarán únicamente los movimientos y ventas cobradas de hoy. Las comandas pendientes seguirán abiertas y conservarán su reserva de stock.',
         { title: 'Cerrar Caja', confirmText: 'Sí, cerrar caja', type: 'danger' }
     );
-    
-    if (confirmed) {
-        try {
-            const closureId = generateId();
-            const data = await AppApi.request('reset_data', { confirm: true, closure_id: closureId });
-            if (data.status === 'success') {
-                if (window.AppStore) {
-                    window.AppStore.set({ cart: [] });
-                } else {
-                    state.cart = [];
-                }
-                saveCartToLocalStorage();
-                showToast('Caja cerrada y día reiniciado.', 'success');
-                switchTab('pos');
-            }
-        } catch (e) {
-            showToast('Error al reiniciar base de datos.', 'error');
+    if (!confirmed) return;
+    closingCashDay = true;
+    const payload = { date: nowLocal().slice(0, 10), physical_cash: physicalCash, idempotency_key: generateId() };
+    try {
+        let data = await AppApi.closeCashDay(payload);
+        if (data.requires_pending_review) {
+            const pendingList = data.pending_orders.map(order => `#${String(order.id).slice(-6).toUpperCase()} - ${order.customer}`).join('<br>');
+            const reviewed = await window.ConfirmDialog.show(
+                `Hay ${data.pending_orders.length} comanda(s) pendiente(s). Revise su estado antes de continuar:<br><br>${pendingList}<br><br>Estas comandas permanecerán abiertas.`,
+                { title: 'Control de Pendientes', confirmText: 'Revisados, cerrar caja', type: 'warning' }
+            );
+            if (!reviewed) return;
+            data = await AppApi.closeCashDay({ ...payload, pending_reviewed: true });
         }
+        await loadStateForTab('reports');
+        renderReports();
+        showToast(data.already_closed ? 'La caja de hoy ya estaba cerrada.' : 'Caja cerrada correctamente.', 'success');
+    } catch (e) {
+        showToast(e.message || 'No se pudo cerrar la caja.', 'error');
+    } finally {
+        closingCashDay = false;
     }
 }
 window.resetAllData = resetAllData;
@@ -480,7 +487,7 @@ function exportTopSellersCSV() {
     csvContent += getCsvReportMetadata(`Ranking de ${filterLabel} mas vendidos`) + "\n";
     csvContent += "Posicion,Producto/Plato,Categoria,Unidades Vendidas,Ingresos Generados (Bs)\n";
     data.forEach((stat, idx) => {
-        csvContent += `${idx + 1},"${stat.name.replace(/"/g, '""')}",${stat.type},${stat.qty},${stat.total.toFixed(2)}\n`;
+        csvContent += `${idx + 1},"${sanitizeCsvCell(stat.name).replace(/"/g, '""')}",${stat.type},${stat.qty},${stat.total.toFixed(2)}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

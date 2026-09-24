@@ -8,7 +8,7 @@
     function getActiveMenuId() {
         const saved = localStorage.getItem('restocloud_active_menu');
         if (!saved) return null;
-        if (state.menus && state.menus.some(m => m.id === saved && m.active)) return saved;
+        if (state.menus && state.menus.some(m => m.id === saved && (m.available_now ?? Number(m.active) !== 0))) return saved;
         return null;
     }
 
@@ -35,8 +35,8 @@
     }
 
     function getExtrasForMenu() {
-        const activeMenuId = getActiveMenuId();
-        return (state.extras || []).filter(e => menuFilter(e, activeMenuId));
+        // Refrescos son productos globales y no dependen del menú activo.
+        return state.extras || [];
     }
 
     function renderCatalog() {
@@ -58,7 +58,30 @@
             return;
         }
 
+        if (currentCategory === 'sauces') {
+            renderSaucesAndAccompanimentsCatalog(container, appState);
+            return;
+        }
+
         renderDrinksCatalog(container, appState);
+    }
+
+    function renderSaucesAndAccompanimentsCatalog(container, appState) {
+        const sauces = (appState.salsas || []).filter(item => Number(item.active) !== 0);
+        const accompaniments = (appState.accompaniments || []).filter(item => Number(item.active) !== 0);
+        const buildCard = (item, type) => {
+            const isSalsa = type === 'salsa';
+            const price = isSalsa ? Number(item.price || 0) : Number(item.price_extra || 0);
+            const id = isSalsa ? item.id : item.id;
+            return `<div class="catalog-card">
+                <div class="card-top-qty"><label for="qty-${type}-${id}">Cant:</label><input type="number" class="card-qty-input-top" id="qty-${type}-${id}" min="1" max="99" value="1"></div>
+                <div class="card-icon-wrapper ${isSalsa ? 'accent-color' : 'secondary-color'}"><i class="fa-solid ${isSalsa ? 'fa-bowl-food' : 'fa-bowl-rice'}"></i></div>
+                <div class="card-details"><h4>${escapeHtml(item.name)}</h4><p class="card-description">${isSalsa ? 'Salsa adicional para vender por separado.' : 'Acompañamiento adicional para vender por separado.'}</p><span class="card-price">${formatCurrency(price)}</span></div>
+                <button class="btn btn-primary btn-add-cart" data-action="add-standalone-catalog" data-standalone-type="${type}" data-standalone-id="${id}"><i class="fa-solid fa-plus"></i> Agregar al Pedido</button>
+            </div>`;
+        };
+        const cards = sauces.map(item => buildCard(item, 'salsa')).concat(accompaniments.map(item => buildCard(item, 'acompanamiento')));
+        container.innerHTML = cards.length ? cards.join('') : '<div class="empty-table-state" style="grid-column:1/-1;"><i class="fa-solid fa-circle-info" style="font-size:32px;"></i><p>No hay salsas ni acompañamientos activos.</p><span>Regístrelos en Platos y Menú.</span></div>';
     }
 
     function renderMealsCatalog(container, appState) {
@@ -315,6 +338,7 @@
             const totalEl = document.getElementById('cart-total');
             if (subtotalEl) subtotalEl.textContent = formatCurrency(0);
             if (totalEl) totalEl.textContent = formatCurrency(0);
+            updatePaymentModalSummary(0, 0, 0);
             renderOrderServiceSummary();
             renderPromoSection();
             return;
@@ -324,35 +348,41 @@
         appState.cart.forEach(item => {
             const itemQty = item.qty || 1;
             const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
-            const lineTotal = (item.price + salsaTotal) * itemQty;
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, a) => acc + (a.accompanimentPrice || 0), 0);
+            const lineTotal = (item.price + salsaTotal + accompanimentTotal) * itemQty;
             subtotal += lineTotal;
             const row = document.createElement('div');
             row.className = 'cart-item-row';
 
             let detailsHtml = '';
             if (item.sopaName) {
-                detailsHtml += `<span class="item-detail-badge sopa-name">${item.sopaName}</span>`;
+                detailsHtml += `<span class="item-detail-badge sopa-name">${escapeHtml(item.sopaName)}</span>`;
             }
             if (item.segundoName) {
-                detailsHtml += `<span class="item-detail-badge segundo-name">${item.segundoName}</span>`;
+                detailsHtml += `<span class="item-detail-badge segundo-name">${escapeHtml(item.segundoName)}</span>`;
             }
-            detailsHtml += `<span class="item-detail-badge ${item.serviceType}">${item.serviceType}</span>`;
+            detailsHtml += `<span class="item-detail-badge ${escapeHtml(item.serviceType)}">${escapeHtml(item.serviceType)}</span>`;
             if (item.salsas && item.salsas.length > 0) {
                 item.salsas.forEach(s => {
-                    const modeLabel = s.salsaMode === 'banar' ? 'Bañar' : 'A parte';
+                    const modeLabel = s.salsaMode === 'incluida' ? 'Incluida' : s.salsaMode === 'banar' ? 'Bañar' : 'A parte';
                     const priceLabel = s.salsaPrice > 0 ? ` +${formatCurrency(s.salsaPrice)}` : '';
-                    detailsHtml += `<span class="item-detail-badge salsa-name" style="background:rgba(255,107,53,0.1);color:var(--primary);">🥗 ${s.salsaName} (${modeLabel})${priceLabel}</span>`;
+                    detailsHtml += `<span class="item-detail-badge salsa-name" style="background:rgba(255,107,53,0.1);color:var(--primary);">🥗 ${escapeHtml(s.salsaName)} (${modeLabel})${priceLabel}</span>`;
                 });
             }
+            (item.accompaniments || []).forEach(a => {
+                const isExtra = a.accompanimentMode === 'extra';
+                const priceLabel = isExtra && a.accompanimentPrice > 0 ? ` +${formatCurrency(a.accompanimentPrice)}` : '';
+                detailsHtml += `<span class="item-detail-badge" style="background:${isExtra ? 'rgba(34,197,94,.12)' : 'rgba(59,130,246,.12)'};color:var(--text-main);">${isExtra ? '➕ Extra' : '🍚 Incluye'}: ${escapeHtml(a.accompanimentName)}${priceLabel}</span>`;
+            });
 
             const qtyBadge = itemQty > 1 ? `<span class="item-qty-badge">x${itemQty}</span>` : '';
             const priceHtml = itemQty > 1
-                ? `<span class="item-price-line">${itemQty} x ${formatCurrency(item.price + salsaTotal)}</span><span class="item-price">${formatCurrency(lineTotal)}</span>`
+                ? `<span class="item-price-line">${itemQty} x ${formatCurrency(item.price + salsaTotal + accompanimentTotal)}</span><span class="item-price">${formatCurrency(lineTotal)}</span>`
                 : `<span class="item-price">${formatCurrency(lineTotal)}</span>`;
 
             row.innerHTML = `
                 <div class="item-badge-type ${item.type === 'plato_extra' ? 'segundo' : item.type}">
-                    <i class="fa-solid ${item.type === 'almuerzo' ? 'fa-bowl-food' : item.type === 'sopa' ? 'fa-bowl-hot' : item.type === 'segundo' ? 'fa-plate-wheat' : item.type === 'plato_extra' ? 'fa-utensils' : 'fa-bottle-water'}"></i>
+                    <i class="fa-solid ${item.type === 'almuerzo' ? 'fa-bowl-food' : item.type === 'sopa' ? 'fa-bowl-hot' : item.type === 'segundo' ? 'fa-plate-wheat' : item.type === 'plato_extra' ? 'fa-utensils' : item.type === 'salsa' ? 'fa-bowl-food' : item.type === 'acompanamiento' ? 'fa-bowl-rice' : 'fa-bottle-water'}"></i>
                 </div>
                 <div class="item-info">
                     <div class="item-title">${escapeHtml(item.name)} ${qtyBadge}</div>
@@ -366,14 +396,6 @@
                 </button>
             `;
 
-            const removeButton = row.querySelector('[data-action="remove-cart-item"]');
-            if (removeButton) {
-                removeButton.addEventListener('click', () => {
-                    if (window.PosController) {
-                        window.PosController.removeCartItem(item.id);
-                    }
-                });
-            }
             container.appendChild(row);
         });
 
@@ -383,9 +405,32 @@
         const total = Math.max(0, subtotal - discount);
         if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
         if (totalEl) totalEl.textContent = formatCurrency(total);
+        updatePaymentModalSummary(subtotal, discount, total);
 
         renderOrderServiceSummary();
         renderPromoSection();
+    }
+
+    function updatePaymentModalSummary(subtotal, discount, total) {
+        const subtotalEl = document.getElementById('payment-modal-subtotal');
+        const discountEl = document.getElementById('payment-modal-discount');
+        const discountRow = document.getElementById('payment-modal-discount-row');
+        const totalEl = document.getElementById('payment-modal-total');
+        if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+        if (discountEl) discountEl.textContent = `-${formatCurrency(discount)}`;
+        if (discountRow) discountRow.style.display = discount > 0 ? '' : 'none';
+        if (totalEl) totalEl.textContent = formatCurrency(total);
+    }
+
+    function syncPaymentModalSummary() {
+        const cart = window.state?.cart || [];
+        const subtotal = cart.reduce((sum, item) => {
+            const salsaTotal = (item.salsas || []).reduce((acc, salsa) => acc + Number(salsa.salsaPrice || 0), 0);
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, accompaniment) => acc + Number(accompaniment.accompanimentPrice || 0), 0);
+            return sum + (Number(item.price || 0) + salsaTotal + accompanimentTotal) * Number(item.qty || item.quantity || 1);
+        }, 0);
+        const discount = Number(window.state?.cartDiscountAmount || 0);
+        updatePaymentModalSummary(subtotal, discount, Math.max(0, subtotal - discount));
     }
 
     function renderOrderServiceSummary() {
@@ -410,14 +455,19 @@
 
     function renderPromoSection() {
         const appState = window.state;
-        const section = document.getElementById('cart-promo-section');
+        const section = document.getElementById('cart-promo-popover');
+        const promoTrigger = document.getElementById('btn-open-promos');
+        const promoCount = document.getElementById('cart-promos-count');
         if (!section) return;
 
         if (appState.cart.length === 0) {
             section.style.display = 'none';
+            if (promoTrigger) promoTrigger.disabled = true;
+            if (promoTrigger) promoTrigger.classList.remove('has-promos');
+            if (promoCount) { promoCount.hidden = true; promoCount.textContent = '0'; }
             return;
         }
-        section.style.display = '';
+        if (promoTrigger) promoTrigger.disabled = false;
 
         const listEl = document.getElementById('cart-promo-list');
         const appliedEl = document.getElementById('cart-applied-promo');
@@ -431,10 +481,20 @@
         const suggested = appState.cartSuggestedPromos || [];
         const applied = appState.cartPromo;
         const discount = appState.cartDiscountAmount || 0;
+        const hasAvailablePromos = !applied && suggested.length > 0;
+        if (promoTrigger) {
+            promoTrigger.classList.toggle('has-promos', hasAvailablePromos);
+            promoTrigger.setAttribute('aria-label', hasAvailablePromos ? `${suggested.length} promociones disponibles` : 'Abrir promociones');
+        }
+        if (promoCount) {
+            promoCount.textContent = String(suggested.length);
+            promoCount.hidden = suggested.length === 0;
+        }
 
         if (listEl) {
             listEl.innerHTML = '';
             if (!applied && suggested.length > 0) {
+                listEl.style.display = '';
                 suggested.forEach((promo, idx) => {
                     const item = document.createElement('div');
                     item.className = 'cart-promo-item';
@@ -450,7 +510,10 @@
                 });
                 document.getElementById('btn-toggle-promos')?.style.setProperty('display', '');
             } else {
-                document.getElementById('btn-toggle-promos')?.style.setProperty('display', 'none');
+                listEl.style.display = '';
+                if (!applied) {
+                    listEl.innerHTML = '<div class="cart-promo-empty"><i class="fa-regular fa-circle-info"></i><span>No hay promociones disponibles para estos productos. Puedes ingresar un código de cupón.</span></div>';
+                }
             }
         }
 
@@ -486,7 +549,7 @@
         emptyState.innerHTML = `
             <i class="fa-solid fa-basket-shopping"></i>
             <p>El pedido está vacío</p>
-            <span>Agregue almuerzos, platos extras o gaseosas para empezar</span>
+                    <span>Agregue almuerzos, platos extras, bebidas, salsas o acompañamientos</span>
         `;
         return emptyState;
     }
@@ -494,6 +557,8 @@
     window.PosView = {
         render,
         renderCatalog,
-        renderCart
+        renderCart,
+        renderPromoSection,
+        syncPaymentModalSummary
     };
 })(window);

@@ -14,7 +14,8 @@ function ensureSessionStarted(): void
             error_log("[RestoCloud] ensureSessionStarted: session path $sessionPath not writable, using default");
         }
 
-        $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
+        $isProduction = function_exists('rc_env') ? rc_env('APP_ENV', 'production') === 'production' : false;
+        $isSecure = $isProduction || ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443));
         session_set_cookie_params([
             'lifetime' => 0,
             'path' => '/',
@@ -204,6 +205,7 @@ function createUserSession(PDO $pdo, array $user): array
     ensureSessionStarted();
 
     $sessionId = 'ses_' . bin2hex(random_bytes(12));
+    session_regenerate_id(true);
     $stmt = $pdo->prepare("
         INSERT INTO `user_sessions` (`id`, `user_id`, `tenant_id`, `branch_id`, `started_at`, `last_seen_at`, `ip_address`, `user_agent`)
         VALUES (:id, :user_id, :tenant_id, :branch_id, NOW(), NOW(), :ip_address, :user_agent)

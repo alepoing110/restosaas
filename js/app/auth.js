@@ -22,7 +22,13 @@
         if (metaEl) metaEl.textContent = `${tenantName} · ${branchName} · ${roleName}`;
         if (branchSelect) {
             const branches = payload?.authorizedBranches || [];
-            branchSelect.innerHTML = branches.map(branch => `<option value="${branch.id}">${branch.name}</option>`).join('');
+            branchSelect.innerHTML = '';
+            branches.forEach(branch => {
+                const opt = document.createElement('option');
+                opt.value = branch.id;
+                opt.textContent = branch.name;
+                branchSelect.appendChild(opt);
+            });
             branchSelect.value = payload?.branch?.id || '';
             branchSelect.hidden = branches.length < 2;
         }

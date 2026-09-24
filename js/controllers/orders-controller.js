@@ -2,18 +2,6 @@
 // SCREEN 2: ORDERS CONTROLLER
 // ==========================================================================
 
-window.openTicketModalById = function(orderId) {
-    const order = state.activeOrders.find(o => o.id === orderId);
-    if (!order) return;
-
-    const allItemsPaid = order.paid || (order.items || []).every(i => i.paid);
-    if (allItemsPaid || order.status === 'pendiente') {
-        window.openTicketModal(order, 'client');
-    } else {
-        window.openTicketModal(order, 'full');
-    }
-};
-
 window.setOrderServiceState = async function(orderId, newState) {
     try {
         const data = await AppApi.request('update_order_state', { id: orderId, state: newState });
@@ -67,13 +55,6 @@ window.completeActiveOrder = async function(orderId, chosenPaymentMethod = 'efec
             const customerName = activeOrder ? activeOrder.customer : 'Cliente';
             const payLabel = (typeof chosenPaymentMethod === 'object' && chosenPaymentMethod !== null) ? 'Mixto' : chosenPaymentMethod.toUpperCase();
             Notifications.notify(`💰 ${customerName}: Cobrado ${payLabel}`, 'success');
-            if (completedOrder) {
-                if (window.TicketPrinter) {
-                    window.TicketPrinter.printReceipt(completedOrder);
-                } else {
-                    window.openTicketModal(completedOrder, 'client');
-                }
-            }
         } catch (e) {
             console.error('[ORDERS] El cobro se completó, pero falló la actualización visual:', e);
             showToast('Cobro registrado. No se pudo actualizar una parte de la vista.', 'warning');
@@ -111,7 +92,8 @@ function renderCancelOrderItems() {
             const serviceLabel = item.serviceType === 'llevar' ? 'Para llevar' : 'Servirse';
             const serviceClass = item.serviceType === 'llevar' ? 'llevar' : 'servirse';
             const salsaTotal = (item.salsas || []).reduce((total, salsa) => total + Number(salsa.salsaPrice || 0), 0);
-            const unitPrice = Number(item.price || 0) + salsaTotal;
+            const accompanimentTotal = (item.accompaniments || []).reduce((total, acc) => total + Number(acc.accompanimentPrice || 0), 0);
+            const unitPrice = Number(item.price || 0) + salsaTotal + accompanimentTotal;
             const lineTotal = unitPrice * quantity;
             return `<label class="cancel-order-item">
                 <input type="checkbox" class="cancel-order-check" data-line-no="${index}" checked>
@@ -124,7 +106,7 @@ function renderCancelOrderItems() {
                     </span>
                     ${details ? `<small>${escapeHtml(details)}</small>` : ''}
                 </span>
-                <input type="number" class="form-input cancel-order-item-qty" data-line-no="${index}" min="0.001" max="${quantity}" step="0.001" value="${quantity}">
+                <input type="number" class="form-input cancel-order-item-qty" data-line-no="${index}" min="1" max="${quantity}" step="1" value="${quantity}">
             </label>`;
         }).join('')}`;
     const selectAll = document.getElementById('cancel-order-select-all');
@@ -445,7 +427,6 @@ function openAppendItemsModal(orderId) {
     });
 
     renderAppendPendingList();
-    populateAppendCatalogSelect();
 
     document.getElementById('append-catalog-select').value = '';
     document.getElementById('append-item-qty').value = '1';
@@ -455,10 +436,12 @@ function openAppendItemsModal(orderId) {
     const confirmBtn = document.getElementById('btn-confirm-append-items');
     const paymentSection = document.getElementById('append-payment-section');
     if (confirmBtn) {
-        confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Agregar al Pedido';
+        confirmBtn.innerHTML = order.paid
+            ? '<i class="fa-solid fa-cash-register"></i> Cobrar y agregar'
+            : '<i class="fa-solid fa-check"></i> Agregar al Pedido';
         confirmBtn.className = 'btn btn-primary';
     }
-    if (paymentSection) paymentSection.style.display = 'none';
+    if (paymentSection) paymentSection.style.display = order.paid ? '' : 'none';
 
     const modal = document.getElementById('modal-append-items');
     if (modal) modal.classList.add('open');
@@ -471,46 +454,14 @@ function closeAppendItemsModal() {
     appendItemsPending = [];
 }
 
-function populateAppendCatalogSelect() {
-    const select = document.getElementById('append-catalog-select');
-    if (!select) return;
-
-    const segGroup = select.querySelector('optgroup[label="Segundos"]');
-    const sopaGroup = select.querySelector('optgroup[label="Sopas"]');
-    const extraGroup = select.querySelector('optgroup[label="Platos Extras"]');
-    const bebGroup = select.querySelector('optgroup[label="Bebidas"]');
-
-    if (segGroup) {
-        segGroup.innerHTML = '';
-        state.seconds.filter(s => Number(s.active) !== 0).forEach(s => {
-            segGroup.innerHTML += `<option value="segundo:${s.id}">${escapeHtml(s.name)}</option>`;
-        });
-    }
-    if (sopaGroup) {
-        sopaGroup.innerHTML = '';
-        state.sopas.filter(s => Number(s.active) !== 0).forEach(s => {
-            sopaGroup.innerHTML += `<option value="sopa:${s.id}">${escapeHtml(s.name)}</option>`;
-        });
-    }
-    if (extraGroup) {
-        extraGroup.innerHTML = '';
-        state.platosExtras.forEach(p => {
-            extraGroup.innerHTML += `<option value="plato_extra:${p.id}">${escapeHtml(p.name)}</option>`;
-        });
-    }
-    if (bebGroup) {
-        bebGroup.innerHTML = '';
-        state.extras.forEach(e => {
-            bebGroup.innerHTML += `<option value="extra:${e.id}">${escapeHtml(e.name)}</option>`;
-        });
-    }
-}
-
 function onAppendCatalogChange() {
     const select = document.getElementById('append-catalog-select');
     const optionsPanel = document.getElementById('append-item-options');
     const sopaRow = document.getElementById('append-option-sopa');
     const segundoRow = document.getElementById('append-option-segundo');
+    const productRow = document.getElementById('append-option-product');
+    const productLabel = document.getElementById('append-product-label');
+    const productSelect = document.getElementById('append-select-product');
 
     if (!select || !optionsPanel) return;
 
@@ -520,9 +471,10 @@ function onAppendCatalogChange() {
         return;
     }
 
-    const [type] = val.split(':');
+    const type = val;
     sopaRow.style.display = (type === 'almuerzo' || type === 'sopa') ? '' : 'none';
     segundoRow.style.display = (type === 'almuerzo' || type === 'segundo') ? '' : 'none';
+    productRow.style.display = (type === 'plato_extra' || type === 'extra' || type === 'salsa' || type === 'acompanamiento') ? '' : 'none';
 
     if (type === 'almuerzo' || type === 'sopa') {
         const sopaSelect = document.getElementById('append-select-sopa');
@@ -542,6 +494,17 @@ function onAppendCatalogChange() {
             });
         }
     }
+    if (type === 'plato_extra' || type === 'extra' || type === 'salsa' || type === 'acompanamiento') {
+        const products = type === 'plato_extra' ? state.platosExtras : type === 'extra' ? state.extras : type === 'salsa' ? state.salsas : state.accompaniments;
+        const label = type === 'plato_extra' ? 'Plato extra' : type === 'extra' ? 'Bebida' : type === 'salsa' ? 'Salsa' : 'Acompañamiento extra';
+        if (productLabel) productLabel.textContent = `${label}:`;
+        if (productSelect) {
+            productSelect.innerHTML = `<option value="">-- Seleccionar ${label.toLowerCase()} --</option>`;
+            products.filter(product => Number(product.active) !== 0).forEach(product => {
+                productSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.name)}</option>`;
+            });
+        }
+    }
 
     optionsPanel.style.display = 'block';
 }
@@ -553,8 +516,8 @@ function addItemToAppendModal() {
         return;
     }
 
-    const val = select.value;
-    const [type, itemId] = val.split(':');
+    const type = select.value;
+    let itemId = '';
     const qty = parseInt(document.getElementById('append-item-qty')?.value) || 1;
     const serviceType = document.getElementById('append-item-service-type')?.value || 'servirse';
     let name = '';
@@ -594,6 +557,8 @@ function addItemToAppendModal() {
         price = state.prices?.sopa || 6;
         extraFields = { sopaId, sopaName: sopa?.name || '' };
     } else if (type === 'plato_extra') {
+        itemId = document.getElementById('append-select-product')?.value || '';
+        if (!itemId) { showToast('Selecciona un plato extra.', 'warning'); return; }
         const platoAvail = getAvailablePlatoExtraStock(itemId);
         if (platoAvail < qty) { showToast(`Stock insuficiente. Disponible: ${platoAvail}`, 'error'); return; }
         const plato = state.platosExtras.find(p => p.id === itemId);
@@ -601,20 +566,64 @@ function addItemToAppendModal() {
         price = plato?.price || 0;
         extraFields = { platoId: itemId };
     } else if (type === 'extra') {
+        itemId = document.getElementById('append-select-product')?.value || '';
+        if (!itemId) { showToast('Selecciona una bebida.', 'warning'); return; }
         const extAvail = getAvailableExtraStock(itemId);
         if (extAvail < qty) { showToast(`Stock insuficiente. Disponible: ${extAvail}`, 'error'); return; }
         const ext = state.extras.find(e => e.id === itemId);
         name = ext?.name || 'Bebida';
         price = ext?.price || 0;
         extraFields = { extraId: itemId };
+    } else if (type === 'salsa') {
+        itemId = document.getElementById('append-select-product')?.value || '';
+        if (!itemId) { showToast('Selecciona una salsa.', 'warning'); return; }
+        const salsa = (state.salsas || []).find(item => item.id === itemId);
+        name = salsa?.name || 'Salsa';
+        price = Number(salsa?.price || 0);
+        extraFields = { salsaId: itemId };
+    } else if (type === 'acompanamiento') {
+        itemId = document.getElementById('append-select-product')?.value || '';
+        if (!itemId) { showToast('Selecciona un acompañamiento.', 'warning'); return; }
+        const accompaniment = (state.accompaniments || []).find(item => item.id === itemId);
+        name = accompaniment?.name || 'Acompañamiento';
+        price = Number(accompaniment?.price_extra || 0);
+        extraFields = { accompanimentId: itemId };
     }
 
-    appendItemsPending.push({ type, name, price, quantity: qty, serviceType, ...extraFields });
-    renderAppendPendingList();
-
-    select.value = '';
-    document.getElementById('append-item-options').style.display = 'none';
-    document.getElementById('append-item-qty').value = '1';
+    const pendingItem = { type, name, price, quantity: qty, serviceType, ...extraFields };
+    const catalogProduct = type === 'almuerzo'
+        ? ((state.seconds || []).find(product => product.id === pendingItem.segundoId) || (state.sopas || []).find(product => product.id === pendingItem.sopaId))
+        : type === 'segundo' ? (state.seconds || []).find(product => product.id === pendingItem.segundoId)
+            : type === 'sopa' ? (state.sopas || []).find(product => product.id === pendingItem.sopaId)
+                : type === 'plato_extra' ? (state.platosExtras || []).find(product => product.id === pendingItem.platoId)
+                    : null;
+    const canonicalProduct = (state.products || []).find(product => product.id === pendingItem.segundoId || product.id === pendingItem.sopaId || product.id === pendingItem.platoId);
+    const optionProduct = { ...(catalogProduct || {}), ...(canonicalProduct || {}) };
+    const finish = () => {
+        appendItemsPending.push(pendingItem);
+        renderAppendPendingList();
+        select.value = '';
+        document.getElementById('append-item-options').style.display = 'none';
+        document.getElementById('append-item-qty').value = '1';
+    };
+    const optionEnabled = value => value === true || value === 1 || value === '1';
+    const acceptsSalsa = optionEnabled(optionProduct?.accepts_salsa);
+    const acceptsAccompaniment = optionEnabled(optionProduct?.accepts_accompaniment);
+    const selectAccompaniments = () => {
+        if (!acceptsAccompaniment || typeof window.openAccompanimentSelectModal !== 'function') return finish();
+        window.openAccompanimentSelectModal(optionProduct, selected => {
+            if (selected?.length) pendingItem.accompaniments = selected;
+            finish();
+        });
+    };
+    if (acceptsSalsa && typeof window.openSalsaSelectModal === 'function') {
+        window.openSalsaSelectModal(optionProduct, selected => {
+            if (selected?.length) pendingItem.salsas = selected;
+            selectAccompaniments();
+        });
+    } else {
+        selectAccompaniments();
+    }
 }
 
 function removeAppendPendingItem(index) {
@@ -625,6 +634,7 @@ function removeAppendPendingItem(index) {
 function renderAppendPendingList() {
     const container = document.getElementById('append-items-pending');
     const totalEl = document.getElementById('append-items-new-total');
+    const countEl = document.getElementById('append-items-pending-count');
     if (!container) return;
 
     container.innerHTML = '';
@@ -634,15 +644,33 @@ function renderAppendPendingList() {
     let pendingTotal = 0;
 
     appendItemsPending.forEach((item, idx) => {
-        const itemTotal = item.price * item.quantity;
+        const optionTotal = (item.salsas || []).reduce((sum, salsa) => sum + Number(salsa.salsaPrice || 0), 0)
+            + (item.accompaniments || []).reduce((sum, accompaniment) => sum + Number(accompaniment.accompanimentPrice || 0), 0);
+        const itemTotal = (Number(item.price || 0) + optionTotal) * item.quantity;
         pendingTotal += itemTotal;
+        const details = [item.sopaName, item.segundoName].filter(Boolean).join(' / ');
+        const options = [
+            details,
+            (item.salsas || []).map(salsa => salsa.salsaName).filter(Boolean).join(', '),
+            (item.accompaniments || []).map(accompaniment => accompaniment.accompanimentName).filter(Boolean).join(', ')
+        ].filter(Boolean);
+        const serviceLabel = item.serviceType === 'llevar' ? 'Para llevar' : 'Servirse';
+        const serviceIcon = item.serviceType === 'llevar' ? 'fa-bag-shopping' : 'fa-plate-wheat';
         const div = document.createElement('div');
         div.className = 'append-pending-item';
         div.innerHTML = `
-            <span>${item.quantity}x ${escapeHtml(item.name)} <span class="item-detail-badge ${item.serviceType}" style="font-size:10px;">${escapeHtml(item.serviceType)}</span></span>
-            <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-weight:600;">${formatCurrency(itemTotal)}</span>
-                <button class="btn btn-sm btn-danger-outline" onclick="removeAppendPendingItem(${idx})"><i class="fa-solid fa-xmark"></i></button>
+            <span class="append-pending-qty">${item.quantity}x</span>
+            <div class="append-pending-content">
+                <strong class="append-pending-name">${escapeHtml(item.name)}</strong>
+                <div class="append-pending-meta">
+                    <span class="item-detail-badge ${item.serviceType}"><i class="fa-solid ${serviceIcon}"></i> ${serviceLabel}</span>
+                    <span>${formatCurrency(item.price)} c/u</span>
+                    ${options.map(option => `<span>${escapeHtml(option)}</span>`).join('')}
+                </div>
+            </div>
+            <div class="append-pending-actions">
+                <strong>${formatCurrency(itemTotal)}</strong>
+                <button class="btn btn-sm btn-danger-outline" onclick="removeAppendPendingItem(${idx})" aria-label="Quitar ${escapeHtml(item.name)}" title="Quitar"><i class="fa-solid fa-xmark"></i></button>
             </div>
         `;
         container.appendChild(div);
@@ -652,6 +680,7 @@ function renderAppendPendingList() {
         container.innerHTML = '<p class="text-muted" style="text-align:center; padding:12px; font-size:12px;">Agrega items del menú</p>';
     }
 
+    if (countEl) countEl.textContent = String(appendItemsPending.length);
     if (totalEl) totalEl.textContent = formatCurrency(currentTotal + pendingTotal);
 }
 
@@ -679,42 +708,48 @@ async function confirmAppendItems() {
             sopaName: i.sopaName || null,
             segundoId: i.segundoId || null,
             segundoName: i.segundoName || null,
+            salsas: i.salsas || [],
+            accompaniments: i.accompaniments || [],
             platoId: i.platoId || null,
-            extraId: i.extraId || null
+            extraId: i.extraId || null,
+            salsaId: i.salsaId || null,
+            accompanimentId: i.accompanimentId || null
         }));
 
-        const data = await AppApi.appendOrderItems(appendItemsOrderId, itemsToAppend);
+        const isAlreadyPaid = Boolean(order.paid);
+        const paymentMethod = document.getElementById('append-payment-select')?.value || '';
+        if (isAlreadyPaid && !paymentMethod) {
+            showToast('Seleccione el método de pago de los nuevos productos.', 'warning');
+            return;
+        }
+
+        const data = await AppApi.appendOrderItems(
+            appendItemsOrderId,
+            itemsToAppend,
+            isAlreadyPaid,
+            isAlreadyPaid ? paymentMethod : null
+        );
         if (data.status === 'success') {
+            const addedItems = itemsToAppend.map(item => ({ ...item, qty: item.quantity || 1 }));
             order.items = data.items;
             order.total = data.total;
+            if (window.PrintJobs) {
+                const kitchenItems = addedItems.filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
+                if (kitchenItems.length) PrintJobs.printKitchen(order, kitchenItems);
+                if (isAlreadyPaid) PrintJobs.printPayment(order, addedItems);
+                else {
+                    const takeoutItems = addedItems.filter(item => item.serviceType === 'llevar');
+                    if (takeoutItems.length) PrintJobs.printCustomer(order, takeoutItems);
+                }
+            }
             if (window.AppStore) window.AppStore.emit();
             showToast(`${appendItemsPending.length} item(s) agregado(s).`, 'success');
             closeAppendItemsModal();
 
-            // Print kitchen comanda for food items only (exclude drinks)
-            try {
-                const foodItems = itemsToAppend.filter(i => 
-                    i.type !== 'extra' && i.type !== 'bebida' && i.type !== 'gaseosa'
-                );
-                if (foodItems.length > 0) {
-                    const kitchenOrder = {
-                        ...order,
-                        items: foodItems,
-                        total: foodItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
-                    };
-                    if (window.TicketPrinter) {
-                        window.TicketPrinter.printKitchen(kitchenOrder);
-                    } else {
-                        window.openTicketModal(kitchenOrder, 'kitchen');
-                    }
-                }
-            } catch (e) {
-                console.error('[APPEND] Error abriendo ticket:', e);
-            }
         }
     } catch (e) {
         console.error('[APPEND] Error adding items:', e);
-        showToast('Error al agregar items al pedido.', 'error');
+        showToast(e.message || 'Error al agregar items al pedido.', 'error');
     }
 }
 

@@ -47,7 +47,12 @@ function initTabNavigation() {
     document.querySelectorAll('.nav-menu .nav-item').forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.getAttribute('data-tab');
-            switchTab(tabId);
+            const defaultSubtab = button.getAttribute('data-default-subtab');
+            switchTab(tabId).then(() => {
+                if (defaultSubtab && tabId === 'menu-config' && typeof window.switchMenuConfigSubtab === 'function') {
+                    window.switchMenuConfigSubtab(defaultSubtab);
+                }
+            });
         });
     });
 
@@ -67,6 +72,10 @@ function initTabNavigation() {
 
     safeBind('btn-cat-drinks', 'click', () => {
         if (window.PosController) PosController.setCategory('drinks');
+    });
+
+    safeBind('btn-cat-sauces', 'click', () => {
+        if (window.PosController) PosController.setCategory('sauces');
     });
 
     // POS Table selection listener
@@ -118,7 +127,6 @@ function initModalBackdropHandlers() {
         if (!backdrop) return;
         if (e.target !== backdrop) return;
         const id = backdrop.id;
-        if (id === 'modal-ticket-preview') { closeModalTicket(); return; }
         if (id === 'modal-report-preview') { closeModal('modal-report-preview'); return; }
         if (id === 'modal-tables-config') { closeTablesConfigModal(); return; }
         if (id === 'modal-menu-products') { closeMenuProductsModal(); return; }
@@ -135,7 +143,6 @@ function initModalBackdropHandlers() {
         if (openModals.length === 0) return;
         const topModal = openModals[openModals.length - 1];
         const id = topModal.id;
-        if (id === 'modal-ticket-preview') { closeModalTicket(); return; }
         if (id === 'modal-report-preview') { closeModal('modal-report-preview'); return; }
         if (id === 'modal-tables-config') { closeTablesConfigModal(); return; }
         if (id === 'modal-menu-products') { closeMenuProductsModal(); return; }
@@ -227,6 +234,7 @@ async function startAuthenticatedApp(forceReload = false) {
 
         if (window.PosController) {
             window.PosController.init();
+            window.PosController.relocatePosFlowControls?.();
         }
 
         const safeBind = (id, event, handler) => {
@@ -246,8 +254,18 @@ async function startAuthenticatedApp(forceReload = false) {
             }
         });
         safeBind('btn-complete-sale', 'click', () => {
+            if (window.state?.cart?.length) {
+                const promo = document.getElementById('cart-promo-popover');
+                if (promo) promo.style.display = '';
+                window.PosView?.syncPaymentModalSummary?.();
+                openModal('modal-order-payment');
+            }
+            else showToast('Agregue productos antes de cobrar.', 'warning');
+        });
+        safeBind('btn-open-order-details', 'click', () => openModal('modal-order-details'));
+        safeBind('btn-confirm-sale', 'click', () => {
             if (window.PosController) {
-                PosController.checkoutOrder(false).catch(err => {
+                PosController.checkoutOrder(false).then(() => closeModal('modal-order-payment')).catch(err => {
                     console.error('[POS] checkoutOrder error:', err);
                     showToast(err.message || 'Error inesperado al procesar el pedido.', 'error');
                 });
@@ -263,12 +281,8 @@ async function startAuthenticatedApp(forceReload = false) {
             }, 200));
         }
 
-        safeBind('form-prices', 'submit', handleSavePrices);
-        safeBind('form-business-info', 'submit', handleSaveBusinessInfo);
-        safeBind('form-add-segundo', 'submit', handleAddSegundo);
-        safeBind('form-add-sopa', 'submit', handleAddSopa);
-        safeBind('form-add-plato-extra', 'submit', handleAddPlatoExtra);
-        safeBind('form-add-menu', 'submit', handleAddMenu);
+safeBind('form-business-info', 'submit', handleSaveBusinessInfo);
+safeBind('form-print-settings', 'submit', handleSavePrintSettings);
 
         const posMenuSelect = document.getElementById('pos-active-menu-select');
         if (posMenuSelect) {
@@ -334,11 +348,6 @@ async function startAuthenticatedApp(forceReload = false) {
 
         const btnReset = document.getElementById('btn-reset-data');
         if (btnReset) btnReset.addEventListener('click', resetAllData);
-
-        const btnCloseTicket = document.getElementById('btn-close-ticket-modal');
-        if (btnCloseTicket) btnCloseTicket.addEventListener('click', closeModalTicket);
-        const btnClosePreview = document.getElementById('btn-close-ticket-preview');
-        if (btnClosePreview) btnClosePreview.addEventListener('click', closeModalTicket);
 
         const btnReportPreviewPrint = document.getElementById('btn-report-preview-print');
         if (btnReportPreviewPrint) {

@@ -26,6 +26,7 @@
     }
 
     body.rc-ticket-printing #ticket-print-area {
+        page: thermal-ticket;
         display: block !important;
         visibility: visible !important;
     }
@@ -34,18 +35,30 @@
        stacks the kitchen-ticket columns only on the physical printout. */
     body.rc-ticket-printing #ticket-print-area * {
         visibility: visible !important;
+        color: #000 !important;
+        background: #fff !important;
+        border-color: #000 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
     }
     
     body.rc-ticket-printing #ticket-print-area {
         position: absolute;
         left: 0;
         top: 0;
-        width: 80mm;
+        width: 100%;
+        max-width: 80mm;
+        box-sizing: border-box;
         background-color: #fff !important;
         color: #000 !important;
-        padding: 4mm 2mm !important;
+        padding: 0 10mm 0 0 !important;
         margin: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
         box-shadow: none !important;
+        min-height: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
     }
 
     #ticket-print-area {
@@ -53,8 +66,39 @@
         font-size: 12px;
         line-height: 1.3;
         width: 100%;
+        max-width: 80mm;
+        box-sizing: border-box;
         background-color: #fff !important;
         color: #000 !important;
+    }
+
+    #ticket-print-area .ticket-thermal-wrapper,
+    #ticket-print-area .ticket-client-copy,
+    #ticket-print-area .ticket-kitchen-copy {
+        width: 100% !important;
+        max-width: 80mm !important;
+        box-sizing: border-box !important;
+        min-height: 0 !important;
+        height: auto !important;
+        padding: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        overflow: visible !important;
+    }
+
+    #ticket-print-area .ticket-header {
+        margin-top: 0 !important;
+    }
+
+    #ticket-print-area .ticket-footer {
+        display: none !important;
+    }
+
+    #ticket-print-area .ticket-minimal {
+        margin: 0 !important;
+        padding: 0 !important;
     }
     
     #ticket-print-area th {
@@ -64,6 +108,34 @@
     
     #ticket-print-area td {
         color: #000 !important;
+    }
+
+    #ticket-print-area .ticket-meta-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        gap: 4px !important;
+        width: 100% !important;
+        text-align: left !important;
+    }
+
+    #ticket-print-area .ticket-meta-row > span {
+        display: block !important;
+        width: auto !important;
+        max-width: 50% !important;
+        margin: 2px 0 !important;
+        text-align: left !important;
+        overflow-wrap: break-word !important;
+    }
+
+    #ticket-print-area .ticket-meta-row > span:last-child {
+        text-align: right !important;
+    }
+
+    #ticket-print-area,
+    #ticket-print-area * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
     #ticket-print-area .ticket-table {
@@ -100,6 +172,11 @@
         content: '✂- - - - - - - - - - - - - - - - - - - - - - -';
     }
 
+    #ticket-print-area .ticket-table-cut {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
     .print-only.letter-print-area {
         width: 100% !important;
         min-height: auto !important;
@@ -131,6 +208,21 @@
     @page {
         margin: 0;
         size: auto;
+    }
+
+    @page thermal-ticket {
+        margin: 0;
+        size: 80mm auto;
+    }
+
+    html,
+    body {
+        width: 100%;
+        page: thermal-ticket;
+        min-height: 0 !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 }
 
@@ -1116,7 +1208,7 @@ body.no-scroll { overflow: hidden; }
         margin-top: 12px;
     }
     .pos-grid.show-cart .pos-catalog { display: none; }
-    .pos-grid.show-cart .pos-cart { display: block; }
+    .pos-grid.show-cart .pos-cart { display: flex; height: calc(100vh - 116px); max-height: calc(100vh - 116px); overflow: hidden; }
 
     .mobile-cart-toggle {
         display: flex;

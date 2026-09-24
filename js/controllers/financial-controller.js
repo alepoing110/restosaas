@@ -1,4 +1,9 @@
 (function (window) {
+    function sanitizeCsvCell(val) {
+        const s = String(val ?? '');
+        if (/^[=+\-@\t\r\n]/.test(s)) return "'" + s;
+        return s;
+    }
     const Controller = {
         initialized: false,
         range: '7d',
@@ -108,7 +113,7 @@
         },
         exportCsv() {
             const rows = state.financialReport?.expenses || [];
-            const csv = [['Fecha', 'Descripción', 'Categoría', 'Método de pago', 'Monto'], ...rows.map(row => [row.date, row.description, financialLabel(row.category), financialLabel(row.payment_method), row.amount])].map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const csv = [['Fecha', 'Descripción', 'Categoría', 'Método de pago', 'Monto'], ...rows.map(row => [row.date, row.description, financialLabel(row.category), financialLabel(row.payment_method), row.amount])].map(row => row.map(value => `"${sanitizeCsvCell(value).replace(/"/g, '""')}"`).join(',')).join('\n');
             const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })); link.download = `finanzas-${state.financialReport?.start_date || 'reporte'}-${state.financialReport?.end_date || ''}.csv`; link.click(); URL.revokeObjectURL(link.href);
         },
         printReport() {

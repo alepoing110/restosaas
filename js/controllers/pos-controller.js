@@ -41,6 +41,7 @@
         if (tableSelect) {
             tableSelect.addEventListener('change', (e) => {
                 syncCatalogServiceDefaults(e.target.value);
+                updatePickupTimeVisibility(e.target.value);
                 if (e.target.value !== 'Llevar' && e.target.value !== 'Delivery' && e.target.value !== 'Personalizado') {
                     const occupiedTables = new Set(
                         (window.state.activeOrders || [])
@@ -66,12 +67,24 @@
                 }
             });
             syncCatalogServiceDefaults(tableSelect.value);
+            updatePickupTimeVisibility(tableSelect.value);
         }
 
-        // Promo section: toggle, apply coupon, remove promo
+        // Promo popover: open/close, apply coupon, remove promo
+        document.getElementById('btn-open-promos')?.addEventListener('click', () => {
+            const popover = document.getElementById('cart-promo-popover');
+            const trigger = document.getElementById('btn-open-promos');
+            if (!popover) return;
+            const open = popover.style.display === 'none' || !popover.style.display;
+            popover.style.display = open ? '' : 'none';
+            trigger?.setAttribute('aria-expanded', String(open));
+            if (open) window.PosView?.renderPromoSection?.();
+        });
         document.getElementById('btn-toggle-promos')?.addEventListener('click', () => {
-            const list = document.getElementById('cart-promo-list');
-            if (list) list.style.display = list.style.display === 'none' ? '' : 'none';
+            const popover = document.getElementById('cart-promo-popover');
+            const trigger = document.getElementById('btn-open-promos');
+            if (popover) popover.style.display = 'none';
+            trigger?.setAttribute('aria-expanded', 'false');
         });
         document.getElementById('btn-apply-coupon')?.addEventListener('click', () => {
             const input = document.getElementById('cart-coupon-input');
@@ -87,6 +100,22 @@
         document.getElementById('btn-remove-promo')?.addEventListener('click', () => removePromo());
 
         initialized = true;
+        relocatePosFlowControls();
+    }
+
+    function relocatePosFlowControls() {
+        const detailsSlot = document.getElementById('pos-details-slot');
+        const paymentSlot = document.getElementById('pos-payment-slot');
+        if (!detailsSlot || !paymentSlot || detailsSlot.dataset.ready === 'true') return;
+        ['order-notes-inline', 'order-pickup-time-group'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) detailsSlot.appendChild(element);
+        });
+        ['order-payment-row', 'mixed-payment-section', 'cart-promo-popover'].forEach(id => {
+            const element = id === 'order-payment-row' ? document.querySelector('.order-payment-row') : document.getElementById(id);
+            if (element) paymentSlot.appendChild(element);
+        });
+        detailsSlot.dataset.ready = 'true';
     }
 
     function syncCatalogServiceDefaults(locationName) {
@@ -94,6 +123,20 @@
         document.querySelectorAll('#pos-catalog-cards input[type="radio"][value="servirse"], #pos-catalog-cards input[type="radio"][value="llevar"]').forEach(input => {
             input.checked = input.value === serviceType;
         });
+    }
+
+    function updatePickupTimeVisibility(locationName) {
+        const group = document.getElementById('order-pickup-time-group');
+        const input = document.getElementById('order-pickup-time');
+        const isTakeout = ['Llevar', 'Delivery', 'Personalizado'].includes(locationName);
+        if (group) group.style.display = isTakeout ? '' : 'none';
+        if (input) {
+            input.required = false;
+            if (isTakeout && !input.value) {
+                const now = new Date();
+                input.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            }
+        }
     }
 
     function updatePaymentMethodIcon(method) {
@@ -110,10 +153,12 @@
     }
 
     function updateMixedPaymentSum() {
-        const total = window.state.cart.reduce((sum, item) => {
+        const grossTotal = window.state.cart.reduce((sum, item) => {
             const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
-            return sum + (item.price + salsaTotal) * (item.qty || 1);
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, a) => acc + (a.accompanimentPrice || 0), 0);
+            return sum + (item.price + salsaTotal + accompanimentTotal) * (item.qty || 1);
         }, 0);
+        const total = Math.max(0, grossTotal - (window.state.cartDiscountAmount || 0));
         const efectivoEl = document.getElementById('mixed-efectivo');
         const qrEl = document.getElementById('mixed-qr');
         const efectivo = parseFloat(efectivoEl ? efectivoEl.value : 0) || 0;
@@ -167,6 +212,15 @@
             const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
             addExtraToCart(extraId, qty);
             if (qtyInput) qtyInput.value = 1;
+            return;
+        }
+        if (action === 'add-standalone-catalog') {
+            const type = actionTarget.dataset.standaloneType;
+            const id = actionTarget.dataset.standaloneId;
+            const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
+            const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
+            addStandaloneCatalogItem(type, id, qty);
+            if (qtyInput) qtyInput.value = 1;
         }
     }
 
@@ -187,7 +241,8 @@
             const activeButtonMap = {
                 meals: 'btn-cat-meals',
                 extras: 'btn-cat-extras',
-                drinks: 'btn-cat-drinks'
+                drinks: 'btn-cat-drinks',
+                sauces: 'btn-cat-sauces'
             };
             window.setActiveCategoryTab(activeButtonMap[category]);
         }
@@ -208,8 +263,10 @@
     }
 
     let promoDebounce = null;
+    let promoRequestVersion = 0;
     function schedulePromoSuggestions() {
         clearTimeout(promoDebounce);
+        const requestVersion = ++promoRequestVersion;
         promoDebounce = setTimeout(() => suggestPromosForCart(), 400);
     }
 
@@ -221,8 +278,10 @@
             appState.cartDiscountAmount = 0;
             appState.cartDiscountLabel = '';
             appState.cartCouponCode = '';
+            refreshPosView();
             return;
         }
+        const requestVersion = promoRequestVersion;
         const channel = guessPosChannel();
         const items = appState.cart.map(item => ({
             id: item.id || item.platoId || item.extraId || item.sopaId || '',
@@ -231,23 +290,26 @@
             product_id: promoProductId(item),
             product_type: promoProductType(item),
             quantity: item.qty || 1,
+            price: item.price,
             unit_price: item.price,
-            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0)) * (item.qty || 1)
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0) + (item.accompaniments || []).reduce((a, acc) => a + (acc.accompanimentPrice || 0), 0)) * (item.qty || 1)
         }));
         try {
             const data = await AppApi.suggestPromos(items, channel, appState.cartCouponCode || '');
+            if (requestVersion !== promoRequestVersion) return;
             const suggested = data.suggestions || data.suggested || [];
             appState.cartSuggestedPromos = suggested;
-            if (appState.cartPromo && !suggested.find(s => s.plan_id === appState.cartPromo.plan_id)) {
+            const appliedPromoId = appState.cartPromo?.id || appState.cartPromo?.plan_id;
+            const matchingPromo = appliedPromoId
+                ? suggested.find(s => (s.id || s.plan_id) === appliedPromoId)
+                : null;
+            if (appState.cartPromo && !matchingPromo) {
                 removePromo();
                 return;
             }
-            if (appState.cartPromo) {
-                const match = suggested.find(s => s.plan_id === appState.cartPromo.plan_id);
-                if (match) {
-                    appState.cartPromo = match;
-                    appState.cartDiscountAmount = match.discount || 0;
-                }
+            if (matchingPromo) {
+                appState.cartPromo = matchingPromo;
+                appState.cartDiscountAmount = matchingPromo.discount_amount || matchingPromo.discount || 0;
             }
             refreshPosView();
         } catch (e) {
@@ -260,6 +322,8 @@
         if (item.type === 'extra') return item.extraId || '';
         if (item.type === 'sopa') return item.sopaId || '';
         if (item.type === 'segundo') return item.segundoId || '';
+        if (item.type === 'salsa') return item.salsaId || '';
+        if (item.type === 'acompanamiento') return item.accompanimentId || '';
         return '';
     }
 
@@ -305,8 +369,9 @@
             product_id: promoProductId(item),
             product_type: promoProductType(item),
             quantity: item.qty || 1,
+            price: item.price,
             unit_price: item.price,
-            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0)) * (item.qty || 1)
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0) + (item.accompaniments || []).reduce((a, acc) => a + (acc.accompanimentPrice || 0), 0)) * (item.qty || 1)
         }));
         try {
             const data = await AppApi.applyPromoCoupon(code, items, channel);
@@ -330,11 +395,14 @@
         if (item.salsas && item.salsas.length > 0) {
             salsaKey = '|' + item.salsas.map(s => `${s.salsaId}:${s.salsaMode}`).sort().join(',');
         }
-        if (item.type === 'almuerzo') return `almuerzo|${item.sopaId}|${item.segundoId}|${item.serviceType}${salsaKey}`;
-        if (item.type === 'segundo') return `segundo|${item.segundoId}|${item.serviceType}${salsaKey}`;
-        if (item.type === 'sopa') return `sopa|${item.sopaId}|${item.serviceType}${salsaKey}`;
-        if (item.type === 'plato_extra') return `plato_extra|${item.platoId}|${item.serviceType}${salsaKey}`;
+        const accompanimentKey = (item.accompaniments || []).length ? '|' + item.accompaniments.map(a => `${a.accompanimentId}:${a.accompanimentMode}`).sort().join(',') : '';
+        if (item.type === 'almuerzo') return `almuerzo|${item.sopaId}|${item.segundoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'segundo') return `segundo|${item.segundoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'sopa') return `sopa|${item.sopaId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'plato_extra') return `plato_extra|${item.platoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
         if (item.type === 'extra') return `extra|${item.extraId}|${item.serviceType}`;
+        if (item.type === 'salsa') return `salsa|${item.salsaId}`;
+        if (item.type === 'acompanamiento') return `acompanamiento|${item.accompanimentId}`;
         return item.id;
     }
 
@@ -349,6 +417,27 @@
             cart.push({ ...newItem, qty: qty });
         }
         commitCart(cart);
+    }
+
+    function getCanonicalProduct(appState, id, fallback) {
+        return (appState.products || []).find(product => product.id === id) || fallback;
+    }
+
+    function chooseItemOptions(itemData, optionProduct, complete) {
+        const selectAccompaniments = () => {
+            if (optionProduct?.accepts_accompaniment) {
+                openAccompanimentSelectModal(optionProduct, (accompaniments) => {
+                    if (accompaniments?.length) itemData.accompaniments = accompaniments;
+                    complete();
+                });
+            } else complete();
+        };
+        if (optionProduct?.accepts_salsa) {
+            openSalsaSelectModal(optionProduct, (salsas) => {
+                if (salsas?.length) itemData.salsas = salsas;
+                selectAccompaniments();
+            });
+        } else selectAccompaniments();
     }
 
     function refreshPosView() {
@@ -405,17 +494,17 @@
                 qty: qty
             };
 
-            const acceptsSalsa = (chosenSopa && chosenSopa.accepts_salsa) || (chosenSec && chosenSec.accepts_salsa);
-            if (acceptsSalsa) {
-                openSalsaSelectModal({ name: 'Almuerzo Completo' }, function(salsas) {
-                    if (salsas) itemData.salsas = salsas;
-                    appendCartItem(itemData);
-                    showToast(`${qty > 1 ? qty + ' almuerzos' : 'Almuerzo'} añadido(s) al pedido`, 'success');
-                });
-            } else {
+            const canonicalSopa = getCanonicalProduct(appState, sopaId, chosenSopa);
+            const canonicalSegundo = getCanonicalProduct(appState, segundoId, chosenSec);
+            const salsaProduct = canonicalSegundo?.accepts_salsa ? canonicalSegundo : canonicalSopa;
+            const accompProduct = canonicalSegundo?.accepts_accompaniment ? canonicalSegundo : canonicalSopa;
+            itemData._salsaProduct = salsaProduct;
+            itemData._accompProduct = accompProduct;
+            const optionProduct = { accepts_salsa: salsaProduct?.accepts_salsa, accepts_accompaniment: accompProduct?.accepts_accompaniment, max_included_accompaniments: accompProduct?.max_included_accompaniments || 0 };
+            chooseItemOptions(itemData, optionProduct, () => {
                 appendCartItem(itemData);
                 showToast(`${qty > 1 ? qty + ' almuerzos' : 'Almuerzo'} añadido(s) al pedido`, 'success');
-            }
+            });
 
             const remainingSegundo = segundoStockVal - qty;
             const remainingSopa = sopaStockVal - qty;
@@ -453,16 +542,10 @@
                 qty: qty
             };
 
-            if (chosenSec && chosenSec.accepts_salsa) {
-                openSalsaSelectModal({ name: chosenSec.name }, function(salsas) {
-                    if (salsas) itemData.salsas = salsas;
-                    appendCartItem(itemData);
-                    showToast(`${qty > 1 ? qty + ' segundos' : 'Segundo suelto'} añadido(s) al pedido`, 'success');
-                });
-            } else {
+            chooseItemOptions(itemData, getCanonicalProduct(appState, segundoId, chosenSec), () => {
                 appendCartItem(itemData);
                 showToast(`${qty > 1 ? qty + ' segundos' : 'Segundo suelto'} añadido(s) al pedido`, 'success');
-            }
+            });
 
             const remainingSegundo = segundoStockVal - qty;
             if (remainingSegundo <= 3) {
@@ -499,16 +582,10 @@
                 qty: qty
             };
 
-            if (chosenSopa && chosenSopa.accepts_salsa) {
-                openSalsaSelectModal({ name: chosenSopa.name }, function(salsas) {
-                    if (salsas) itemData.salsas = salsas;
-                    appendCartItem(itemData);
-                    showToast(`${qty > 1 ? qty + ' sopas' : chosenSopa.name} añadida(s) al pedido`, 'success');
-                });
-            } else {
+            chooseItemOptions(itemData, getCanonicalProduct(appState, sopaId, chosenSopa), () => {
                 appendCartItem(itemData);
                 showToast(`${qty > 1 ? qty + ' sopas' : chosenSopa.name} añadida(s) al pedido`, 'success');
-            }
+            });
 
             const remainingSopa = sopaStockVal - qty;
             if (remainingSopa <= 3) {
@@ -545,16 +622,10 @@
             qty: qty
         };
 
-        if (plato.accepts_salsa) {
-            openSalsaSelectModal({ name: plato.name }, function(salsas) {
-                if (salsas) itemData.salsas = salsas;
-                appendCartItem(itemData);
-                showToast(`${qty > 1 ? qty + 'x ' : ''}"${plato.name}" añadido(s) al pedido`, 'success');
-            });
-        } else {
+        chooseItemOptions(itemData, getCanonicalProduct(appState, platoId, plato), () => {
             appendCartItem(itemData);
             showToast(`${qty > 1 ? qty + 'x ' : ''}"${plato.name}" añadido(s) al pedido`, 'success');
-        }
+        });
 
         const remainingPlato = availStock - qty;
         if (remainingPlato <= 3) {
@@ -595,6 +666,30 @@
                 showToast(`Stock bajo. Quedan solo ${remainingExtra} unidades de "${extra.name}"`, 'warning');
             }, 600);
         }
+    }
+
+    function addStandaloneCatalogItem(type, id, qty = 1) {
+        const appState = window.state;
+        const source = type === 'salsa'
+            ? (appState.salsas || []).find(item => item.id === id)
+            : (appState.accompaniments || []).find(item => item.id === id);
+        if (!source || Number(source.active) === 0) return;
+        const price = type === 'salsa' ? Number(source.price || 0) : Number(source.price_extra || 0);
+        if (price < 0) {
+            showToast('El precio del producto no es válido.', 'error');
+            return;
+        }
+        appendCartItem({
+            id: generateId(),
+            type,
+            name: source.name,
+            salsaId: type === 'salsa' ? source.id : null,
+            accompanimentId: type === 'acompanamiento' ? source.id : null,
+            serviceType: 'llevar',
+            price,
+            qty
+        });
+        showToast(`${qty > 1 ? qty + 'x ' : ''}${source.name} añadido(s) al pedido`, 'success');
     }
 
     function removeCartItem(itemId) {
@@ -666,13 +761,20 @@
         const paymentSelect = paymentSelectEl ? paymentSelectEl.value : 'efectivo';
         const creditDueDate = document.getElementById('credit-due-date')?.value || '';
         const creditOverrideReason = document.getElementById('credit-override-reason')?.value.trim() || '';
+        const kitchenNote = document.getElementById('order-kitchen-note')?.value.trim() || '';
+        const waiterNote = document.getElementById('order-waiter-note')?.value.trim() || '';
+        const pickupTime = document.getElementById('order-pickup-time')?.value || '';
+        const effectivePickupTime = deliveryType !== 'mesa' && !pickupTime
+            ? `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+            : pickupTime;
         if (paymentSelect === 'credito' && (!enteredCustomerName || !creditDueDate)) {
             showToast('Para una venta a crédito indique el cliente y la fecha de vencimiento.', 'warning');
             return;
         }
         const grossTotal = appState.cart.reduce((sum, item) => {
             const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
-            return sum + (item.price + salsaTotal) * (item.qty || 1);
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, a) => acc + (a.accompanimentPrice || 0), 0);
+            return sum + (item.price + salsaTotal + accompanimentTotal) * (item.qty || 1);
         }, 0);
         const discountTotal = appState.cartDiscountAmount || 0;
         const appliedPromo = appState.cartPromo || null;
@@ -704,6 +806,9 @@
             discountTotal: discountTotal,
             appliedPromo: appliedPromo,
             couponCode: couponCode,
+            kitchenNote: kitchenNote,
+            waiterNote: waiterNote,
+            pickupTime: deliveryType !== 'mesa' ? effectivePickupTime : null,
             paymentMethod: paymentMethod,
             dueDate: paymentSelect === 'credito' ? creditDueDate : null,
             credit_override_reason: paymentSelect === 'credito' ? creditOverrideReason : '',
@@ -720,6 +825,12 @@
 
             await saveOrderOnServer(newOrder);
 
+            if (window.PrintJobs) {
+                PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
+                const takeoutItems = (newOrder.items || []).filter(item => item.serviceType === 'llevar');
+                if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+            }
+
             Notifications.notify(`🛒 Nuevo pedido: ${customerName}`, 'success');
             try {
                 commitCart([]);
@@ -727,12 +838,7 @@
                 if (typeof window.upsertActiveOrder === 'function') {
                     window.upsertActiveOrder(newOrder);
                 }
-                showToast('La comanda quedo registrada. Imprimiendo ticket de cocina...', 'info');
-                try {
-                    window.openTicketModal(newOrder, 'kitchen');
-                } catch (e) {
-                    console.error('[POS] Error abriendo ticket modal:', e);
-                }
+                 showToast('La comanda quedó registrada.', 'success');
             } catch (e) {
                 console.error('[POS] Error post-comanda:', e);
             }
@@ -746,6 +852,11 @@
 
         await saveOrderOnServer(newOrder);
 
+        if (window.PrintJobs) {
+            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
+            PrintJobs.printPayment(newOrder);
+        }
+
         Notifications.notify(`💰 Venta cobrada: ${customerName}`, 'success');
         try {
             commitCart([]);
@@ -753,17 +864,7 @@
             if (typeof window.upsertActiveOrder === 'function') {
                 window.upsertActiveOrder(newOrder);
             }
-            showToast('Pedido cobrado. Imprimiendo comanda...', 'info');
-            try {
-                if (window.TicketPrinter) {
-                    window.TicketPrinter.printFull(newOrder);
-                } else {
-                    window.openTicketModal(newOrder, 'full');
-                }
-            } catch (e) {
-                console.error('Error abriendo ticket modal:', e);
-                showToast('Venta registrada. Error al mostrar ticket.', 'warning');
-            }
+             showToast('Pedido cobrado correctamente.', 'success');
         } catch (e) {
             console.error('[POS] Error post-venta:', e);
         }
@@ -779,7 +880,10 @@
             return true;
         } catch (error) {
             console.error('[ORDER] saveOrderOnServer error:', error);
-            if (window.OfflineQueue) {
+            const message = error?.message || '';
+            const isConnectionFailure = message.startsWith('No se pudo conectar con el API') ||
+                message.startsWith('El servidor tardó demasiado en responder');
+            if (isConnectionFailure && window.OfflineQueue) {
                 try {
                     await OfflineQueue.enqueue(order);
                     showToast('Sin conexión. Pedido en cola — se enviará cuando haya red.', 'warning');
@@ -806,6 +910,12 @@
         if (customerName) customerName.value = '';
         const customerId = document.getElementById('order-customer-id');
         if (customerId) customerId.value = '';
+        const kitchenNote = document.getElementById('order-kitchen-note');
+        const waiterNote = document.getElementById('order-waiter-note');
+        const pickupTime = document.getElementById('order-pickup-time');
+        if (kitchenNote) kitchenNote.value = '';
+        if (waiterNote) waiterNote.value = '';
+        if (pickupTime) pickupTime.value = '';
         const paymentSelect = document.getElementById('order-payment-select');
         if (paymentSelect) paymentSelect.value = 'efectivo';
         const mixedSection = document.getElementById('mixed-payment-section');
@@ -822,6 +932,7 @@
         if (mixedQr) mixedQr.value = '0';
         const couponInput = document.getElementById('cart-coupon-input');
         if (couponInput) couponInput.value = '';
+        updatePickupTimeVisibility('Llevar');
     }
 
     function notify() {
@@ -840,9 +951,11 @@
         addToCart,
         addPlatoExtraToCart,
         addExtraToCart,
+        addStandaloneCatalogItem,
         removeCartItem,
         clearCart,
         checkoutOrder,
+        relocatePosFlowControls,
         syncServiceModeFromLocation: () => syncCatalogServiceDefaults(document.getElementById('order-table-select')?.value || 'Llevar'),
         applyPromo,
         removePromo,

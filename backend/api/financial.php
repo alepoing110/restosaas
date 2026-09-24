@@ -315,12 +315,17 @@ function handle_save_financial_expense(PDO $pdo, ?array $authContext, array $inp
         $allowedCategories = ['compras', 'sueldos', 'alquiler', 'servicios', 'transporte', 'impuestos', 'marketing', 'mantenimiento', 'otros'];
         $allowedPayments = ['efectivo', 'qr', 'tarjeta', 'transferencia', 'otro'];
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || trim((string)($input['description'] ?? '')) === '' || !is_numeric($input['amount'] ?? null) || (float)$input['amount'] <= 0 || !in_array($category, $allowedCategories, true) || !in_array($payment, $allowedPayments, true)) throw new InvalidArgumentException('Datos del gasto inválidos');
+        $closureStmt = $pdo->prepare("SELECT 1 FROM `caja_cierres_historico` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `fecha` = :date LIMIT 1");
+        $closureStmt->execute(['tenant_id' => $authContext['tenant_id'], 'branch_id' => $branchId, 'date' => $date]);
+        if ($closureStmt->fetchColumn()) throw new InvalidArgumentException('El día ya está cerrado. Registre el gasto en la fecha operativa actual.');
         $employeeName = $category === 'sueldos' ? trim((string)($input['employee_name'] ?? '')) : null;
         $paymentPeriod = $category === 'sueldos' ? trim((string)($input['payment_period'] ?? '')) : null;
         if ($category === 'sueldos' && ($employeeName === '' || $paymentPeriod === '')) throw new InvalidArgumentException('Para sueldos, el nombre del empleado y el periodo son obligatorios');
+        $pdo->beginTransaction();
         $stmt = $pdo->prepare("INSERT INTO `gastos_financieros` (id, fecha, description, category, amount, payment_method, reference, employee_name, payment_period, tenant_id, branch_id, created_by) VALUES (:id, :fecha, :description, :category, :amount, :payment, :reference, :employee_name, :payment_period, :tenant_id, :branch_id, :created_by)");
         $stmt->execute(['id' => trim((string)($input['id'] ?? ('exp_' . bin2hex(random_bytes(8))))), 'fecha' => $date, 'description' => trim($input['description']), 'category' => $category, 'amount' => (float)$input['amount'], 'payment' => $payment, 'reference' => trim((string)($input['reference'] ?? '')) ?: null, 'employee_name' => $employeeName ?: null, 'payment_period' => $paymentPeriod ?: null, 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $branchId, 'created_by' => $authContext['user_id']]);
         writeAuditLog($pdo, $authContext, 'financial.expense.save', 'gastos_financieros');
+        $pdo->commit();
         echo json_encode(['status' => 'success']);
     } catch (Throwable $e) { http_response_code($e instanceof InvalidArgumentException ? 400 : 500); echo json_encode(['status' => 'error', 'message' => $e->getMessage()]); }
 }
@@ -330,9 +335,11 @@ function handle_delete_financial_expense(PDO $pdo, ?array $authContext, array $i
     $requestedBranch = trim((string)($input['branch_id'] ?? ''));
     if ($requestedBranch === '') { http_response_code(400); echo json_encode(['status' => 'error', 'message' => 'Sucursal requerida para eliminar el gasto']); return; }
     try { [$branchIds] = financialBranchScope($pdo, $authContext, $requestedBranch); } catch (Throwable $e) { http_response_code(403); echo json_encode(['status' => 'error', 'message' => 'Sucursal no autorizada']); return; }
-    $stmt = $pdo->prepare("DELETE FROM `gastos_financieros` WHERE id = :id AND tenant_id = :tenant_id AND branch_id = :branch_id");
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("DELETE FROM `gastos_financieros` WHERE id = :id AND tenant_id = :tenant_id AND branch_id = :branch_id AND closure_id IS NULL");
     $stmt->execute(['id' => $input['id'] ?? '', 'tenant_id' => $authContext['tenant_id'], 'branch_id' => $branchIds[0]]);
     if (!$stmt->rowCount()) { http_response_code(404); echo json_encode(['status' => 'error', 'message' => 'Gasto no encontrado']); return; }
     writeAuditLog($pdo, $authContext, 'financial.expense.delete', 'gastos_financieros', $input['id']);
+    $pdo->commit();
     echo json_encode(['status' => 'success']);
 }

@@ -13,11 +13,14 @@ function refundOrderItems(array $rawItems): array {
         if (!is_array($item)) continue;
         $quantity = max(0, (float)($item['qty'] ?? $item['quantity'] ?? 1));
         if ($quantity <= 0) continue;
+        $unitPrice = (float)($item['price'] ?? 0);
+        foreach (($item['salsas'] ?? []) as $salsa) $unitPrice += (float)($salsa['salsaPrice'] ?? 0);
+        foreach (($item['accompaniments'] ?? []) as $accompaniment) $unitPrice += (float)($accompaniment['accompanimentPrice'] ?? 0);
         $items[] = [
             'line_no' => $index,
             'item_name' => (string)($item['name'] ?? 'Producto'),
             'item_type' => $item['type'] ?? null,
-            'unit_price' => round((float)($item['price'] ?? 0), 2),
+            'unit_price' => round($unitPrice, 2),
             'quantity' => $quantity,
         ];
     }
@@ -50,6 +53,14 @@ function handle_create_refund(PDO $pdo, ?array $authContext, array $input): void
 
         $orderItems = refundOrderItems(json_decode($order['items'] ?? '[]', true) ?: []);
         if (!$orderItems) throw new InvalidArgumentException('La venta no tiene productos devolvibles');
+
+        if (!empty($order['closure_id'])) {
+            $closedStmt = $pdo->prepare("SELECT 1 FROM `caja_cierres_historico` WHERE `id` = :cid AND `tenant_id` = :tid AND `branch_id` = :bid LIMIT 1");
+            $closedStmt->execute(['cid' => $order['closure_id'], 'tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']]);
+            if ($closedStmt->fetchColumn()) {
+                throw new InvalidArgumentException('Esta venta ya fue incluida en un cierre de caja. La devolución debe procesarse desde ajustes post-cierre.');
+            }
+        }
 
         $usedStmt = $pdo->prepare("SELECT ri.line_no, COALESCE(SUM(ri.quantity), 0) AS quantity FROM `pedido_reversion_items` ri INNER JOIN `pedido_reversiones` r ON r.id = ri.reversal_id WHERE ri.order_id = :oid AND ri.tenant_id = :tid AND ri.branch_id = :bid AND r.status <> 'anulada' GROUP BY ri.line_no");
         $usedStmt->execute(['oid' => $orderId, 'tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']]);
@@ -88,6 +99,17 @@ function handle_create_refund(PDO $pdo, ?array $authContext, array $input): void
         foreach ($selected as $item) {
             $insertItem->execute(['id' => 'revi_' . bin2hex(random_bytes(10)), 'reversal_id' => $reversalId, 'order_id' => $orderId, 'line_no' => $item['line_no'], 'item_name' => $item['item_name'], 'item_type' => $item['item_type'], 'unit_price' => $item['unit_price'], 'quantity' => $item['quantity'], 'line_total' => $item['line_total'], 'tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']]);
         }
+
+        $originalItems = json_decode($order['items'] ?? '[]', true) ?: [];
+        $restoreStmt = $pdo->prepare("UPDATE `products` SET `stock` = `stock` + :qty WHERE `id` = :pid AND `tenant_id` = :tid AND `branch_id` = :bid");
+        foreach ($selected as $item) {
+            $orig = $originalItems[$item['line_no']] ?? null;
+            if (!$orig) continue;
+            $productId = $orig['sopaId'] ?? $orig['segundoId'] ?? $orig['platoId'] ?? $orig['extraId'] ?? $orig['product_id'] ?? null;
+            if (!$productId) continue;
+            $restoreStmt->execute(['qty' => (int)$item['quantity'], 'pid' => $productId, 'tid' => $authContext['tenant_id'], 'bid' => $authContext['branch_id']]);
+        }
+
         $pdo->commit();
         writeAuditLog($pdo, $authContext, 'refund.apply', 'pedido_reversiones', $reversalId, ['order_id' => $orderId, 'scope' => $scope, 'total_refunded' => $total], $reason, null, ['status' => 'aplicada']);
         broadcastWebSocketEvent('order.refunded', ['id' => $orderId, 'reversal_id' => $reversalId], $authContext);

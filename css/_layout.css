@@ -1,6 +1,8 @@
 /* Main Content Area */
 .main-content {
     margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    min-width: 0;
     flex-grow: 1;
     min-height: 100vh;
     display: flex;
@@ -11,6 +13,7 @@
 
 .sidebar.collapsed ~ .main-content {
     margin-left: var(--sidebar-collapsed);
+    width: calc(100% - var(--sidebar-collapsed));
 }
 
 /* Main Header */

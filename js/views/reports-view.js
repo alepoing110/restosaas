@@ -294,9 +294,6 @@ function renderSalesHistory() {
 
         const buttons = isPaid
             ? `<div style="display:flex; gap:6px;">
-                <button class="btn btn-outline btn-sm" onclick="openTicketFromHistory('${sale.id}')" title="Re-imprimir Ticket">
-                    <i class="fa-solid fa-print"></i> Ticket
-                </button>
                 <button class="btn btn-outline-danger btn-sm" onclick="annulCompletedSale('${sale.id}')" title="Anular e Inventariar">
                     <i class="fa-solid fa-rotate-left"></i> Anular
                 </button>

@@ -28,6 +28,9 @@ function promoParseChannels($channels): array {
     if (is_null($channels)) return ['pos', 'mesa', 'llevar', 'delivery', 'reserva'];
     if (is_string($channels)) {
         $decoded = json_decode($channels, true);
+        if (is_string($decoded)) {
+            $decoded = json_decode($decoded, true);
+        }
         return is_array($decoded) ? $decoded : [$channels];
     }
     return $channels;
@@ -65,6 +68,10 @@ function promoItemMatchesTarget(array $item, array $target): bool {
     return $productType === (string)($target['product_type'] ?? '');
 }
 
+function promoItemPrice(array $item): float {
+    return (float)($item['price'] ?? $item['unit_price'] ?? 0);
+}
+
 function promoEligibleByGroups(array $items, array $groups): array {
     $eligible = [];
     foreach ($groups as $group) {
@@ -86,34 +93,42 @@ function promoCheckRequirements(array $plan, array $items, float $subtotal, stri
     $eligible = [];
     $reasons = [];
 
-    if (!$plan['active']) return [false, ['Plan inactivo']];
+    if (!$plan['active']) return [false, ['Plan inactivo'], []];
 
     $now = promoToday();
-    if (!empty($plan['start_date']) && $plan['start_date'] > $now) { $reasons[] = 'Aún no inicia'; return [false, $reasons]; }
-    if (!empty($plan['end_date']) && $plan['end_date'] < $now) { $reasons[] = 'Ya venció'; return [false, $reasons]; }
+    if (!empty($plan['start_date']) && $plan['start_date'] > $now) { $reasons[] = 'Aún no inicia'; return [false, $reasons, []]; }
+    if (!empty($plan['end_date']) && $plan['end_date'] < $now) { $reasons[] = 'Ya venció'; return [false, $reasons, []]; }
 
     $channels = promoParseChannels($plan['channels'] ?? null);
-    if (!in_array($channel, $channels, true)) { $reasons[] = 'No aplica para este canal'; return [false, $reasons]; }
+    // POS is the general point-of-sale channel; specific POS locations remain
+    // available when a promotion must be restricted to mesa, llevar or delivery.
+    $channelAllowed = in_array($channel, $channels, true)
+        || ($channel !== 'reserva' && in_array('pos', $channels, true));
+    if (!$channelAllowed) { $reasons[] = 'No aplica para este canal'; return [false, $reasons, []]; }
 
     $days = promoParseDays($plan['applicable_days'] ?? null);
-    if ($days && !in_array(promoCurrentDay(), $days, true)) { $reasons[] = 'No aplica este día'; return [false, $reasons]; }
+    if ($days && !in_array(promoCurrentDay(), $days, true)) { $reasons[] = 'No aplica este día'; return [false, $reasons, []]; }
 
     if (!empty($plan['start_hour']) && !empty($plan['end_hour'])) {
         $nowTime = promoCurrentHour();
-        if ($nowTime < $plan['start_hour'] || $nowTime > $plan['end_hour']) {
+        $isOvernight = $plan['start_hour'] > $plan['end_hour'];
+        $insideSchedule = $isOvernight
+            ? ($nowTime >= $plan['start_hour'] || $nowTime <= $plan['end_hour'])
+            : ($nowTime >= $plan['start_hour'] && $nowTime <= $plan['end_hour']);
+        if (!$insideSchedule) {
             $reasons[] = 'Fuera del horario válido';
-            return [false, $reasons];
+            return [false, $reasons, []];
         }
     }
 
     if (!empty($plan['min_subtotal']) && $subtotal < (float)$plan['min_subtotal']) {
         $reasons[] = 'Subtotal mínimo Bs ' . number_format((float)$plan['min_subtotal'], 2);
-        return [false, $reasons];
+        return [false, $reasons, []];
     }
 
     if ($groups) {
         [$groupOk, $eligible, $groupReason] = promoEligibleByGroups($items, $groups);
-        if (!$groupOk) return [false, [$groupReason]];
+        if (!$groupOk) return [false, [$groupReason], []];
     } else {
 
     $appTypes = json_decode($plan['applicable_types'] ?? 'null', true);
@@ -126,7 +141,7 @@ function promoCheckRequirements(array $plan, array $items, float $subtotal, stri
         }
         if (empty($eligible)) {
             $reasons[] = 'No hay productos elegibles para esta promoción';
-            return [false, $reasons];
+            return [false, $reasons, []];
         }
     } else {
         $eligible = $items;
@@ -138,7 +153,7 @@ function promoCheckRequirements(array $plan, array $items, float $subtotal, stri
         foreach ($eligible as $item) $totalQty += (int)($item['quantity'] ?? $item['qty'] ?? 1);
         if ($totalQty < (int)$plan['min_quantity']) {
             $reasons[] = 'Se requieren mínimo ' . $plan['min_quantity'] . ' unidades';
-            return [false, $reasons];
+            return [false, $reasons, []];
         }
     }
 
@@ -152,7 +167,7 @@ function promoCalcDiscount(array $plan, array $eligibleItems, float $subtotal): 
     if ($type === 'percentage') {
         $basis = 0;
         foreach ($eligibleItems as $item) {
-            $basis += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $basis += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
         return round($basis * $value / 100, 2);
     }
@@ -160,7 +175,7 @@ function promoCalcDiscount(array $plan, array $eligibleItems, float $subtotal): 
     if ($type === 'fixed') {
         $eligibleTotal = 0;
         foreach ($eligibleItems as $item) {
-            $eligibleTotal += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $eligibleTotal += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
         return min($value, $eligibleTotal);
     }
@@ -174,7 +189,7 @@ function promoCalcDiscount(array $plan, array $eligibleItems, float $subtotal): 
         $groups = intdiv($totalCount, $buyQty + $freeQty);
         $unitPrices = [];
         foreach ($eligibleItems as $item) {
-            $unitPrice = (float)($item['price'] ?? 0);
+            $unitPrice = promoItemPrice($item);
             $quantity = (int)($item['quantity'] ?? $item['qty'] ?? 1);
             for ($i = 0; $i < $quantity; $i++) $unitPrices[] = $unitPrice;
         }
@@ -186,7 +201,7 @@ function promoCalcDiscount(array $plan, array $eligibleItems, float $subtotal): 
     if ($type === 'menu_price') {
         $totalItemPrice = 0;
         foreach ($eligibleItems as $item) {
-            $totalItemPrice += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $totalItemPrice += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
         $promoPrice = $value;
         return max(0, round($totalItemPrice - $promoPrice, 2));
@@ -225,7 +240,7 @@ function handle_suggest_promos(PDO $pdo, ?array $authContext, array $input): voi
 
         $subtotal = 0;
         foreach ($items as $item) {
-            $subtotal += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $subtotal += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
 
         $stmt = $pdo->prepare("SELECT * FROM `discounts` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `active` = 1");
@@ -339,7 +354,7 @@ function handle_validate_promo(PDO $pdo, ?array $authContext, array $input): voi
 
         $subtotal = 0;
         foreach ($items as $item) {
-            $subtotal += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $subtotal += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
 
         $stmt = $pdo->prepare("SELECT * FROM `discounts` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
@@ -396,7 +411,7 @@ function handle_apply_promo_coupon(PDO $pdo, ?array $authContext, array $input):
 
         $subtotal = 0;
         foreach ($items as $item) {
-            $subtotal += (float)($item['price'] ?? 0) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
+            $subtotal += promoItemPrice($item) * (int)($item['quantity'] ?? $item['qty'] ?? 1);
         }
 
         $stmt = $pdo->prepare("SELECT * FROM `discounts` WHERE `tenant_id` = :tid AND `branch_id` = :bid AND `active` = 1 AND `coupon_code` IS NOT NULL AND UPPER(`coupon_code`) = :code");
@@ -499,9 +514,12 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
     $priority = (int)($input['priority'] ?? 0);
     $stackable = isset($input['stackable']) ? (int)$input['stackable'] : 0;
     $couponCode = strtoupper(trim($input['coupon_code'] ?? ''));
-    $maxGlobalUses = $input['max_global_uses'] !== null && $input['max_global_uses'] !== '' ? (int)$input['max_global_uses'] : null;
-    $maxCustomerUses = $input['max_customer_uses'] !== null && $input['max_customer_uses'] !== '' ? (int)$input['max_customer_uses'] : null;
-    $minSubtotal = $input['min_subtotal'] !== null && $input['min_subtotal'] !== '' ? (float)$input['min_subtotal'] : null;
+    $maxGlobalRaw = $input['max_global_uses'] ?? null;
+    $maxCustomerRaw = $input['max_customer_uses'] ?? null;
+    $minSubtotalRaw = $input['min_subtotal'] ?? null;
+    $maxGlobalUses = $maxGlobalRaw !== null && $maxGlobalRaw !== '' ? (int)$maxGlobalRaw : null;
+    $maxCustomerUses = $maxCustomerRaw !== null && $maxCustomerRaw !== '' ? (int)$maxCustomerRaw : null;
+    $minSubtotal = $minSubtotalRaw !== null && $minSubtotalRaw !== '' ? (float)$minSubtotalRaw : null;
     $applicableDays = $input['applicable_days'] ?? null;
     $startHour = $input['start_hour'] ?? null;
     $endHour = $input['end_hour'] ?? null;
@@ -513,9 +531,40 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
 
     if ($name === '') throw new InvalidArgumentException('Nombre requerido');
     if (!in_array($type, ['percentage', 'fixed', 'buy_x_get_y', 'menu_price'], true)) throw new InvalidArgumentException('Tipo inválido');
+    if (!is_finite($value) || $value < 0) throw new InvalidArgumentException('El valor de la promoción no es válido.');
+    if ($type === 'percentage' && ($value <= 0 || $value > 100)) throw new InvalidArgumentException('El porcentaje debe estar entre 0 y 100.');
+    if ($type === 'fixed' && $value <= 0) throw new InvalidArgumentException('El monto fijo debe ser mayor que cero.');
+    if ($type === 'menu_price' && $value <= 0) throw new InvalidArgumentException('El precio de menú debe ser mayor que cero.');
+    if ($type === 'buy_x_get_y' && ($minQuantity < 1 || $freeQuantity < 1)) {
+        throw new InvalidArgumentException('Compra X y lleva Y requiere cantidades mayores que cero.');
+    }
     if (!$groups) throw new InvalidArgumentException('Debe seleccionar al menos un grupo de productos');
+    if ($type === 'buy_x_get_y' && count($groups) !== 1) {
+        throw new InvalidArgumentException('Compra X y lleva Y debe utilizar un solo grupo de productos.');
+    }
     if ($type === 'menu_price' && count($groups) < 2) throw new InvalidArgumentException('Un combo necesita al menos dos grupos de productos');
+    if ($startDate === '' || $endDate === '' || $startDate === null || $endDate === null) {
+        throw new InvalidArgumentException('La fecha de inicio y la fecha de fin son obligatorias.');
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$endDate)) {
+        throw new InvalidArgumentException('Las fechas de la promoción no tienen un formato válido.');
+    }
+    if ($endDate < $startDate) throw new InvalidArgumentException('La fecha de fin no puede ser anterior a la fecha de inicio.');
+    if (($startHour && !$endHour) || (!$startHour && $endHour)) {
+        throw new InvalidArgumentException('Complete ambas horas o déjelas vacías para aplicar la promoción las 24 horas.');
+    }
+    if ($startHour && !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$startHour)) throw new InvalidArgumentException('Hora de inicio inválida.');
+    if ($endHour && !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$endHour)) throw new InvalidArgumentException('Hora de fin inválida.');
 
+    if (is_string($applicableTypes)) {
+        $applicableTypes = json_decode($applicableTypes, true) ?: null;
+    }
+    if (is_string($channels)) {
+        $channels = json_decode($channels, true) ?: promoParseChannels($channels);
+    }
+    if (is_string($applicableDays)) {
+        $applicableDays = json_decode($applicableDays, true) ?: null;
+    }
     $applicableTypesJson = $applicableTypes ? json_encode($applicableTypes) : null;
     $channelsJson = $channels ? json_encode($channels) : null;
     $daysJson = $applicableDays ? json_encode($applicableDays) : null;
@@ -526,7 +575,13 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
         if ($checkStmt->fetch()) throw new InvalidArgumentException('Este código de cupón ya está en uso');
     }
 
-    if ($id) {
+    $pdo->beginTransaction();
+    try {
+      if ($id) {
+         $existsStmt = $pdo->prepare("SELECT 1 FROM `discounts` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+         $existsStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
+         if (!$existsStmt->fetchColumn()) throw new InvalidArgumentException('La promoción que intenta editar no existe.');
+
          $stmt = $pdo->prepare("UPDATE `discounts` SET `name` = :name, `description` = :desc, `type` = :type, `value` = :value, `min_quantity` = :min_qty, `free_quantity` = :free_qty, `applicable_types` = :app_types, `channels` = :channels, `priority` = :priority, `stackable` = :stackable, `coupon_code` = :coupon, `max_global_uses` = :max_global, `max_customer_uses` = :max_customer, `min_subtotal` = :min_sub, `applicable_days` = :days, `start_hour` = :start_hour, `end_hour` = :end_hour, `start_date` = :start_date, `end_date` = :end_date, `active` = :active, `respetar_cotizaciones_abiertas` = :respect_open WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
         $stmt->execute([
             'name' => $name, 'desc' => $description ?: null, 'type' => $type, 'value' => $value,
@@ -537,8 +592,8 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
              'start_date' => $startDate, 'end_date' => $endDate, 'active' => $active, 'respect_open' => $respectOpen,
             'id' => $id, 'tid' => $tid, 'bid' => $bid,
         ]);
-    } else {
-        $id = 'plan_' . bin2hex(random_bytes(12));
+      } else {
+         $id = 'plan_' . bin2hex(random_bytes(12));
          $stmt = $pdo->prepare("INSERT INTO `discounts` (`id`, `tenant_id`, `branch_id`, `name`, `description`, `type`, `value`, `min_quantity`, `free_quantity`, `applicable_types`, `channels`, `priority`, `stackable`, `coupon_code`, `max_global_uses`, `max_customer_uses`, `min_subtotal`, `applicable_days`, `start_hour`, `end_hour`, `start_date`, `end_date`, `active`, `respetar_cotizaciones_abiertas`) VALUES (:id, :tid, :bid, :name, :desc, :type, :value, :min_qty, :free_qty, :app_types, :channels, :priority, :stackable, :coupon, :max_global, :max_customer, :min_sub, :days, :start_hour, :end_hour, :start_date, :end_date, :active, :respect_open)");
         $stmt->execute([
             'id' => $id, 'tid' => $tid, 'bid' => $bid, 'name' => $name, 'desc' => $description ?: null,
@@ -549,16 +604,28 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
             'start_hour' => $startHour, 'end_hour' => $endHour, 'start_date' => $startDate,
              'end_date' => $endDate, 'active' => $active, 'respect_open' => $respectOpen,
         ]);
-    }
+      }
 
+    $oldGroupsStmt = $pdo->prepare("SELECT `id` FROM `promo_groups` WHERE `discount_id` = :did AND `tenant_id` = :tid AND `branch_id` = :bid");
+    $oldGroupsStmt->execute(['did' => $id, 'tid' => $tid, 'bid' => $bid]);
+    $oldGroupIds = $oldGroupsStmt->fetchAll(PDO::FETCH_COLUMN);
+    if ($oldGroupIds) {
+        $oldGroupPlaceholders = implode(',', array_fill(0, count($oldGroupIds), '?'));
+        $deleteGroupProducts = $pdo->prepare("DELETE FROM `promo_group_products` WHERE `tenant_id` = ? AND `branch_id` = ? AND `group_id` IN ($oldGroupPlaceholders)");
+        $deleteGroupProducts->execute(array_merge([$tid, $bid], $oldGroupIds));
+    }
     $deleteGroups = $pdo->prepare("DELETE FROM `promo_groups` WHERE `discount_id` = :did AND `tenant_id` = :tid AND `branch_id` = :bid");
     $deleteGroups->execute(['did' => $id, 'tid' => $tid, 'bid' => $bid]);
     $insertGroup = $pdo->prepare("INSERT INTO `promo_groups` (`id`, `discount_id`, `group_no`, `quantity_required`, `free_quantity`, `tenant_id`, `branch_id`) VALUES (:id, :did, :group_no, :quantity_required, :free_quantity, :tid, :bid)");
     $insertProduct = $pdo->prepare("INSERT INTO `promo_group_products` (`id`, `group_id`, `product_id`, `product_type`, `product_name`, `tenant_id`, `branch_id`) VALUES (:id, :group_id, :product_id, :product_type, :product_name, :tid, :bid)");
     foreach (array_values($groups) as $groupNo => $group) {
         $groupId = 'pgrp_' . bin2hex(random_bytes(10));
-        $quantityRequired = max(1, (int)($group['quantity_required'] ?? 1));
-        $freeQuantity = max(0, (int)($group['free_quantity'] ?? 0));
+        $quantityRequired = $type === 'buy_x_get_y'
+            ? $minQuantity
+            : max(1, (int)($group['quantity_required'] ?? 1));
+        $freeQuantity = $type === 'buy_x_get_y'
+            ? $freeQuantity
+            : max(0, (int)($group['free_quantity'] ?? 0));
         $insertGroup->execute(['id' => $groupId, 'did' => $id, 'group_no' => $groupNo + 1, 'quantity_required' => $quantityRequired, 'free_quantity' => $freeQuantity, 'tid' => $tid, 'bid' => $bid]);
         $products = is_array($group['products'] ?? null) ? $group['products'] : [];
         if (!$products) throw new InvalidArgumentException('Cada grupo debe tener productos seleccionados');
@@ -573,7 +640,12 @@ function handle_save_promo_plan(PDO $pdo, ?array $authContext, array $input): vo
 
     cacheInvalidateTenant('catalog', $tid, $bid);
     writeAuditLog($pdo, $authContext, 'promo.plan.save', 'discounts', $id);
+    $pdo->commit();
     echo json_encode(['status' => 'success', 'id' => $id]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 }
 
 function handle_delete_promo_plan(PDO $pdo, ?array $authContext, array $input): void {

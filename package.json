@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "start": "node print-agent/server.js",
+    "print-agent": "node print-agent/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint:syntax": "node -e \"const fs=require('fs'),path=require('path');const {execSync}=require('child_process');function walk(d){let r=[];for(const e of fs.readdirSync(d,{withFileTypes:true})){const fp=path.join(d,e.name);if(e.isDirectory())r.push(...walk(fp));else if(e.name.endsWith('.js'))r.push(fp);}return r;}const files=walk('js');let fail=false;for(const f of files){try{execSync('node --check '+f,{stdio:'pipe'});}catch(e){console.error(f+': '+e.stderr.toString().trim().split('\\n')[0]);fail=true;}}if(fail)process.exit(1);console.log('All '+files.length+' JS files syntax OK');\"",

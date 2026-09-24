@@ -5,7 +5,7 @@
 const tabs = {
     'pos': { title: 'Toma de Pedidos', desc: 'Gestiona y crea nuevas ordenes para el dia.' },
     'active-orders': { title: 'Pedidos Activos', desc: 'Control de mesas e impresion de comandas en preparacion.' },
-    'menu-config': { title: 'Platos y Menu', desc: 'Configura platos del dia, platos extras, gaseosas y precios base.' },
+    'menu-config': { title: 'Configuración del negocio', desc: 'Gestiona los datos del local, el menú, las promociones y la impresión.' },
     'inventory': { title: 'Control Stock', desc: 'Verifica y ajusta las cantidades en stock del dia.' },
     'reports': { title: 'Ventas e Historial', desc: 'Metricas de recaudacion e impresion de recibos.' },
     'financial': { title: 'Finanzas del Dueño', desc: 'Ventas, gastos y ganancia operativa por período y sucursal.' },

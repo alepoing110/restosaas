@@ -15,6 +15,12 @@ function renderReservations() {
     const reservations = state.reservations || [];
     const filter = state.reservationFilter || 'activas';
     const isBotQueue = filter === 'bot';
+    const eligibleBotIds = new Set(reservations
+        .filter(r => r.source === 'bot' && ['pendiente', 'confirmada'].includes(r.status) && !r.kitchen_printed_at)
+        .map(r => r.id));
+    botReservationSelection.forEach(id => {
+        if (!eligibleBotIds.has(id)) botReservationSelection.delete(id);
+    });
     const filteredByStatus = filter === 'activas'
         ? reservations.filter(r => r.status === 'pendiente' || r.status === 'confirmada')
         : isBotQueue
@@ -40,7 +46,9 @@ function renderReservations() {
     if (filtered.length === 0) {
         const emptyMsg = filter === 'activas'
             ? (searchQuery ? 'No se encontraron reservas para esta búsqueda.' : 'No hay reservas activas para esta fecha.')
-            : (searchQuery ? 'No se encontraron reservas para esta búsqueda.' : 'No hay reservas entregadas para esta fecha.');
+            : filter === 'bot'
+                ? (searchQuery ? 'No se encontraron reservas del bot para esta búsqueda.' : 'No hay reservas del bot pendientes de verificación o impresión.')
+                : (searchQuery ? 'No se encontraron reservas para esta búsqueda.' : 'No hay reservas entregadas para esta fecha.');
         tbody.innerHTML = `<tr><td colspan="11" class="text-muted" style="text-align:center; padding:32px;">${emptyMsg}</td></tr>`;
         updateReservationSummary(reservations);
         return;
@@ -93,9 +101,6 @@ function renderReservations() {
                     <button class="btn btn-sm btn-outline" onclick="editReservation('${res.id}')" title="Editar">
                         <i class="fa-solid fa-pen"></i>
                     </button>
-                    ${(!isBot || !isPendingVerification) ? `<button class="btn btn-sm btn-outline" onclick="printReservationComanda('${res.id}')" title="${res.kitchen_printed_at ? 'Reimprimir comanda' : 'Imprimir comanda'}">
-                        <i class="fa-solid fa-print"></i>
-                    </button>` : ''}
                     ${res.status !== 'completada' ? `
                         <button class="btn btn-sm btn-danger-outline" onclick="deleteReservation('${res.id}')" title="Eliminar">
                             <i class="fa-solid fa-trash"></i>

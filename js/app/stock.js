@@ -8,16 +8,24 @@ function _getAvailableStock(itemId, stockArray, countFn) {
     if (!item) return 0;
 
     let usage = 0;
+    const countedOrderIds = new Set();
+    const addOrderUsage = order => {
+        if (order?.id) {
+            if (countedOrderIds.has(order.id)) return;
+            countedOrderIds.add(order.id);
+        }
+        usage += countFn(order?.items, itemId);
+    };
     try { usage += countFn(state.cart, itemId); } catch (e) {}
     try {
         (state.activeOrders || []).forEach(order => {
-            usage += countFn(order.items, itemId);
+            addOrderUsage(order);
         });
     } catch (e) {}
     try {
         (state.salesHistory || []).forEach(sale => {
             if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
-                usage += countFn(sale.items, itemId);
+                addOrderUsage(sale);
             }
         });
     } catch (e) {}

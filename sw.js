@@ -1,4 +1,4 @@
-const CACHE_NAME = 'restocloud-v2';
+const CACHE_NAME = 'restocloud-v6';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

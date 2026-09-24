@@ -15,7 +15,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260923-1">
     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <!-- html2pdf.js library (loaded async, only needed for PDF export) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
@@ -52,10 +52,10 @@
                     <span class="badge" id="active-orders-count">0</span>
                     <span class="nav-tooltip">Pedidos Activos</span>
                 </button>
-                <button class="nav-item" data-tab="menu-config" id="nav-menu-config" data-permission="inventory">
+                <button class="nav-item" data-tab="menu-config" id="nav-menu-config" data-default-subtab="establecimiento" data-role="super_admin,owner,admin" data-permission="settings">
                     <i class="fa-solid fa-clipboard-list"></i>
-                    <span>Platos y Menú</span>
-                    <span class="nav-tooltip">Platos y Menú</span>
+                    <span>Configuración del negocio</span>
+                    <span class="nav-tooltip">Configuración del negocio</span>
                 </button>
                 <button class="nav-item" data-tab="inventory" id="nav-inventory" data-permission="inventory">
                     <i class="fa-solid fa-warehouse"></i>
@@ -167,13 +167,16 @@
                             <!-- Category Filter Tabs -->
                             <div class="catalog-tabs">
                                 <button class="catalog-tab-btn active" id="btn-cat-meals">
-                                    <i class="fa-solid fa-bowl-food"></i> Almuerzos
+                                    <i class="fa-solid fa-bowl-food"></i> Almuerzo
                                 </button>
                                 <button class="catalog-tab-btn" id="btn-cat-extras">
-                                    <i class="fa-solid fa-utensils"></i> Platos Extras
+                                    <i class="fa-solid fa-utensils"></i> Platos Extra
                                 </button>
                                 <button class="catalog-tab-btn" id="btn-cat-drinks">
                                     <i class="fa-solid fa-bottle-water"></i> Gaseosas y Bebidas
+                                </button>
+                                <button class="catalog-tab-btn" id="btn-cat-sauces">
+                                    <i class="fa-solid fa-bowl-food"></i> Salsas y Acompañamientos Extras
                                 </button>
                             </div>
                             
@@ -202,8 +205,8 @@
                                         <select id="order-table-select" class="form-select" style="padding-left: 40px;">
                                             <option value="Llevar">Llevar</option>
                                         </select>
-                                    </div>
-                                    <div id="order-service-summary" class="order-service-summary" aria-live="polite"></div>
+                                     </div>
+                                     <div class="order-summary-actions"><div id="order-service-summary" class="order-service-summary" aria-live="polite"></div><button type="button" class="btn btn-outline btn-sm" id="btn-open-order-details"><i class="fa-solid fa-sliders"></i> Detalles</button></div>
                                 </div>
                                 <div class="form-group order-field" id="custom-customer-name-wrapper" style="margin-bottom: 0;">
                                     <label class="label-overline" for="order-customer-name">Nombre del cliente</label>
@@ -215,9 +218,15 @@
                                 </div>
                                 </div>
 
+                                 <div class="form-group-row order-notes-row" id="order-notes-inline">
+                                    <div class="form-group"><label class="label-overline" for="order-kitchen-note">Nota para cocina</label><textarea id="order-kitchen-note" class="form-input" rows="2" maxlength="500" placeholder="Preparación general del pedido"></textarea></div>
+                                    <div class="form-group"><label class="label-overline" for="order-waiter-note">Nota general</label><textarea id="order-waiter-note" class="form-input" rows="2" maxlength="500" placeholder="Indicaciones generales para mesero"></textarea></div>
+                                </div>
+                                <div class="form-group" id="order-pickup-time-group" style="display:none;"><label class="label-overline" for="order-pickup-time">Hora de recojo (automática)</label><input type="time" id="order-pickup-time" class="form-input"><small class="form-help-text">Se registra la hora actual; puedes ajustarla si el cliente lo solicita.</small></div>
+
                                 <!-- Payment Method Selector -->
                                 <div class="order-payment-row">
-                                <div class="form-group order-payment-field" style="margin-bottom: 0;">
+                                 <div class="form-group order-payment-field" style="margin-bottom: 0;">
                                     <label class="label-overline" for="order-payment-select">Método de Pago:</label>
                                     <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
                                          <i class="fa-solid fa-money-bill-wave input-icon--abs" id="order-payment-icon" aria-hidden="true"></i>
@@ -228,8 +237,12 @@
                                              <option value="mixto">🔀 Mixto (Efectivo + QR)</option>
                                              <option value="credito">📒 Venta a crédito</option>
                                          </select>
-                                     </div>
-                                 </div>
+                                      </div>
+                                  </div>
+
+                                  <button type="button" class="btn btn-outline cart-promos-trigger" id="btn-open-promos" aria-controls="cart-promo-popover" aria-expanded="false">
+                                      <i class="fa-solid fa-tags"></i><span class="cart-promos-label">Promos</span><span id="cart-promos-count" class="cart-promos-count" hidden>0</span>
+                                  </button>
 
                                    <div id="credit-payment-section" class="mixed-payment-section order-credit-field" style="display:none;">
                                       <label class="label-overline" for="credit-due-date">Fecha de vencimiento:</label>
@@ -237,9 +250,8 @@
                                       <label class="label-overline" for="credit-override-reason" style="margin-top:8px;">Motivo de excepción (solo si supera límite)</label>
                                       <input type="text" id="credit-override-reason" class="form-input" maxlength="255" placeholder="Autorización del propietario">
                                    </div>
-                                </div>
-
-                                <!-- Mixed Payment Inputs (hidden by default) -->
+                                 </div>
+                                  <!-- Mixed Payment Inputs (hidden by default) -->
                                 <div id="mixed-payment-section" class="mixed-payment-section" style="display: none;">
                                     <div class="mixed-payment-row">
                                         <label class="mixed-payment-label">
@@ -276,17 +288,17 @@
                                 </div>
                             </div>
 
-                            <!-- Promo Section -->
-                            <div id="cart-promo-section" class="cart-promo-section" style="display:none;">
-                                <div class="cart-promo-header">
-                                    <i class="fa-solid fa-tags"></i>
-                                    <span>Promociones disponibles</span>
-                                    <button class="btn btn-ghost btn-sm" id="btn-toggle-promos" title="Ver/ocultar promociones">
-                                        <i class="fa-solid fa-chevron-down"></i>
-                                    </button>
-                                </div>
-                                <div id="cart-promo-list" class="cart-promo-list" style="display:none;">
-                                </div>
+                             <!-- Promo Popover -->
+                             <div id="cart-promo-popover" class="cart-promo-popover" style="display:none;">
+                                 <div class="cart-promo-header">
+                                     <i class="fa-solid fa-tags"></i>
+                                     <span>Promociones disponibles</span>
+                                     <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-promos" title="Cerrar promociones">
+                                         <i class="fa-solid fa-xmark"></i>
+                                     </button>
+                                 </div>
+                                 <div id="cart-promo-list" class="cart-promo-list">
+                                 </div>
                                 <div class="cart-coupon-row">
                                     <input type="text" id="cart-coupon-input" class="form-input" placeholder="Código de cupón..." maxlength="100">
                                     <button class="btn btn-accent btn-sm" id="btn-apply-coupon">
@@ -326,9 +338,9 @@
                                 <button class="btn btn-outline" id="btn-save-pending">
                                     <i class="fa-solid fa-clock"></i> Comanda (Mesa)
                                 </button>
-                                <button class="btn btn-primary" id="btn-complete-sale">
-                                    <i class="fa-solid fa-check-double"></i> Cobrar / Imprimir
-                                </button>
+                                 <button class="btn btn-primary" id="btn-complete-sale">
+                                     <i class="fa-solid fa-check-double"></i> Cobrar
+                                 </button>
                             </div>
                         </div>
                     </div>
@@ -344,7 +356,7 @@
                                 <i class="fa-solid fa-gear"></i>
                             </button>
                         </h3>
-                        <p class="panel-subtitle">Haz clic en una mesa para cambiar su estado, cobrar o pre-visualizar su ticket.</p>
+                        <p class="panel-subtitle">Haz clic en una mesa para enfocar su pedido activo.</p>
                         <div class="tables-map-grid" id="tables-map-grid">
                             <!-- Rendered dynamically -->
                         </div>
@@ -423,9 +435,45 @@
                         <button type="button" class="subnav-btn" data-subtab="establecimiento">
                             <i class="fa-solid fa-store"></i> Datos del Local
                         </button>
+                        <button type="button" class="subnav-btn" data-subtab="impresion">
+                            <i class="fa-solid fa-print"></i> Impresión
+                        </button>
                         <button type="button" class="subnav-btn" data-subtab="descuentos">
                             <i class="fa-solid fa-tags"></i> Promociones y Ofertas
                         </button>
+                        <button type="button" class="subnav-btn" data-subtab="acompanamientos"><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</button>
+                    </div>
+
+                    <!-- Subtab: Impresión -->
+                    <div class="menu-config-panel" id="subtab-impresion" style="display:none;">
+                        <div class="config-card-panel print-settings-panel">
+                            <h3 class="panel-title"><i class="fa-solid fa-print"></i> Configuración de impresión</h3>
+                            <p class="panel-subtitle">Define los destinos de cocina, caja, cliente y mesero. Los nombres son perfiles para el agente local de impresión.</p>
+                            <form id="form-print-settings" class="config-form">
+                                <label class="settings-toggle-row">
+                                    <span><strong>Activar impresión</strong><small>Permite generar trabajos de impresión desde el sistema.</small></span>
+                                    <input type="checkbox" id="print-enabled-input">
+                                </label>
+                                <label class="settings-toggle-row">
+                                    <span><strong>Ticket manual para mesero</strong><small>Mostrar el botón en pedidos de mesa para imprimir sus datos.</small></span>
+                                    <input type="checkbox" id="waiter-ticket-enabled-input">
+                                </label>
+                                 <div class="form-group-row">
+                                    <div class="form-group">
+                                        <label for="print-paper-width-input">Ancho de papel</label>
+                                        <select id="print-paper-width-input" class="form-select"><option value="58">58 mm</option><option value="80">80 mm</option></select>
+                                    </div>
+                                </div>
+                                <div class="print-agent-toolbar"><span id="print-agent-status" class="text-muted">Agente local no verificado</span><div class="print-agent-actions"><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.refreshPrinters()"><i class="fa-solid fa-rotate"></i> Actualizar impresoras</button><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.downloadInstaller()"><i class="fa-solid fa-download"></i> Instalar agente Windows</button></div></div>
+                                <div class="print-destination-grid">
+                                    <div class="print-destination-field"><label class="form-group"><span>Impresora cocina</span><select class="form-select printer-select" id="printer-kitchen-input"><option value="">Seleccionar impresora</option></select></label><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.printTest('cocina')"><i class="fa-solid fa-vial"></i> Probar</button></div>
+                                    <div class="print-destination-field"><label class="form-group"><span>Impresora caja / pagos</span><select class="form-select printer-select" id="printer-payment-input"><option value="">Seleccionar impresora</option></select></label><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.printTest('pagos')"><i class="fa-solid fa-vial"></i> Probar</button></div>
+                                    <div class="print-destination-field"><label class="form-group"><span>Impresora cliente</span><select class="form-select printer-select" id="printer-customer-input"><option value="">Seleccionar impresora</option></select></label><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.printTest('cliente')"><i class="fa-solid fa-vial"></i> Probar</button></div>
+                                    <div class="print-destination-field"><label class="form-group"><span>Impresora mesero</span><select class="form-select printer-select" id="printer-waiter-input"><option value="">Seleccionar impresora</option></select></label><button type="button" class="btn btn-outline btn-sm" onclick="PrintJobs.printTest('mesero')"><i class="fa-solid fa-vial"></i> Probar</button></div>
+                                </div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Guardar configuración</button>
+                            </form>
+                        </div>
                     </div>
 
                     <!-- Subtab 1: Menú del Día & Precios Base -->
@@ -480,7 +528,7 @@
                                         <div class="form-row-three form-row-two-col">
                                             <div class="form-group">
                                                 <label for="new-segundo-name">Nombre del Plato:</label>
-                                                <input type="text" id="new-segundo-name" placeholder="Ej: Silpancho de Res" class="form-input" required>
+                                                <input type="text" id="new-segundo-name" placeholder="Ej: Silpancho de Res" class="form-input" maxlength="100" required>
                                             </div>
                                             <div class="form-group col-btn">
                                                 <label class="btn-spacer">&nbsp;</label>
@@ -520,7 +568,7 @@
                                         <div class="form-row-three form-row-two-col">
                                             <div class="form-group">
                                                 <label for="new-sopa-name">Nombre de la Sopa:</label>
-                                                <input type="text" id="new-sopa-name" placeholder="Ej: Sopa de Maní" class="form-input" required>
+                                                <input type="text" id="new-sopa-name" placeholder="Ej: Sopa de Maní" class="form-input" maxlength="100" required>
                                             </div>
                                             <div class="form-group col-btn">
                                                 <label class="btn-spacer">&nbsp;</label>
@@ -561,7 +609,7 @@
                                 <div class="form-row-three form-row-three-col">
                                     <div class="form-group">
                                         <label for="new-platoextra-name">Plato Extra:</label>
-                                        <input type="text" id="new-platoextra-name" placeholder="Ej: Pique Macho" class="form-input" required>
+                                        <input type="text" id="new-platoextra-name" placeholder="Ej: Pique Macho" class="form-input" maxlength="100" required>
                                     </div>
                                     <div class="form-group">
                                         <label for="new-platoextra-price">Precio (Bs):</label>
@@ -604,7 +652,7 @@
                                 <div class="form-row-three form-row-three-col">
                                     <div class="form-group">
                                         <label for="new-extra-name">Bebida / Refresco:</label>
-                                        <input type="text" id="new-extra-name" placeholder="Ej: Coca Cola 500ml" class="form-input" required>
+                                        <input type="text" id="new-extra-name" placeholder="Ej: Coca Cola 500ml" class="form-input" maxlength="100" required>
                                     </div>
                                     <div class="form-group">
                                         <label for="new-extra-price">Precio (Bs):</label>
@@ -646,7 +694,7 @@
                                 <div class="form-row-three form-row-four-col">
                                     <div class="form-group">
                                         <label for="new-salsa-name">Nombre de la Salsa:</label>
-                                        <input type="text" id="new-salsa-name" placeholder="Ej: Salsa de Maní" class="form-input" required>
+                                        <input type="text" id="new-salsa-name" placeholder="Ej: Salsa de Maní" class="form-input" maxlength="100" required>
                                     </div>
                                     <div class="form-group">
                                         <label for="new-salsa-price">Precio (Bs):</label>
@@ -675,6 +723,22 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="menu-config-panel" id="subtab-acompanamientos" style="display:none;">
+                        <div class="accompaniments-layout">
+                        <div class="config-card-panel accompaniment-catalog-card">
+                            <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</h3>
+                            <p class="panel-subtitle">Los acompañamientos incluidos no tienen costo; el precio se aplica solo cuando se piden como extra.</p>
+                            <form id="form-add-accompaniment" class="accompaniment-add-form"><div class="form-group"><label for="new-accompaniment-name">Nombre</label><input id="new-accompaniment-name" class="form-input" maxlength="100" required></div><div class="form-group"><label for="new-accompaniment-price">Precio extra (Bs)</label><input id="new-accompaniment-price" type="number" min="0" max="99999999.99" step="0.01" value="0" class="form-input" required></div><button class="btn btn-accent" type="submit"><i class="fa-solid fa-plus"></i><span>Agregar</span></button></form>
+                            <div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Nombre</th><th>Precio extra</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead><tbody id="accompaniments-crud-body"></tbody></table></div>
+                        </div>
+                        <div class="config-card-panel accompaniment-settings-card">
+                            <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Aplicación por plato</h3>
+                            <p class="panel-subtitle">Activa acompañamientos y define cuántos incluye cada plato sin costo.</p>
+                            <div id="accompaniment-product-settings" class="accompaniment-product-settings"></div>
+                        </div>
                         </div>
                     </div>
 
@@ -1742,10 +1806,18 @@
                                                         <option value="">Seleccionar mesa...</option>
                                                     </select>
                                                 </div>
-                                                <div class="form-group form-group--full-width">
-                                                    <label for="reservation-form-notes">Notas</label>
-                                                    <input type="text" id="reservation-form-notes" class="form-input" placeholder="Ej: Cumpleaños, silla de bebé...">
-                                                </div>
+                                                 <div class="form-group form-group--full-width">
+                                                     <label for="reservation-form-notes">Notas</label>
+                                                     <input type="text" id="reservation-form-notes" class="form-input" placeholder="Ej: Cumpleaños, silla de bebé...">
+                                                 </div>
+                                                 <div class="form-group">
+                                                     <label for="reservation-form-kitchen-note">Nota para cocina</label>
+                                                     <input type="text" id="reservation-form-kitchen-note" class="form-input" maxlength="500" placeholder="Preparación general">
+                                                 </div>
+                                                 <div class="form-group" id="reservation-form-pickup-group" style="display:none;">
+                                                     <label for="reservation-form-pickup-time">Hora de recojo *</label>
+                                                     <input type="time" id="reservation-form-pickup-time" class="form-input">
+                                                 </div>
                                             </div>
                                         </div>
 
@@ -1822,8 +1894,8 @@
                             </div>
                             <div id="bot-reservations-batch-actions" style="display:none; margin:0 0 12px; justify-content:flex-end; gap:8px; align-items:center;">
                                 <span id="bot-reservations-selection-count" class="text-muted" style="font-size:12px;"></span>
-                                <button class="btn btn-sm btn-primary" onclick="verifyAndPrintBotReservations()">
-                                    <i class="fa-solid fa-print"></i> Verificar e imprimir seleccionadas
+                                <button class="btn btn-sm btn-primary" onclick="verifyBotReservations()">
+                                    <i class="fa-solid fa-check"></i> Verificar seleccionadas
                                 </button>
                             </div>
                             <div class="config-card-panel">
@@ -2483,28 +2555,23 @@
         </main>
     </div>
 
-    <!-- Modal 1: Ticket Print Preview -->
-    <div class="modal-backdrop" id="modal-ticket-preview" role="dialog" aria-modal="true" aria-labelledby="modal-ticket-preview-title">
-        <div class="modal-content ticket-modal-width">
-            <div class="modal-header no-print">
-                <h3 id="modal-ticket-preview-title">Vista Previa de Impresión</h3>
-                <button class="btn-close-modal" id="btn-close-ticket-modal" aria-label="Cerrar modal"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body ticket-preview-body">
-                <div class="ticket-thermal-wrapper" id="ticket-thermal-content">
-                    <!-- Thermal layout dynamic content -->
-                </div>
-                <div class="modal-actions no-print">
-                    <button type="button" class="btn btn-outline" id="btn-close-ticket-preview">Cerrar</button>
-                    <button type="button" class="btn btn-primary" id="btn-print-ticket-trigger">
-                        <i class="fa-solid fa-print"></i> Imprimir Doble
-                    </button>
-                </div>
-            </div>
+    <!-- POS detail and payment modals reuse the existing controls moved by PosController. -->
+    <div class="modal-backdrop" id="modal-order-details" role="dialog" aria-modal="true" aria-labelledby="modal-order-details-title">
+        <div class="modal-content modal-content--md pos-flow-modal">
+            <div class="modal-header modal-header--default"><h3 class="modal-title" id="modal-order-details-title"><i class="fa-solid fa-sliders"></i> Detalles del pedido</h3><button type="button" class="btn btn-outline btn-sm" onclick="closeModal('modal-order-details')"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="modal-body" id="pos-details-slot"></div>
+            <div class="modal-actions"><button type="button" class="btn btn-primary" onclick="closeModal('modal-order-details')"><i class="fa-solid fa-check"></i> Guardar detalles</button></div>
+        </div>
+    </div>
+    <div class="modal-backdrop" id="modal-order-payment" role="dialog" aria-modal="true" aria-labelledby="modal-order-payment-title">
+        <div class="modal-content modal-content--md pos-flow-modal">
+            <div class="modal-header modal-header--default"><h3 class="modal-title" id="modal-order-payment-title"><i class="fa-solid fa-cash-register"></i> Cobro y promociones</h3><button type="button" class="btn btn-outline btn-sm" onclick="closeModal('modal-order-payment')"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="modal-body" id="pos-payment-slot"><div class="payment-order-summary" id="payment-order-summary"><div><span>Subtotal</span><strong id="payment-modal-subtotal">Bs 0.00</strong></div><div id="payment-modal-discount-row" style="display:none;"><span>Descuento</span><strong id="payment-modal-discount">-Bs 0.00</strong></div><div class="payment-order-total"><span>Total a pagar</span><strong id="payment-modal-total">Bs 0.00</strong></div></div></div>
+            <div class="modal-actions"><button type="button" class="btn btn-outline" onclick="closeModal('modal-order-payment')">Cancelar</button><button type="button" class="btn btn-primary" id="btn-confirm-sale"><i class="fa-solid fa-check-double"></i> Confirmar cobro e imprimir</button></div>
         </div>
     </div>
 
-    <!-- Modal 2: Report Executive Preview (Carta / Letter Size) -->
+    <!-- Modal: Report Executive Preview (Carta / Letter Size) -->
     <div class="modal-backdrop" id="modal-report-preview" role="dialog" aria-modal="true" aria-labelledby="modal-report-preview-title">
         <div class="modal-content modal-content--report-preview">
             <div class="modal-header no-print">
@@ -2623,7 +2690,6 @@
                     <button class="btn btn-sm menu-filter-btn" data-filter="sopa"><i class="fa-solid fa-bowl-food"></i> Sopas <span class="menu-filter-count" id="count-sopa"></span></button>
                     <button class="btn btn-sm menu-filter-btn" data-filter="segundo"><i class="fa-solid fa-plate-wheat"></i> Segundos <span class="menu-filter-count" id="count-segundo"></span></button>
                     <button class="btn btn-sm menu-filter-btn" data-filter="plato_extra"><i class="fa-solid fa-utensils"></i> Extras <span class="menu-filter-count" id="count-plato_extra"></span></button>
-                    <button class="btn btn-sm menu-filter-btn" data-filter="refresco"><i class="fa-solid fa-bottle-water"></i> Refrescos <span class="menu-filter-count" id="count-refresco"></span></button>
                 </div>
 
                 <!-- Bulk actions -->
@@ -2699,8 +2765,6 @@
         </div>
     </div>
 
-    <!-- Hidden native print area -->
-    <div id="ticket-print-area" class="print-only"></div>
     <div id="report-print-area" class="print-only"></div>
 
     <!-- Modal: Reservation Payment -->
@@ -2834,14 +2898,14 @@
                 <h4 class="section-title--compact">Agregar nuevo item</h4>
                 <div class="append-catalog-row">
                     <select id="append-catalog-select" class="form-select" onchange="onAppendCatalogChange()">
-                        <option value="">-- Seleccionar item --</option>
-                        <optgroup label="Almuerzos">
-                            <option value="almuerzo">Almuerzo Completo</option>
-                        </optgroup>
-                        <optgroup label="Segundos"></optgroup>
-                        <optgroup label="Sopas"></optgroup>
-                        <optgroup label="Platos Extras"></optgroup>
-                        <optgroup label="Bebidas"></optgroup>
+                        <option value="">-- Seleccionar categoría --</option>
+                        <option value="almuerzo">Almuerzos</option>
+                        <option value="segundo">Segundos</option>
+                        <option value="sopa">Sopas</option>
+                        <option value="plato_extra">Platos Extras</option>
+                        <option value="extra">Bebidas</option>
+                        <option value="salsa">Salsas</option>
+                        <option value="acompanamiento">Acompañamientos Extras</option>
                     </select>
                     <select id="append-item-service-type" class="form-select form-select--narrow">
                         <option value="servirse">Servirse</option>
@@ -2859,6 +2923,14 @@
                         <label>Segundo:</label>
                         <select id="append-select-segundo" class="form-select"></select>
                     </div>
+                    <div class="res-option-row" id="append-option-product" style="display:none;">
+                        <label id="append-product-label" for="append-select-product">Producto:</label>
+                        <select id="append-select-product" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="append-pending-heading">
+                    <span>Ítems por agregar</span>
+                    <span id="append-items-pending-count" class="append-pending-count">0</span>
                 </div>
                 <div id="append-items-pending" class="append-items-pending"></div>
                 <div id="append-payment-section" style="display:none; margin:12px 0; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px;">
@@ -2869,11 +2941,10 @@
                         <option value="efectivo">💵 Efectivo</option>
                         <option value="qr">📱 QR / Transf.</option>
                         <option value="tarjeta">💳 Tarjeta</option>
-                        <option value="mixto">🔀 Mixto</option>
                     </select>
                 </div>
                 <div class="append-items-total-row">
-                    <span>Total nuevo:</span>
+                    <span>Total de la comanda:</span>
                     <strong id="append-items-new-total">Bs 0.00</strong>
                 </div>
             </div>
@@ -2975,11 +3046,11 @@
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                         <div class="form-group">
                             <label class="label-overline" for="promo-plan-start-date">Fecha de inicio</label>
-                            <input type="date" id="promo-plan-start-date" class="form-input">
+                            <input type="date" id="promo-plan-start-date" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="label-overline" for="promo-plan-end-date">Fecha de fin</label>
-                            <input type="date" id="promo-plan-end-date" class="form-input">
+                            <input type="date" id="promo-plan-end-date" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="label-overline" for="promo-plan-start-hour">Hora de inicio</label>
@@ -3156,24 +3227,24 @@
     <script src="js/ui/toast.js" defer></script>
     <script src="js/ui/modal.js" defer></script>
     <script src="js/core/report-renderer.js" defer></script>
-    <script src="js/core/ticket-printer.js" defer></script>
+    <script src="js/core/print-jobs.js?v=20260923-4" defer></script>
 
     <!-- App State + Logic -->
-    <script src="js/app/state.js" defer></script>
+    <script src="js/app/state.js?v=20260919-2" defer></script>
     <script src="js/app/auth.js" defer></script>
     <script src="js/app/stock.js" defer></script>
     <script src="js/app/cart.js" defer></script>
     <script src="js/core/report-builders.js" defer></script>
 
     <!-- Features (views + controllers) -->
-    <script src="js/views/pos-view.js" defer></script>
-    <script src="js/controllers/pos-controller.js" defer></script>
-    <script src="js/views/orders-view.js" defer></script>
-    <script src="js/controllers/orders-controller.js" defer></script>
-    <script src="js/views/menu-config-view.js" defer></script>
-    <script src="js/controllers/menu-config-controller.js" defer></script>
+    <script src="js/views/pos-view.js?v=20260923-1" defer></script>
+<script src="js/controllers/pos-controller.js?v=20260923-2" defer></script>
+    <script src="js/views/orders-view.js?v=20260919-8" defer></script>
+    <script src="js/controllers/orders-controller.js?v=20260919-4" defer></script>
+    <script src="js/views/menu-config-view.js?v=20260919-1" defer></script>
+    <script src="js/controllers/menu-config-controller.js?v=20260919-1" defer></script>
     <script src="js/views/promos-view.js" defer></script>
-    <script src="js/controllers/promos-controller.js" defer></script>
+    <script src="js/controllers/promos-controller.js?v=20260918-2" defer></script>
     <script src="js/views/inventory-view.js" defer></script>
     <script src="js/controllers/inventory-controller.js" defer></script>
     <script src="js/views/reports-view.js" defer></script>

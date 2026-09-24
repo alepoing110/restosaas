@@ -27,6 +27,7 @@ window.switchMenuConfigSubtab = function(subtabId) {
         if (typeof window.PromoController === 'object' && window.PromoController.init) window.PromoController.init();
         if (typeof renderPromoPlans === 'function') renderPromoPlans();
     }
+    if (subtabId === 'impresion' && window.PrintJobs?.refreshPrinters) window.PrintJobs.refreshPrinters();
 };
 
 // Segundos inline editing
@@ -378,6 +379,49 @@ window.deleteExtra = async function(extraId) {
 // MENUS MANAGEMENT
 // ==========================================================================
 
+window.startEditMenu = function(menuId) {
+    window.editingMenuId = menuId;
+    renderMenuConfig();
+};
+
+window.cancelMenuInline = function() {
+    window.editingMenuId = null;
+    renderMenuConfig();
+};
+
+window.saveMenuInline = async function(menuId) {
+    const menu = state.menus.find(m => m.id === menuId);
+    if (!menu) return;
+
+    const name = document.getElementById(`edit-menu-name-${menuId}`)?.value.trim() || '';
+    const startTime = document.getElementById(`edit-menu-start-${menuId}`)?.value || '';
+    const endTime = document.getElementById(`edit-menu-end-${menuId}`)?.value || '';
+    if (!name) {
+        showToast('El nombre del menú es requerido.', 'warning');
+        return;
+    }
+    if (Boolean(startTime) !== Boolean(endTime)) {
+        showToast('Indique ambos horarios o déjelos vacíos para todo el día.', 'warning');
+        return;
+    }
+
+    try {
+        await AppApi.request('save_menu', {
+            id: menu.id,
+            name,
+            start_time: startTime || null,
+            end_time: endTime || null,
+            active: Number(menu.active) !== 0 ? 1 : 0
+        });
+        window.editingMenuId = null;
+        showToast(`Menú "${name}" actualizado.`, 'success');
+        await loadStateForTab('menu-config');
+        renderMenuConfig();
+    } catch (e) {
+        showToast(e.message || 'Error al actualizar el menú.', 'error');
+    }
+};
+
 async function handleAddMenu(e) {
     e.preventDefault();
     const nameInput = document.getElementById('new-menu-name');
@@ -498,7 +542,7 @@ window.closeMenuProductsModal = function() {
 
 function updateFilterCounts() {
     const products = state.products || [];
-    const types = ['sopa', 'segundo', 'plato_extra', 'refresco'];
+    const types = ['sopa', 'segundo', 'plato_extra'];
     let totalAll = 0, assignedAll = 0;
     
     types.forEach(type => {
@@ -519,9 +563,10 @@ function getFilteredProducts() {
     const searchInput = document.getElementById('menu-products-search-input');
     const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
     
-    let filtered = currentMenuFilter === 'all'
-        ? products
-        : products.filter(p => p.type === currentMenuFilter);
+    let filtered = products.filter(p => p.type !== 'refresco');
+    if (currentMenuFilter !== 'all') {
+        filtered = filtered.filter(p => p.type === currentMenuFilter);
+    }
     
     if (query) {
         filtered = filtered.filter(p => p.name.toLowerCase().includes(query));
@@ -530,9 +575,9 @@ function getFilteredProducts() {
     return filtered;
 }
 
-const TYPE_LABELS = { sopa: 'Sopas', segundo: 'Segundos', plato_extra: 'Platos Extras', refresco: 'Refrescos' };
-const TYPE_ICONS = { sopa: 'fa-bowl-food', segundo: 'fa-plate-wheat', plato_extra: 'fa-utensils', refresco: 'fa-bottle-water' };
-const TYPE_ORDER = ['sopa', 'segundo', 'plato_extra', 'refresco'];
+const TYPE_LABELS = { sopa: 'Sopas', segundo: 'Segundos', plato_extra: 'Platos Extras' };
+const TYPE_ICONS = { sopa: 'fa-bowl-food', segundo: 'fa-plate-wheat', plato_extra: 'fa-utensils' };
+const TYPE_ORDER = ['sopa', 'segundo', 'plato_extra'];
 
 function renderMenuProductsList() {
     const container = document.getElementById('menu-products-list');
@@ -707,6 +752,91 @@ window.toggleAcceptsSalsa = async function(type, id, newValue) {
     }
 };
 
+window.toggleAcceptsAccompaniment = async function(type, id, enabled, checkbox = null) {
+    const collection = type === 'segundo' ? state.seconds : type === 'sopa' ? state.sopas : state.platosExtras;
+    const item = collection.find(entry => entry.id === id);
+    if (!item) return;
+    const maxIncluded = enabled ? Number(item.max_included_accompaniments || 0) : 0;
+    const payload = { id, name: item.name, stock: item.stock, accepts_accompaniment: enabled ? 1 : 0, max_included_accompaniments: maxIncluded };
+    if (type === 'plato_extra') payload.price = item.price;
+    const success = await saveItemOnServer(type, payload);
+    if (success) {
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast(enabled ? `Acompañamientos habilitados para "${item.name}".` : `Acompañamientos deshabilitados para "${item.name}".`, 'success');
+    } else if (checkbox) {
+        checkbox.checked = !enabled;
+    }
+};
+
+window.saveAccompanimentSettings = async function(type, id) {
+    const collection = type === 'segundo' ? state.seconds : type === 'sopa' ? state.sopas : state.platosExtras;
+    const item = collection.find(entry => entry.id === id);
+    const enabled = document.getElementById(`accompaniment-enabled-${id}`)?.checked;
+    const maxIncluded = Number(document.getElementById(`accompaniment-limit-${id}`)?.value);
+    if (!item || enabled === undefined) return;
+    if (!Number.isInteger(maxIncluded) || maxIncluded < 0 || maxIncluded > 20) return showToast('El máximo incluido debe ser un entero entre 0 y 20.', 'warning');
+    const payload = { id, name: item.name, stock: item.stock, accepts_accompaniment: enabled ? 1 : 0, max_included_accompaniments: enabled ? maxIncluded : 0 };
+    if (type === 'plato_extra') payload.price = item.price;
+    if (await saveItemOnServer(type, payload)) {
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast('Configuración de acompañamientos actualizada.', 'success');
+    }
+};
+
+document.getElementById('form-add-accompaniment')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const name = document.getElementById('new-accompaniment-name').value.trim().replace(/\s+/g, ' ');
+    const price = Number(document.getElementById('new-accompaniment-price').value);
+    if (!name || name.length > 100 || !Number.isFinite(price) || price < 0 || price > 99999999.99 || Math.round(price * 100) !== price * 100) return showToast('Datos de acompañamiento inválidos.', 'warning');
+    if (await saveItemOnServer('acompanamiento', { id: generateId(), name, price, active: 1 })) {
+        event.target.reset();
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast(`Acompañamiento "${name}" añadido correctamente.`, 'success');
+    }
+});
+window.startEditAccompaniment = function(id) {
+    window.editingAccompanimentId = id;
+    renderMenuConfig();
+};
+window.cancelAccompanimentInline = function() {
+    window.editingAccompanimentId = null;
+    renderMenuConfig();
+};
+window.saveAccompanimentInline = async function(id) {
+    const item = (state.accompaniments || []).find(entry => entry.id === id);
+    const name = document.getElementById(`edit-accompaniment-name-${id}`)?.value.trim().replace(/\s+/g, ' ') || '';
+    const price = Number(document.getElementById(`edit-accompaniment-price-${id}`)?.value);
+    if (!item) return;
+    if (!name || name.length > 100 || !Number.isFinite(price) || price < 0 || price > 99999999.99 || Math.round(price * 100) !== price * 100) {
+        return showToast('Datos de acompañamiento inválidos.', 'warning');
+    }
+    if (await saveItemOnServer('acompanamiento', { id, name, price, active: Number(item.active) !== 0 ? 1 : 0 })) {
+        window.editingAccompanimentId = null;
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast('Acompañamiento actualizado.', 'success');
+    }
+};
+window.toggleAccompanimentActive = async function(id, active) {
+    const item = (state.accompaniments || []).find(entry => entry.id === id);
+    if (item && await saveItemOnServer('acompanamiento', { id, name: item.name, price: item.price_extra, active: active ? 1 : 0 })) {
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast(active ? `Acompañamiento "${item.name}" activado.` : `Acompañamiento "${item.name}" desactivado.`, 'success');
+    }
+};
+window.deleteAccompaniment = async function(id) {
+    const item = (state.accompaniments || []).find(entry => entry.id === id);
+    if (await deleteItemOnServer('acompanamiento', id)) {
+        await loadStateForTab('inventory');
+        renderMenuConfig();
+        showToast(`Acompañamiento "${item?.name || ''}" eliminado.`, 'success');
+    }
+};
+
 // ==========================================================================
 // SALSAS CRUD
 // ==========================================================================
@@ -776,8 +906,8 @@ async function handleAddSalsa(e) {
     const nameInput = document.getElementById('new-salsa-name');
     const priceInput = document.getElementById('new-salsa-price');
     const name = nameInput.value.trim();
-    const price = parseFloat(priceInput.value) || 0;
-    if (!name) return;
+    const price = Number(priceInput.value);
+    if (!name || name.length > 100 || !Number.isFinite(price) || price < 0 || price > 99999999.99 || Math.round(price * 100) !== price * 100) return showToast('Valores de salsa inválidos.', 'warning');
 
     const success = await saveItemOnServer('salsa', { id: generateId(), name, price, stock: 0, active: 1 });
     if (success) {

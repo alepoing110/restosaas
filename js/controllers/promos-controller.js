@@ -177,8 +177,8 @@
             document.getElementById('promo-plan-active').checked = Number(plan.active) === 1;
             document.getElementById('promo-plan-respect-open').checked = Number(plan.respetar_cotizaciones_abiertas) === 1;
             document.getElementById('promo-plan-stackable').checked = Number(plan.stackable) === 1;
-            document.getElementById('promo-plan-min-qty').value = plan.min_qty || '2';
-            document.getElementById('promo-plan-free-qty').value = plan.free_qty || '1';
+            document.getElementById('promo-plan-min-qty').value = plan.min_quantity || '2';
+            document.getElementById('promo-plan-free-qty').value = plan.free_quantity || '1';
 
             const channels = promoParseChannels(plan.channels);
             ['pos', 'mesa', 'llevar', 'delivery', 'reserva'].forEach(ch => {
@@ -238,9 +238,31 @@
             if (!groups.length || groups.some(group => !group.products.length)) {
                 return showToast('Seleccione productos para cada grupo de la promoción.', 'warning');
             }
+            if (type === 'buy_x_get_y') {
+                const minQuantity = parseInt(document.getElementById('promo-plan-min-qty').value, 10) || 0;
+                const freeQuantity = parseInt(document.getElementById('promo-plan-free-qty').value, 10) || 0;
+                if (groups.length !== 1) return showToast('Compra X y lleva Y debe utilizar un solo grupo de productos.', 'warning');
+                if (minQuantity < 1 || freeQuantity < 1) return showToast('Compra X y lleva Y requiere cantidades mayores que cero.', 'warning');
+                groups[0].quantity_required = minQuantity;
+                groups[0].free_quantity = freeQuantity;
+            }
+
+            const startDate = document.getElementById('promo-plan-start-date').value;
+            const endDate = document.getElementById('promo-plan-end-date').value;
+            const startHour = document.getElementById('promo-plan-start-hour').value;
+            const endHour = document.getElementById('promo-plan-end-hour').value;
+            if (!startDate || !endDate) {
+                return showToast('La fecha de inicio y la fecha de fin son obligatorias.', 'warning');
+            }
+            if (endDate < startDate) {
+                return showToast('La fecha de fin no puede ser anterior a la fecha de inicio.', 'warning');
+            }
+            if ((startHour && !endHour) || (!startHour && endHour)) {
+                return showToast('Complete ambas horas o déjelas vacías para aplicar la promoción las 24 horas.', 'warning');
+            }
 
             const plan = {
-                id: document.getElementById('promo-plan-id').value || `plan_${Date.now()}`,
+                id: document.getElementById('promo-plan-id').value || null,
                 name,
                 type,
                 value,
@@ -251,22 +273,23 @@
                 min_subtotal: parseFloat(document.getElementById('promo-plan-min-subtotal').value) || 0,
                 max_global_uses: parseInt(document.getElementById('promo-plan-max-global').value, 10) || 0,
                 max_customer_uses: parseInt(document.getElementById('promo-plan-max-customer').value, 10) || 0,
-                start_date: document.getElementById('promo-plan-start-date').value || null,
-                end_date: document.getElementById('promo-plan-end-date').value || null,
-                start_hour: document.getElementById('promo-plan-start-hour').value || null,
-                end_hour: document.getElementById('promo-plan-end-hour').value || null,
+                start_date: startDate,
+                end_date: endDate,
+                start_hour: startHour || null,
+                end_hour: endHour || null,
                 active: document.getElementById('promo-plan-active').checked ? 1 : 0,
                 respetar_cotizaciones_abiertas: document.getElementById('promo-plan-respect-open').checked ? 1 : 0,
                 stackable: document.getElementById('promo-plan-stackable').checked ? 1 : 0,
-                min_qty: parseInt(document.getElementById('promo-plan-min-qty').value, 10) || 2,
-                free_qty: parseInt(document.getElementById('promo-plan-free-qty').value, 10) || 1
-                ,groups,
-                min_quantity: groups[0].quantity_required,
-                free_quantity: groups[0].free_quantity
+                min_quantity: type === 'buy_x_get_y' ? parseInt(document.getElementById('promo-plan-min-qty').value, 10) : 0,
+                free_quantity: type === 'buy_x_get_y' ? parseInt(document.getElementById('promo-plan-free-qty').value, 10) : 0,
+                groups
             };
 
             try {
-                await AppApi.savePromoPlan(plan);
+                const response = await AppApi.savePromoPlan(plan);
+                if (!response || response.status !== 'success') {
+                    throw new Error(response?.message || 'No se pudo guardar la promoción.');
+                }
                 showToast('Promoción guardada correctamente.', 'success');
                 this.closeModal();
                 await loadStateForTab('menu-config');

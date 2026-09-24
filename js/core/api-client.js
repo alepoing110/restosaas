@@ -142,7 +142,7 @@
         deleteReservation: (id) => request('delete_reservation', { id: id }),
         verifyBotReservations: (ids) => request('verify_bot_reservations', { ids }),
         markBotReservationsPrinted: (ids) => request('mark_bot_reservations_printed', { ids }),
-        appendOrderItems: (orderId, items, markPaid = false) => request('append_order_items', { id: orderId, items: items, markPaid: markPaid }),
+        appendOrderItems: (orderId, items, markPaid = false, paymentMethod = null) => request('append_order_items', { id: orderId, items: items, markPaid: markPaid, paymentMethod: paymentMethod }),
         getCategories: () => request('get_categories'),
         saveCategory: (category) => request('save_category', category),
         deleteCategory: (id) => request('delete_category', { id: id }),
@@ -153,6 +153,8 @@
         getDiscounts: () => request('get_discounts'),
         saveDiscount: (discount) => request('save_discount', discount),
         deleteDiscount: (id) => request('delete_discount', { id: id }),
-        calculateDiscount: (items) => request('calculate_discount', { items: items })
+        calculateDiscount: (items) => request('calculate_discount', { items: items }),
+         closeCashDay: (data) => request('close_cash_day', data)
+         ,savePrintSettings: (settings) => request('save_print_settings', settings)
     };
 })(window);

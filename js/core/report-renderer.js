@@ -268,7 +268,7 @@
 
     function print(options) {
         const html = buildHtml(options);
-        const printArea = document.getElementById('report-print-area') || document.getElementById('ticket-print-area');
+        const printArea = document.getElementById('report-print-area');
         if (!printArea) {
             if (typeof window.showToast === 'function') window.showToast('No se encontro el area de impresion.', 'error');
             return;
@@ -333,7 +333,6 @@
                     background: #ffffff !important;
                     color: #1f2937 !important;
                 }
-                body.rc-report-printing #ticket-print-area,
                 body.rc-report-printing .modal-backdrop,
                 body.rc-report-printing .sidebar,
                 body.rc-report-printing .main-header,
@@ -344,9 +343,6 @@
             }
         `;
 
-        const ticketArea = document.getElementById('ticket-print-area');
-        if (ticketArea) ticketArea.innerHTML = '';
-
         printArea.className = 'print-only letter-print-area';
         printArea.innerHTML = html;
         document.body.classList.remove('rc-ticket-printing');
@@ -355,7 +351,6 @@
         const cleanup = () => {
             document.body.classList.remove('rc-report-printing');
             printArea.innerHTML = '';
-            if (ticketArea) ticketArea.innerHTML = '';
             window.removeEventListener('afterprint', cleanup);
         };
 

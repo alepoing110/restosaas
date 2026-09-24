@@ -387,7 +387,7 @@ function handle_saas_delete_tenant(PDO $pdo, ?array $authContext, array $input):
             'segundos', 'sopas', 'platos_extras', 'gaseosas', 'salsas',
             'menus', 'products', 'tables_config', 'categories',
             'config_precios', 'config_general', 'reservations', 'discounts',
-            'audit_logs', 'stock_history', 'stock_daily_snapshot',
+            'stock_history', 'stock_daily_snapshot',
             'user_sessions', 'user_branch_access', 'plan_changes_log', 'tenant_subscriptions',
             'users', 'branches'
         ];
@@ -435,7 +435,7 @@ function handle_saas_delete_branch(PDO $pdo, ?array $authContext, array $input):
             'segundos', 'sopas', 'platos_extras', 'gaseosas', 'salsas',
             'menus', 'products', 'tables_config', 'categories',
             'config_precios', 'config_general', 'reservations', 'discounts',
-            'audit_logs', 'stock_history', 'stock_daily_snapshot',
+            'stock_history', 'stock_daily_snapshot',
             'user_sessions', 'user_branch_access', 'users'
         ];
         foreach ($orphanTables as $table) {
@@ -646,6 +646,11 @@ function handle_edit_tenant_user(PDO $pdo, ?array $authContext, array $input): v
         return;
     }
 
+    if ($existing['current_role'] === 'owner' && $authContext['role'] !== 'super_admin' && $authContext['user_id'] !== $id) {
+        echo json_encode(["status" => "error", "message" => "Solo un super administrador puede modificar la cuenta del propietario"]);
+        return;
+    }
+
     if ($existing['current_role'] === 'owner' && $active === 0) {
         echo json_encode(["status" => "error", "message" => "No puedes desactivar tu propia cuenta"]);
         return;
@@ -653,6 +658,16 @@ function handle_edit_tenant_user(PDO $pdo, ?array $authContext, array $input): v
 
     $validRoles = ['admin', 'cajero'];
     if ($role !== '' && !in_array($role, $validRoles, true)) $role = 'cajero';
+
+    if ($existing['current_role'] === 'owner' && $role !== '' && $role !== 'owner') {
+        echo json_encode(["status" => "error", "message" => "No se puede cambiar el rol del propietario"]);
+        return;
+    }
+
+    if ($password !== '' && $existing['current_role'] === 'owner' && $authContext['role'] !== 'super_admin') {
+        echo json_encode(["status" => "error", "message" => "No se puede restablecer la contraseña del propietario desde este panel"]);
+        return;
+    }
 
     if ($password !== '' && strlen($password) < 8) {
         echo json_encode(["status" => "error", "message" => "La contraseña debe tener al menos 8 caracteres"]);
