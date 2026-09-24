@@ -134,6 +134,7 @@ function initModalBackdropHandlers() {
         if (id === 'modal-dashboard-detail') { closeDashboardDetail(); return; }
         if (id === 'modal-reservation-payment') { closeReservationPaymentModal(); return; }
         if (id === 'modal-append-items') { closeAppendItemsModal(); return; }
+        if (typeof window.closeModal === 'function') { closeModal(id); return; }
     });
 
     // Escape key: close topmost open modal
@@ -150,6 +151,7 @@ function initModalBackdropHandlers() {
         if (id === 'modal-dashboard-detail') { closeDashboardDetail(); return; }
         if (id === 'modal-reservation-payment') { closeReservationPaymentModal(); return; }
         if (id === 'modal-append-items') { closeAppendItemsModal(); return; }
+        if (typeof window.closeModal === 'function') { closeModal(id); return; }
     });
 }
 
@@ -245,33 +247,6 @@ async function startAuthenticatedApp(forceReload = false) {
         safeBind('btn-clear-cart', 'click', () => {
             if (window.PosController) PosController.clearCart();
         });
-        safeBind('btn-save-pending', 'click', () => {
-            if (window.PosController) {
-                PosController.checkoutOrder(true).catch(err => {
-                    console.error('[POS] checkoutOrder error:', err);
-                    showToast(err.message || 'Error inesperado al procesar el pedido.', 'error');
-                });
-            }
-        });
-        safeBind('btn-complete-sale', 'click', () => {
-            if (window.state?.cart?.length) {
-                const promo = document.getElementById('cart-promo-popover');
-                if (promo) promo.style.display = '';
-                window.PosView?.syncPaymentModalSummary?.();
-                openModal('modal-order-payment');
-            }
-            else showToast('Agregue productos antes de cobrar.', 'warning');
-        });
-        safeBind('btn-open-order-details', 'click', () => openModal('modal-order-details'));
-        safeBind('btn-confirm-sale', 'click', () => {
-            if (window.PosController) {
-                PosController.checkoutOrder(false).then(() => closeModal('modal-order-payment')).catch(err => {
-                    console.error('[POS] checkoutOrder error:', err);
-                    showToast(err.message || 'Error inesperado al procesar el pedido.', 'error');
-                });
-            }
-        });
-
         safeBind('search-active-orders', 'input', debounce(renderActiveOrders, 200));
 
         const reservationSearch = document.getElementById('reservation-search-input');
@@ -406,7 +381,39 @@ safeBind('form-print-settings', 'submit', handleSavePrintSettings);
 
 window.startAuthenticatedApp = startAuthenticatedApp;
 
+function initializeAppUpdates() {
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+    let hadController = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // Never reload automatically: a payment or unsaved cart may be in progress.
+        if (hadController && !document.getElementById('app-update-notice')) {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            const notice = document.createElement('div');
+            notice.id = 'app-update-notice';
+            notice.className = 'toast info';
+            notice.setAttribute('role', 'status');
+            notice.textContent = 'Nueva versión disponible. Finaliza y guarda tu operación; después recarga la página para ver los cambios.';
+            container.appendChild(notice);
+        }
+        hadController = true;
+    });
+    const workerUrl = new URL('sw.js', document.baseURI);
+    navigator.serviceWorker.register(workerUrl.href, {
+        scope: new URL('./', workerUrl).href,
+        updateViaCache: 'none'
+    }).then(registration => registration.update()).catch(error => {
+        console.warn('[APP] No se pudo comprobar la actualización:', error);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    initializeAppUpdates();
     initReactiveRendering();
     initAutoAnimations();
 
@@ -486,21 +493,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const cartToggle = document.getElementById('mobile-cart-toggle');
     const posGrid = document.querySelector('.pos-grid');
     if (cartToggle && posGrid) {
+        const backButton = document.getElementById('btn-back-to-catalog');
+        let layoutFrame = 0;
+        const updateCartLayout = () => {
+            cancelAnimationFrame(layoutFrame);
+            layoutFrame = requestAnimationFrame(() => {
+                if (!posGrid.getClientRects().length) return;
+                const viewport = window.visualViewport;
+                const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+                const top = Math.max(0, posGrid.getBoundingClientRect().top);
+                // Short viewports retain a usable panel and allow page scrolling.
+                posGrid.style.setProperty('--pos-available-height', `${Math.max(280, Math.floor(bottom - top - 12))}px`);
+            });
+        };
+        const setCartOpen = (open) => {
+            posGrid.classList.toggle('show-cart', open);
+            cartToggle.setAttribute('aria-expanded', String(open));
+            updateCartLayout();
+            if (open) backButton?.focus({ preventScroll: true });
+            else cartToggle.focus({ preventScroll: true });
+        };
         cartToggle.addEventListener('click', () => {
-            posGrid.classList.toggle('show-cart');
+            setCartOpen(!posGrid.classList.contains('show-cart'));
         });
-        const observer = new MutationObserver(() => {
-            const count = (state.cart || []).reduce((s, i) => s + (i.quantity || 1), 0);
+        backButton?.addEventListener('click', () => setCartOpen(false));
+        const updateCartBadge = () => {
+            const count = (state.cart || []).reduce((s, i) => s + Number(i.qty || i.quantity || 1), 0);
             const badge = document.getElementById('mobile-cart-badge');
             if (badge) badge.textContent = count;
-            if (window.matchMedia('(max-width: 768px)').matches) {
-                cartToggle.style.display = count > 0 ? 'flex' : 'none';
-            }
-        });
-        const cartList = document.querySelector('.cart-items-list');
+            cartToggle.setAttribute('aria-label', `Ver pedido (${count} productos)`);
+        };
+        const observer = new MutationObserver(updateCartBadge);
+        const cartList = document.getElementById('cart-items-container');
         if (cartList) {
             observer.observe(cartList, { childList: true, subtree: true });
         }
+        window.addEventListener('resize', updateCartLayout);
+        window.visualViewport?.addEventListener('resize', updateCartLayout);
+        if (window.ResizeObserver) {
+            const header = document.querySelector('.main-header');
+            if (header) new ResizeObserver(updateCartLayout).observe(header);
+        }
+        const posScreen = document.getElementById('screen-pos');
+        if (posScreen) new MutationObserver(updateCartLayout).observe(posScreen, { attributes: true, attributeFilter: ['class'] });
+        updateCartBadge();
+        updateCartLayout();
     }
 
     // Mobile: Fix sub-tab touch responsiveness

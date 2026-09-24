@@ -127,6 +127,47 @@
     box-shadow: var(--shadow-sm);
 }
 
+/* Keep inventory in the same reading order as the order-taking catalog. */
+#screen-inventory .config-grid {
+    grid-template-columns: 1fr;
+}
+
+#screen-inventory .config-left-column,
+#screen-inventory .config-right-column {
+    display: contents;
+}
+
+#screen-inventory .config-card-panel {
+    margin-bottom: 20px;
+}
+
+.inventory-category-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin-bottom: 20px;
+    padding-bottom: 4px;
+}
+
+.inventory-category-tab {
+    flex: 0 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    padding: 12px 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.inventory-category-tab:hover,
+.inventory-category-tab.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
 .config-divider {
     border: none;
     border-top: 1px solid var(--border);

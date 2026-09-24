@@ -23,6 +23,11 @@
     pointer-events: auto;
 }
 
+/* Product option selectors must stay above the modal that initiated the flow. */
+.modal-backdrop--product-options {
+    z-index: 1200;
+}
+
 .modal-content {
     background-color: var(--bg-surface);
     border: 1px solid var(--border);

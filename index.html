@@ -15,7 +15,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=20260923-1">
+    <link rel="stylesheet" href="styles.css?v=20260924-11">
     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <!-- html2pdf.js library (loaded async, only needed for PDF export) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
@@ -148,7 +148,7 @@
                 <!-- SCREEN 1: POS (Toma de Pedidos) -->
                 <section class="screen-section active" id="screen-pos">
                     <!-- Mobile cart toggle (floating) -->
-                    <button class="mobile-cart-toggle" id="mobile-cart-toggle" aria-label="Ver carrito">
+                    <button class="mobile-cart-toggle" id="mobile-cart-toggle" aria-label="Ver carrito" aria-controls="pos-order-panel" aria-expanded="false">
                         <i class="fa-solid fa-receipt"></i>
                         <span class="mobile-cart-badge" id="mobile-cart-badge">0</span>
                     </button>
@@ -187,15 +187,17 @@
                         </div>
 
                         <!-- Right Panel: Current Order Summary (Cart) -->
-                        <div class="pos-cart">
+                        <div class="pos-cart" id="pos-order-panel" aria-labelledby="pos-order-title">
                             <div class="cart-header">
-                                <h3 class="panel-title"><i class="fa-solid fa-receipt"></i> Detalle del Pedido</h3>
+                                <button type="button" class="btn btn-outline btn-sm cart-back-button" id="btn-back-to-catalog" aria-label="Volver a productos" title="Volver a productos"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+                                <h3 class="panel-title" id="pos-order-title">Detalle del pedido</h3>
                                 <button class="btn-clear-cart" id="btn-clear-cart" title="Vaciar pedido" aria-label="Vaciar carrito">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
                             </div>
                             
                             <!-- Order Location and Customer -->
+                            <div class="cart-content" tabindex="0" role="region" aria-label="Cliente y productos del pedido">
                             <div class="customer-info-group">
                                 <div class="order-meta-grid">
                                 <div class="form-group order-field" style="margin-bottom: 0;">
@@ -206,17 +208,18 @@
                                             <option value="Llevar">Llevar</option>
                                         </select>
                                      </div>
-                                     <div class="order-summary-actions"><div id="order-service-summary" class="order-service-summary" aria-live="polite"></div><button type="button" class="btn btn-outline btn-sm" id="btn-open-order-details"><i class="fa-solid fa-sliders"></i> Detalles</button></div>
                                 </div>
                                 <div class="form-group order-field" id="custom-customer-name-wrapper" style="margin-bottom: 0;">
                                     <label class="label-overline" for="order-customer-name">Nombre del cliente</label>
                                     <div class="input-icon-wrapper input-icon-wrapper--compact" style="margin-top: 4px;">
                                     <i class="fa-solid fa-user input-icon--abs"></i>
-                                    <input type="text" id="order-customer-name" placeholder="Escriba el nombre del cliente..." class="form-input" required maxlength="150" autocomplete="name">
+                                    <input type="text" id="order-customer-name" placeholder="Nombre del cliente" class="form-input" required maxlength="150" autocomplete="name">
                                     </div>
                                     <small class="form-help-text">Cliente obligatorio</small>
                                 </div>
                                 </div>
+
+                                <div class="order-summary-actions"><div id="order-service-summary" class="order-service-summary" aria-live="polite"></div><button type="button" class="btn btn-outline btn-sm" id="btn-open-order-details" aria-haspopup="dialog"><i class="fa-solid fa-sliders"></i> Detalles</button></div>
 
                                  <div class="form-group-row order-notes-row" id="order-notes-inline">
                                     <div class="form-group"><label class="label-overline" for="order-kitchen-note">Nota para cocina</label><textarea id="order-kitchen-note" class="form-input" rows="2" maxlength="500" placeholder="Preparación general del pedido"></textarea></div>
@@ -315,6 +318,8 @@
                                         <i class="fa-solid fa-xmark"></i>
                                     </button>
                                 </div>
+                            </div>
+
                             </div>
 
                             <!-- Cart Footer Summary -->
@@ -731,8 +736,8 @@
                         <div class="config-card-panel accompaniment-catalog-card">
                             <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</h3>
                             <p class="panel-subtitle">Los acompañamientos incluidos no tienen costo; el precio se aplica solo cuando se piden como extra.</p>
-                            <form id="form-add-accompaniment" class="accompaniment-add-form"><div class="form-group"><label for="new-accompaniment-name">Nombre</label><input id="new-accompaniment-name" class="form-input" maxlength="100" required></div><div class="form-group"><label for="new-accompaniment-price">Precio extra (Bs)</label><input id="new-accompaniment-price" type="number" min="0" max="99999999.99" step="0.01" value="0" class="form-input" required></div><button class="btn btn-accent" type="submit"><i class="fa-solid fa-plus"></i><span>Agregar</span></button></form>
-                            <div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Nombre</th><th>Precio extra</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead><tbody id="accompaniments-crud-body"></tbody></table></div>
+                             <form id="form-add-accompaniment" class="accompaniment-add-form"><div class="form-group"><label for="new-accompaniment-name">Nombre</label><input id="new-accompaniment-name" class="form-input" maxlength="100" required></div><div class="form-group"><label for="new-accompaniment-price">Precio extra (Bs)</label><input id="new-accompaniment-price" type="number" min="0" max="99999999.99" step="0.01" value="0" class="form-input" required></div><button class="btn btn-accent" type="submit"><i class="fa-solid fa-plus"></i><span>Agregar</span></button></form>
+                             <div class="seconds-table-container"><table class="seconds-table"><thead><tr><th>Nombre</th><th>Precio extra</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead><tbody id="accompaniments-crud-body"></tbody></table></div>
                         </div>
                         <div class="config-card-panel accompaniment-settings-card">
                             <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Aplicación por plato</h3>
@@ -906,13 +911,19 @@
 
                 <!-- SCREEN 4: INVENTORY DASHBOARD & STOCK REPLENISH -->
                 <section class="screen-section" id="screen-inventory">
+                    <div class="inventory-category-tabs" role="tablist" aria-label="Categorías de control de stock">
+                        <button type="button" class="inventory-category-tab active" data-inventory-category="meals" onclick="setInventoryCategory('meals')"><i class="fa-solid fa-bowl-food"></i> Almuerzo</button>
+                        <button type="button" class="inventory-category-tab" data-inventory-category="extras" onclick="setInventoryCategory('extras')"><i class="fa-solid fa-utensils"></i> Platos Extra</button>
+                        <button type="button" class="inventory-category-tab" data-inventory-category="drinks" onclick="setInventoryCategory('drinks')"><i class="fa-solid fa-bottle-water"></i> Bebidas</button>
+                        <button type="button" class="inventory-category-tab" data-inventory-category="sauces" onclick="setInventoryCategory('sauces')"><i class="fa-solid fa-bowl-rice"></i> Salsas y Acompañamientos Extras</button>
+                    </div>
                     <div class="config-grid">
                         <!-- Left Panel: Seconds Stock Adjustment -->
                         <div class="config-left-column">
                             <!-- Seconds Stock Card -->
-                            <div class="config-card-panel config-card-panel--spaced">
-                                <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Stock de Segundos</h3>
-                                <p class="panel-subtitle">Ajusta el stock actual de cada segundo en preparación.</p>
+                            <div class="config-card-panel config-card-panel--spaced" data-inventory-category="meals">
+                                 <h3 class="panel-title"><i class="fa-solid fa-bowl-rice"></i> Almuerzo - Segundos</h3>
+                                 <p class="panel-subtitle">Stock de los segundos que forman parte del almuerzo.</p>
                                 
                                 <div class="seconds-table-container">
                                     <table class="seconds-table">
@@ -932,9 +943,9 @@
                             </div>
 
                             <!-- Sopas Stock Card -->
-                            <div class="config-card-panel">
-                                <h3 class="panel-title"><i class="fa-solid fa-bowl-hot"></i> Stock de Sopas</h3>
-                                <p class="panel-subtitle">Ajusta el stock actual de cada sopa en preparación.</p>
+                            <div class="config-card-panel" data-inventory-category="meals">
+                                 <h3 class="panel-title"><i class="fa-solid fa-bowl-hot"></i> Almuerzo - Sopas</h3>
+                                 <p class="panel-subtitle">Stock de las sopas que forman parte del almuerzo.</p>
                                 
                                 <div class="seconds-table-container">
                                     <table class="seconds-table">
@@ -957,8 +968,8 @@
                         <!-- Right Panel: Platos Extras Stock & Gaseosas Stock Adjustment -->
                         <div class="config-right-column">
                             <!-- Platos Extras Stock Card -->
-                            <div class="config-card-panel config-card-panel--spaced">
-                                <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Stock de Platos Extras</h3>
+                            <div class="config-card-panel config-card-panel--spaced" data-inventory-category="extras">
+                                 <h3 class="panel-title"><i class="fa-solid fa-utensils"></i> Platos Extra</h3>
                                 <p class="panel-subtitle">Ajusta el stock disponible para platos especiales a la carta.</p>
                                 
                                 <div class="seconds-table-container">
@@ -978,10 +989,10 @@
                             </div>
 
                             <!-- Gaseosas Stock Card -->
-                            <div class="config-card-panel">
+                            <div class="config-card-panel" data-inventory-category="drinks">
                                 <div class="panel-header-row">
                                     <div>
-                                        <h3 class="panel-title"><i class="fa-solid fa-whiskey-glass"></i> Stock de Gaseosas / Bebidas</h3>
+                                         <h3 class="panel-title"><i class="fa-solid fa-whiskey-glass"></i> Bebidas</h3>
                                         <p class="panel-subtitle panel-subtitle--compact">Ajusta las botellas o vasos disponibles en nevera.</p>
                                     </div>
                                     <button class="btn btn-accent btn-sm btn--compact" id="btn-export-drinks-report">
@@ -1002,6 +1013,17 @@
                                         <tbody id="extras-stock-table-body">
                                             <!-- Dynamic rows from JS -->
                                         </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="config-card-panel" data-inventory-category="sauces">
+                                <h3 class="panel-title"><i class="fa-solid fa-bowl-food"></i> Salsas y Acompañamientos Extras</h3>
+                                <p class="panel-subtitle">Controla los extras independientes y las opciones seleccionadas dentro de los platos.</p>
+                                <div class="seconds-table-container">
+                                    <table class="seconds-table">
+                                        <thead><tr><th>Producto</th><th style="width:90px;">Estado</th><th style="width:120px;">Stock</th><th style="width:60px;text-align:right;">Ajustar</th></tr></thead>
+                                        <tbody id="sauces-accompaniments-stock-table-body"></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -1836,9 +1858,12 @@
                                                     <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="extras" onclick="switchReservationCatalogTab('extras')">
                                                         <i class="fa-solid fa-utensils"></i> Platos extras
                                                     </button>
-                                                    <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="drinks" onclick="switchReservationCatalogTab('drinks')">
-                                                        <i class="fa-solid fa-bottle-water"></i> Bebidas
-                                                    </button>
+                                                     <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="drinks" onclick="switchReservationCatalogTab('drinks')">
+                                                         <i class="fa-solid fa-bottle-water"></i> Bebidas
+                                                     </button>
+                                                     <button type="button" class="reservation-catalog-tab" data-res-catalog-tab="sauces" onclick="switchReservationCatalogTab('sauces')">
+                                                         <i class="fa-solid fa-bowl-food"></i> Salsas y acompañamientos
+                                                     </button>
                                                 </div>
                                             </div>
 
@@ -1898,8 +1923,9 @@
                                     <i class="fa-solid fa-check"></i> Verificar seleccionadas
                                 </button>
                             </div>
-                            <div class="config-card-panel">
-                                <table class="seconds-table">
+                             <div class="config-card-panel reservations-table-card">
+                                 <div class="reservations-table-scroll">
+                                 <table class="seconds-table">
                                     <thead>
                                         <tr>
                                             <th id="bot-reservations-select-header" style="display:none; width:38px; text-align:center;"><input type="checkbox" onchange="toggleAllBotReservations(this.checked)" title="Seleccionar todas"></th>
@@ -1918,8 +1944,9 @@
                                     <tbody id="reservations-table-body">
                                         <!-- Dynamic rows from JS -->
                                     </tbody>
-                                </table>
-                            </div>
+                                 </table>
+                                 </div>
+                             </div>
                         </div>
                     </div>
                 </section>
@@ -2570,6 +2597,28 @@
             <div class="modal-actions"><button type="button" class="btn btn-outline" onclick="closeModal('modal-order-payment')">Cancelar</button><button type="button" class="btn btn-primary" id="btn-confirm-sale"><i class="fa-solid fa-check-double"></i> Confirmar cobro e imprimir</button></div>
         </div>
     </div>
+    <div class="modal-backdrop" id="modal-active-order-payment" role="dialog" aria-modal="true" aria-labelledby="modal-active-order-payment-title">
+        <div class="modal-content modal-content--lg active-payment-modal">
+            <div class="modal-header modal-header--default"><div><h3 class="modal-title" id="modal-active-order-payment-title"><i class="fa-solid fa-cash-register"></i> Cobrar pedido</h3><p class="active-payment-context"><strong id="active-payment-client"></strong><span id="active-payment-context"></span></p></div><button type="button" class="btn btn-outline btn-sm" aria-label="Cerrar cobro" onclick="closeModal('modal-active-order-payment')"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+            <div class="modal-body">
+                <div class="active-payment-layout">
+                    <section class="active-payment-order-panel" aria-labelledby="active-payment-order-heading">
+                        <div class="active-payment-section-heading" id="active-payment-order-heading"><span><i class="fa-solid fa-receipt"></i> Detalle del pedido</span><strong id="active-payment-count"></strong></div>
+                        <div class="active-payment-items" id="active-payment-items" aria-live="polite"></div>
+                        <div class="active-payment-summary"><div><span>Subtotal</span><strong id="active-payment-subtotal">Bs 0.00</strong></div><div id="active-payment-discount-row" style="display:none;"><span>Descuento</span><strong id="active-payment-discount">-Bs 0.00</strong></div><div class="active-payment-total"><span>Total a cobrar</span><strong id="active-payment-total">Bs 0.00</strong></div></div>
+                    </section>
+                    <section class="active-payment-method-panel" aria-labelledby="active-payment-method-heading">
+                        <div class="active-payment-section-heading" id="active-payment-method-heading"><span><i class="fa-solid fa-wallet"></i> Forma de pago</span></div>
+                        <div class="form-group"><label class="label-overline" for="active-payment-method">Selecciona el método</label><select id="active-payment-method" class="form-select" onchange="updateActivePaymentFields()"><option value="efectivo">Efectivo</option><option value="qr">QR / Transferencia</option><option value="tarjeta">Tarjeta (Crédito/Débito)</option><option value="mixto">Mixto (Efectivo + QR)</option><option value="credito">Venta a crédito</option></select></div>
+                        <div class="active-payment-split" id="active-payment-mixed-section" style="display:none;"><div class="form-group"><label for="active-payment-cash">Efectivo (Bs)</label><input type="number" id="active-payment-cash" class="form-input" min="0" step="0.50" value="0" oninput="updateActivePaymentMixedTotal()"></div><div class="form-group"><label for="active-payment-qr">QR / Transferencia (Bs)</label><input type="number" id="active-payment-qr" class="form-input" min="0" step="0.50" value="0" oninput="updateActivePaymentMixedTotal()"></div><p class="active-payment-mixed-total" id="active-payment-mixed-total"></p></div>
+                        <div class="active-payment-credit" id="active-payment-credit-section" style="display:none;"><div class="form-group"><label for="active-payment-due-date">Fecha de vencimiento</label><input type="date" id="active-payment-due-date" class="form-input"></div><div class="form-group"><label for="active-payment-credit-reason">Motivo de excepción</label><input type="text" id="active-payment-credit-reason" class="form-input" maxlength="255" placeholder="Solo si supera el límite de crédito"></div></div>
+                        <p class="active-payment-hint" id="active-payment-hint" aria-live="polite"></p>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-actions active-payment-footer"><div class="active-payment-footer-total"><span>Total del pedido</span><strong id="active-payment-footer-total">Bs 0.00</strong></div><button type="button" class="btn btn-outline" onclick="closeModal('modal-active-order-payment')">Cancelar</button><button type="button" class="btn btn-primary" id="btn-confirm-active-payment" onclick="confirmActiveOrderPayment()"><i class="fa-solid fa-check-double" aria-hidden="true"></i> <span id="active-payment-confirm-label">Cobrar e imprimir</span></button></div>
+        </div>
+    </div>
 
     <!-- Modal: Report Executive Preview (Carta / Letter Size) -->
     <div class="modal-backdrop" id="modal-report-preview" role="dialog" aria-modal="true" aria-labelledby="modal-report-preview-title">
@@ -2857,11 +2906,11 @@
     </div>
 
     <!-- Modal: Select Salsa for Product -->
-    <div class="modal-backdrop" id="modal-salsa-select" role="dialog" aria-modal="true" aria-labelledby="modal-salsa-select-title">
+    <div class="modal-backdrop modal-backdrop--product-options" id="modal-salsa-select" role="dialog" aria-modal="true" aria-labelledby="modal-salsa-select-title">
         <div class="modal-content modal-content--sm" style="max-width: 400px;">
             <div class="modal-header">
                 <h3 id="modal-salsa-select-title"><i class="fa-solid fa-bowl-food"></i> Seleccionar Salsas</h3>
-                <button class="btn-close-modal" onclick="closeSalsaSelectModal()"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" class="btn-close-modal" onclick="closeSalsaSelectModal()" aria-label="Cancelar producto"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body">
                 <p class="modal-subtitle" style="margin-bottom:12px;">
@@ -2874,9 +2923,10 @@
                 </p>
             </div>
             <div class="modal-actions">
-                <button type="button" class="btn btn-outline" onclick="closeSalsaSelectModal()">Cancelar</button>
+                <button type="button" class="btn btn-outline-danger" onclick="closeSalsaSelectModal()">Cancelar producto</button>
+                <button type="button" class="btn btn-outline" onclick="skipSalsaSelection()">Continuar sin salsa</button>
                 <button type="button" class="btn btn-primary" onclick="confirmSalsaSelection()">
-                    <i class="fa-solid fa-check"></i> Agregar
+                    <i class="fa-solid fa-check"></i> Confirmar salsa
                 </button>
             </div>
         </div>
@@ -3227,7 +3277,7 @@
     <script src="js/ui/toast.js" defer></script>
     <script src="js/ui/modal.js" defer></script>
     <script src="js/core/report-renderer.js" defer></script>
-    <script src="js/core/print-jobs.js?v=20260923-4" defer></script>
+    <script src="js/core/print-jobs.js?v=20260924-7" defer></script>
 
     <!-- App State + Logic -->
     <script src="js/app/state.js?v=20260919-2" defer></script>
@@ -3239,8 +3289,8 @@
     <!-- Features (views + controllers) -->
     <script src="js/views/pos-view.js?v=20260923-1" defer></script>
 <script src="js/controllers/pos-controller.js?v=20260923-2" defer></script>
-    <script src="js/views/orders-view.js?v=20260919-8" defer></script>
-    <script src="js/controllers/orders-controller.js?v=20260919-4" defer></script>
+    <script src="js/views/orders-view.js?v=20260924-9" defer></script>
+    <script src="js/controllers/orders-controller.js?v=20260924-11" defer></script>
     <script src="js/views/menu-config-view.js?v=20260919-1" defer></script>
     <script src="js/controllers/menu-config-controller.js?v=20260919-1" defer></script>
     <script src="js/views/promos-view.js" defer></script>
@@ -3267,6 +3317,6 @@
     <!-- Navigation + Init (last) -->
     <script src="js/app/navigation.js" defer></script>
     <script src="js/app/header.js" defer></script>
-    <script src="app.js" defer></script>
+    <script src="app.js?v=20260924-11" defer></script>
 </body>
 </html>

@@ -35,6 +35,12 @@ function updateHeaderMetrics() {
     (state.sopas || []).forEach(s => {
         if (Number(s.active) !== 0 && getAvailableSopaStock(s.id) <= 5) lowStockCount++;
     });
+    (state.salsas || []).forEach(s => {
+        if (Number(s.active) !== 0 && getAvailableSalsaStock(s.id) <= 5) lowStockCount++;
+    });
+    (state.accompaniments || []).forEach(a => {
+        if (Number(a.active) !== 0 && getAvailableAccompanimentStock(a.id) <= 5) lowStockCount++;
+    });
 
     const alertPill = document.getElementById('header-low-stock-alert');
     if (alertPill) {

@@ -115,7 +115,8 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
     }
 
     $price = array_key_exists('price', $input) ? catalogMoney($input['price']) : 0.0;
-    $stock = array_key_exists('stock', $input) ? catalogInteger($input['stock'], 'stock', 0, CATALOG_STOCK_MAX) : 0;
+    $stockProvided = array_key_exists('stock', $input);
+    $stock = $stockProvided ? catalogInteger($input['stock'], 'stock', 0, CATALOG_STOCK_MAX) : 0;
     $active = array_key_exists('active', $input) ? catalogBoolean($input['active'], 'estado') : 1;
     $acceptsSalsa = array_key_exists('accepts_salsa', $input) ? catalogBoolean($input['accepts_salsa'], 'permite salsa') : null;
     $acceptsAccompaniment = array_key_exists('accepts_accompaniment', $input) ? catalogBoolean($input['accepts_accompaniment'], 'permite acompañamientos') : null;
@@ -125,9 +126,10 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
     $tid = $authContext['tenant_id'];
     $bid = $authContext['branch_id'];
 
-    $checkStmt = $pdo->prepare("SELECT id FROM `$table` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
+    $checkStmt = $pdo->prepare("SELECT id, stock FROM `$table` WHERE `id` = :id AND `tenant_id` = :tid AND `branch_id` = :bid");
     $checkStmt->execute(['id' => $id, 'tid' => $tid, 'bid' => $bid]);
     $exists = $checkStmt->fetch();
+    if ($exists && !$stockProvided && array_key_exists('stock', $exists)) $stock = (int)$exists['stock'];
     if (!$exists) {
         $globalId = $pdo->prepare("SELECT `tenant_id`, `branch_id` FROM `$table` WHERE `id` = :id LIMIT 1");
         $globalId->execute(['id' => $id]);
@@ -147,7 +149,7 @@ function handle_save_item(PDO $pdo, ?array $authContext, array $input): void {
     // Build column sets based on type
     $hasPrice = in_array($type, ['plato_extra', 'extra', 'salsa', 'acompanamiento']);
     $priceColumn = $type === 'acompanamiento' ? 'price_extra' : 'price';
-    $hasStock = in_array($type, ['segundo', 'sopa', 'plato_extra', 'extra']);
+    $hasStock = in_array($type, ['segundo', 'sopa', 'plato_extra', 'extra', 'salsa', 'acompanamiento']);
     $hasActive = in_array($type, ['segundo', 'sopa', 'salsa', 'acompanamiento']);
     $hasAcceptsSalsa = in_array($type, ['segundo', 'sopa', 'plato_extra']);
     $hasAccompaniments = in_array($type, ['segundo', 'sopa', 'plato_extra']);

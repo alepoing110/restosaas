@@ -116,6 +116,7 @@ function onReservationTypeChange() {
     const pickupInput = document.getElementById('reservation-form-pickup-time');
     if (pickupGroup) pickupGroup.style.display = type === 'para_llevar' ? '' : 'none';
     if (pickupInput) pickupInput.required = type === 'para_llevar';
+    renderReservationCatalog();
 }
 
 async function loadReservationsForDate(dateStr) {
@@ -137,7 +138,8 @@ function validateReservationItems(items) {
         'sopa': state.sopas || [],
         'plato_extra': state.platosExtras || [],
         'extra': state.extras || [],
-        'salsa': state.salsas || []
+        'salsa': state.salsas || [],
+        'acompanamiento': state.accompaniments || []
     };
 
     for (const item of items) {
@@ -187,6 +189,8 @@ function buildReservationOrder(reservation, overrides = {}) {
         segundoName: it.segundoName || null,
         platoId: it.platoId || null,
         extraId: it.extraId || null,
+        salsaId: it.salsaId || null,
+        accompanimentId: it.accompanimentId || null,
         salsas: it.salsas || [],
         accompaniments: it.accompaniments || [],
         // Older reservations stored the service mode as a preparation note.
@@ -201,6 +205,7 @@ function buildReservationOrder(reservation, overrides = {}) {
             ? `${tableName} - ${reservation.customer_name}`
             : `${reservation.customer_name} (Reserva - Llevar)`,
         deliveryType,
+        tableId: isDineIn ? (reservation.table_id || null) : null,
         customerId: reservation.customer_id || null,
         reservationId: reservation.id || null,
         items,
@@ -286,19 +291,19 @@ async function confirmReservationForMesa(res) {
             return;
         }
 
+        if (typeof window.upsertActiveOrder === 'function') {
+            window.upsertActiveOrder(newOrder);
+        }
+
         if (window.PrintJobs) {
-            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
-            const takeoutItems = (newOrder.items || []).filter(item => item.serviceType === 'llevar');
+            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type)));
+            const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
             if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
         }
 
         const statusData = await AppApi.updateReservationStatus(res.id, 'completada');
         if (statusData.status !== 'success') {
             showToast('Pedido creado pero error al actualizar reserva.', 'warning');
-        }
-
-        if (typeof window.upsertActiveOrder === 'function') {
-            window.upsertActiveOrder(newOrder);
         }
 
         Notifications.notify(`📋 Reserva confirmada: ${res.customer_name} → Mesa ${tableName}`, 'success');
@@ -446,7 +451,7 @@ function toggleReservationForm() {
 // ==========================================================================
 
 function switchReservationCatalogTab(tab) {
-    const validTabs = ['meals', 'extras', 'drinks'];
+    const validTabs = ['meals', 'extras', 'drinks', 'sauces'];
     state.reservationCatalogTab = validTabs.includes(tab) ? tab : 'meals';
     if (typeof window.saveUiContext === 'function') {
         window.saveUiContext({ reservationCatalogTab: state.reservationCatalogTab });
@@ -476,6 +481,28 @@ function normalizeReservationQty(value) {
 function getReservationItemServiceType() {
     const deliveryType = document.getElementById('reservation-form-type')?.value || 'para_servirse';
     return deliveryType === 'para_servirse' ? 'servirse' : 'llevar';
+}
+
+function chooseReservationItemOptions(itemData, productData, complete) {
+    const options = { ...(productData || {}), selectionQuantity: itemData.quantity || 1 };
+    const optionEnabled = value => value === true || value === 1 || value === '1';
+    const selectAccompaniments = () => {
+        if (!optionEnabled(options.accepts_accompaniment) || typeof window.openAccompanimentSelectModal !== 'function') return complete();
+        window.openAccompanimentSelectModal(options, selected => {
+            if (selected === null) return;
+            if (selected?.length) itemData.accompaniments = selected;
+            complete();
+        });
+    };
+    if (optionEnabled(options.accepts_salsa) && typeof window.openSalsaSelectModal === 'function') {
+        window.openSalsaSelectModal(options, selected => {
+            if (selected === null) return;
+            if (selected?.length) itemData.salsas = selected;
+            selectAccompaniments();
+        });
+    } else {
+        selectAccompaniments();
+    }
 }
 
 function appendReservationCartItem(itemData, successMessage) {
@@ -518,15 +545,8 @@ function addReservationMealToCart(type, qtyValue = 1) {
             segundoName: segundo?.name || ''
         };
 
-        const acceptsSalsa = (sopa && sopa.accepts_salsa) || (segundo && segundo.accepts_salsa);
-        if (acceptsSalsa) {
-            openSalsaSelectModal({ name: 'Almuerzo Completo' }, salsas => {
-                if (salsas) itemData.salsas = salsas;
-                appendReservationCartItem(itemData, `${qty} almuerzo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`);
-            });
-            return;
-        }
-        appendReservationCartItem(itemData, `${qty} almuerzo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`);
+        const optionProduct = (segundo?.accepts_salsa || segundo?.accepts_accompaniment) ? segundo : sopa;
+        chooseReservationItemOptions(itemData, optionProduct, () => appendReservationCartItem(itemData, `${qty} almuerzo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`));
         return;
     }
 
@@ -549,14 +569,7 @@ function addReservationMealToCart(type, qtyValue = 1) {
             segundoName: segundo?.name || ''
         };
 
-        if (segundo && segundo.accepts_salsa) {
-            openSalsaSelectModal({ name: segundo.name }, salsas => {
-                if (salsas) itemData.salsas = salsas;
-                appendReservationCartItem(itemData, `${qty} segundo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`);
-            });
-            return;
-        }
-        appendReservationCartItem(itemData, `${qty} segundo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`);
+        chooseReservationItemOptions(itemData, segundo, () => appendReservationCartItem(itemData, `${qty} segundo${qty !== 1 ? 's' : ''} agregado(s) a la reserva.`));
         return;
     }
 
@@ -579,14 +592,7 @@ function addReservationMealToCart(type, qtyValue = 1) {
             sopaName: sopa?.name || ''
         };
 
-        if (sopa && sopa.accepts_salsa) {
-            openSalsaSelectModal({ name: sopa.name }, salsas => {
-                if (salsas) itemData.salsas = salsas;
-                appendReservationCartItem(itemData, `${qty} sopa${qty !== 1 ? 's' : ''} agregada(s) a la reserva.`);
-            });
-            return;
-        }
-        appendReservationCartItem(itemData, `${qty} sopa${qty !== 1 ? 's' : ''} agregada(s) a la reserva.`);
+        chooseReservationItemOptions(itemData, sopa, () => appendReservationCartItem(itemData, `${qty} sopa${qty !== 1 ? 's' : ''} agregada(s) a la reserva.`));
     }
 }
 
@@ -612,14 +618,7 @@ function addReservationPlatoExtraToCart(platoId, qtyValue = 1) {
         platoId
     };
 
-    if (plato.accepts_salsa) {
-        openSalsaSelectModal({ name: plato.name }, salsas => {
-            if (salsas) itemData.salsas = salsas;
-            appendReservationCartItem(itemData, `${qty}x "${plato.name}" agregado(s) a la reserva.`);
-        });
-        return;
-    }
-    appendReservationCartItem(itemData, `${qty}x "${plato.name}" agregado(s) a la reserva.`);
+    chooseReservationItemOptions(itemData, plato, () => appendReservationCartItem(itemData, `${qty}x "${plato.name}" agregado(s) a la reserva.`));
 }
 
 function addReservationExtraToCart(extraId, qtyValue = 1) {
@@ -633,6 +632,7 @@ function addReservationExtraToCart(extraId, qtyValue = 1) {
         return;
     }
 
+    const serviceType = document.querySelector(`input[name="res-drink-${extraId}-type"]:checked`)?.value || getReservationItemServiceType();
     appendReservationCartItem({
         type: 'extra',
         id: extraId,
@@ -640,9 +640,35 @@ function addReservationExtraToCart(extraId, qtyValue = 1) {
         price: extra.price || 0,
         quantity: qty,
         detail: '',
-        serviceType: getReservationItemServiceType(),
+        serviceType,
         extraId
     }, `${qty}x bebida "${extra.name}" agregada(s) a la reserva.`);
+}
+
+function addReservationStandaloneItem(type, itemId, qtyValue = 1) {
+    const qty = normalizeReservationQty(qtyValue);
+    const collection = type === 'salsa' ? state.salsas : state.accompaniments;
+    const item = (collection || []).find(entry => entry.id === itemId);
+    if (!item) return;
+
+    const stock = getReservationAvailableStock(type, itemId);
+    if (stock < qty) {
+        showToast(`Stock insuficiente de "${item.name}". Disponible: ${stock}`, 'error');
+        return;
+    }
+
+    const serviceType = document.querySelector(`input[name="res-${type}-${itemId}-service"]:checked`)?.value || getReservationItemServiceType();
+    appendReservationCartItem({
+        type,
+        id: itemId,
+        name: item.name,
+        price: type === 'salsa' ? Number(item.price || 0) : Number(item.price_extra || 0),
+        quantity: qty,
+        detail: '',
+        serviceType,
+        salsaId: type === 'salsa' ? itemId : null,
+        accompanimentId: type === 'acompanamiento' ? itemId : null
+    }, `${qty}x "${item.name}" agregado(s) a la reserva.`);
 }
 
 function clearReservationCart() {
@@ -861,9 +887,10 @@ async function confirmReservationPayment() {
         }
 
         if (window.PrintJobs) {
-            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
+            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type)));
             PrintJobs.printPayment(newOrder);
-            if (newOrder.deliveryType !== 'mesa') PrintJobs.printCustomer(newOrder);
+            const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
+            if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
         }
 
         const statusData = await AppApi.updateReservationStatus(_resPaymentReservationId, 'completada');

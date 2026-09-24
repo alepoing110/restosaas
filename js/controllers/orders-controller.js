@@ -348,8 +348,9 @@ window.populateTableSelect = function() {
     const occupiedTables = new Set(
         (state.activeOrders || [])
             .filter(o => o.status === 'pendiente' && o.deliveryType === 'mesa')
-            .map(o => {
-                const cust = o.customer || '';
+        .map(o => {
+            if (o.tableId) return o.tableId;
+            const cust = o.customer || '';
                 const dashIdx = cust.indexOf(' - ');
                 return dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
             })
@@ -358,14 +359,14 @@ window.populateTableSelect = function() {
     (state.tables || []).forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.name;
-        const isOccupied = occupiedTables.has(t.name);
+        const isOccupied = occupiedTables.has(t.id) || occupiedTables.has(t.name);
         if (isOccupied) {
             const activeOrder = state.activeOrders.find(o => {
                 if (o.status !== 'pendiente' || o.deliveryType !== 'mesa') return false;
                 const cust = o.customer || '';
                 const dashIdx = cust.indexOf(' - ');
                 const tableName = dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
-                return tableName === t.name;
+                return o.tableId === t.id || tableName === t.name;
             });
             opt.textContent = `${t.name} [OCUPADA - ${formatCurrency(activeOrder ? activeOrder.total : 0)}]`;
             opt.disabled = true;
@@ -443,13 +444,13 @@ function openAppendItemsModal(orderId) {
     }
     if (paymentSection) paymentSection.style.display = order.paid ? '' : 'none';
 
-    const modal = document.getElementById('modal-append-items');
-    if (modal) modal.classList.add('open');
+    if (typeof window.openModal === 'function') window.openModal('modal-append-items');
+    else document.getElementById('modal-append-items')?.classList.add('open');
 }
 
 function closeAppendItemsModal() {
-    const modal = document.getElementById('modal-append-items');
-    if (modal) modal.classList.remove('open');
+    if (typeof window.closeModal === 'function') window.closeModal('modal-append-items');
+    else document.getElementById('modal-append-items')?.classList.remove('open');
     appendItemsOrderId = null;
     appendItemsPending = [];
 }
@@ -481,7 +482,8 @@ function onAppendCatalogChange() {
         if (sopaSelect) {
             sopaSelect.innerHTML = '<option value="">-- Seleccionar sopa --</option>';
             state.sopas.filter(s => Number(s.active) !== 0).forEach(s => {
-                sopaSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}</option>`;
+                const stock = getAvailableSopaStock(s.id);
+                sopaSelect.innerHTML += appendStockOption(s, stock);
             });
         }
     }
@@ -490,7 +492,8 @@ function onAppendCatalogChange() {
         if (segSelect) {
             segSelect.innerHTML = '<option value="">-- Seleccionar segundo --</option>';
             state.seconds.filter(s => Number(s.active) !== 0).forEach(s => {
-                segSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}</option>`;
+                const stock = getAvailableSegundoStock(s.id);
+                segSelect.innerHTML += appendStockOption(s, stock);
             });
         }
     }
@@ -501,12 +504,26 @@ function onAppendCatalogChange() {
         if (productSelect) {
             productSelect.innerHTML = `<option value="">-- Seleccionar ${label.toLowerCase()} --</option>`;
             products.filter(product => Number(product.active) !== 0).forEach(product => {
-                productSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.name)}</option>`;
+                const availableStock = type === 'salsa'
+                    ? getAvailableSalsaStock(product.id)
+                    : type === 'acompanamiento'
+                        ? getAvailableAccompanimentStock(product.id)
+                        : type === 'plato_extra'
+                            ? getAvailablePlatoExtraStock(product.id)
+                            : getAvailableExtraStock(product.id);
+                productSelect.innerHTML += appendStockOption(product, availableStock);
             });
         }
     }
 
     optionsPanel.style.display = 'block';
+}
+
+function appendStockOption(product, availableStock) {
+    const stock = Number.isFinite(Number(availableStock)) ? Math.max(0, Number(availableStock)) : 0;
+    const stockLabel = ` · Stock: ${stock}`;
+    const disabled = stock <= 0 ? ' disabled' : '';
+    return `<option value="${escapeHtml(String(product.id))}"${disabled}>${escapeHtml(product.name || 'Producto')}${stockLabel}</option>`;
 }
 
 function addItemToAppendModal() {
@@ -578,6 +595,8 @@ function addItemToAppendModal() {
         itemId = document.getElementById('append-select-product')?.value || '';
         if (!itemId) { showToast('Selecciona una salsa.', 'warning'); return; }
         const salsa = (state.salsas || []).find(item => item.id === itemId);
+        const salsaAvail = getAvailableSalsaStock(itemId);
+        if (salsaAvail < qty) { showToast(`Stock insuficiente de salsa. Disponible: ${salsaAvail}`, 'error'); return; }
         name = salsa?.name || 'Salsa';
         price = Number(salsa?.price || 0);
         extraFields = { salsaId: itemId };
@@ -585,6 +604,8 @@ function addItemToAppendModal() {
         itemId = document.getElementById('append-select-product')?.value || '';
         if (!itemId) { showToast('Selecciona un acompañamiento.', 'warning'); return; }
         const accompaniment = (state.accompaniments || []).find(item => item.id === itemId);
+        const accompanimentAvail = getAvailableAccompanimentStock(itemId);
+        if (accompanimentAvail < qty) { showToast(`Stock insuficiente de acompañamiento. Disponible: ${accompanimentAvail}`, 'error'); return; }
         name = accompaniment?.name || 'Acompañamiento';
         price = Number(accompaniment?.price_extra || 0);
         extraFields = { accompanimentId: itemId };
@@ -598,7 +619,7 @@ function addItemToAppendModal() {
                 : type === 'plato_extra' ? (state.platosExtras || []).find(product => product.id === pendingItem.platoId)
                     : null;
     const canonicalProduct = (state.products || []).find(product => product.id === pendingItem.segundoId || product.id === pendingItem.sopaId || product.id === pendingItem.platoId);
-    const optionProduct = { ...(catalogProduct || {}), ...(canonicalProduct || {}) };
+    const optionProduct = { ...(catalogProduct || {}), ...(canonicalProduct || {}), selectionQuantity: qty };
     const finish = () => {
         appendItemsPending.push(pendingItem);
         renderAppendPendingList();
@@ -612,12 +633,14 @@ function addItemToAppendModal() {
     const selectAccompaniments = () => {
         if (!acceptsAccompaniment || typeof window.openAccompanimentSelectModal !== 'function') return finish();
         window.openAccompanimentSelectModal(optionProduct, selected => {
+            if (selected === null) return;
             if (selected?.length) pendingItem.accompaniments = selected;
             finish();
         });
     };
     if (acceptsSalsa && typeof window.openSalsaSelectModal === 'function') {
         window.openSalsaSelectModal(optionProduct, selected => {
+            if (selected === null) return;
             if (selected?.length) pendingItem.salsas = selected;
             selectAccompaniments();
         });
@@ -730,21 +753,27 @@ async function confirmAppendItems() {
             isAlreadyPaid ? paymentMethod : null
         );
         if (data.status === 'success') {
+            const addedCount = appendItemsPending.length;
+            // Close immediately after the server confirms the append/payment.
+            closeAppendItemsModal();
             const addedItems = itemsToAppend.map(item => ({ ...item, qty: item.quantity || 1 }));
             order.items = data.items;
             order.total = data.total;
+            order.latestAdditionBatchId = data.additionBatchId || null;
+            order.paid = isAlreadyPaid || Boolean(data.paid);
+            order.paymentMethod = data.paymentMethod || (isAlreadyPaid ? paymentMethod : order.paymentMethod);
+            order.status = data.statusValue || (order.paid ? 'completado' : 'pendiente');
             if (window.PrintJobs) {
                 const kitchenItems = addedItems.filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
                 if (kitchenItems.length) PrintJobs.printKitchen(order, kitchenItems);
                 if (isAlreadyPaid) PrintJobs.printPayment(order, addedItems);
-                else {
-                    const takeoutItems = addedItems.filter(item => item.serviceType === 'llevar');
-                    if (takeoutItems.length) PrintJobs.printCustomer(order, takeoutItems);
-                }
+                const takeoutItems = addedItems.filter(item => PrintJobs.isCustomerItem(item));
+                if (takeoutItems.length) PrintJobs.printCustomer(order, takeoutItems);
             }
             if (window.AppStore) window.AppStore.emit();
-            showToast(`${appendItemsPending.length} item(s) agregado(s).`, 'success');
-            closeAppendItemsModal();
+            showToast(isAlreadyPaid
+                ? `${addedCount} item(s) agregado(s) y cobro validado. La mesa sigue activa hasta cerrar el pedido.`
+                : `${addedCount} item(s) agregado(s).`, 'success');
 
         }
     } catch (e) {
@@ -752,6 +781,151 @@ async function confirmAppendItems() {
         showToast(e.message || 'Error al agregar items al pedido.', 'error');
     }
 }
+
+let activePaymentOrderId = null;
+
+function activePaymentItemTotal(item) {
+    const salsaTotal = (item.salsas || []).reduce((sum, salsa) => sum + Number(salsa.salsaPrice || 0), 0);
+    const accompanimentTotal = (item.accompaniments || []).reduce((sum, accompaniment) => sum + Number(accompaniment.accompanimentPrice || 0), 0);
+    return (Number(item.price || 0) + salsaTotal + accompanimentTotal) * Number(item.qty || item.quantity || 1);
+}
+
+function renderActivePaymentItems(order) {
+    const items = order.items || [];
+    const subtotal = items.reduce((sum, item) => sum + activePaymentItemTotal(item), 0);
+    const total = Number(order.total ?? subtotal);
+    const discount = Math.max(0, subtotal - total);
+    const container = document.getElementById('active-payment-items');
+    if (container) {
+        container.innerHTML = items.map(item => {
+            const quantity = Number(item.qty || item.quantity || 1);
+            const details = [
+                item.sopaName,
+                item.segundoName,
+                ...(item.salsas || []).map(salsa => `${salsa.salsaName || salsa.name || 'Salsa'} (${salsa.salsaMode === 'aparte' ? 'Aparte' : 'Bañar'})`),
+                ...(item.accompaniments || []).map(accompaniment => `${accompaniment.accompanimentName || accompaniment.name || 'Acompañamiento'}${accompaniment.accompanimentMode === 'extra' ? ' (Extra)' : ''}`),
+                item.serviceType === 'llevar' ? 'Para llevar' : item.serviceType === 'servirse' ? 'Para servirse' : '',
+                item.notes || item.note
+            ].filter(Boolean);
+            return `<div class="active-payment-item"><span class="active-payment-item-qty">${quantity}x</span><div><strong>${escapeHtml(item.name || 'Producto')}</strong>${details.length ? `<small>${escapeHtml(details.join(' · '))}</small>` : ''}</div><strong>${formatCurrency(activePaymentItemTotal(item))}</strong></div>`;
+        }).join('') || '<p class="text-muted">El pedido no tiene productos.</p>';
+    }
+    document.getElementById('active-payment-subtotal').textContent = formatCurrency(subtotal);
+    document.getElementById('active-payment-total').textContent = formatCurrency(total);
+    document.getElementById('active-payment-footer-total').textContent = formatCurrency(total);
+    const units = items.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0);
+    document.getElementById('active-payment-count').textContent = `${units} ${units === 1 ? 'unidad' : 'unidades'}`;
+    const discountRow = document.getElementById('active-payment-discount-row');
+    if (discountRow) discountRow.style.display = discount > 0 ? '' : 'none';
+    document.getElementById('active-payment-discount').textContent = `-${formatCurrency(discount)}`;
+    return total;
+}
+
+window.updateActivePaymentMixedTotal = function() {
+    const order = state.activeOrders.find(item => item.id === activePaymentOrderId);
+    if (!order) return;
+    const total = Number(order.total || 0);
+    const cash = Number(document.getElementById('active-payment-cash')?.value || 0);
+    const qr = Number(document.getElementById('active-payment-qr')?.value || 0);
+    const summary = document.getElementById('active-payment-mixed-total');
+    if (!summary) return;
+    const matches = Math.abs(cash + qr - total) < 0.01;
+    const difference = total - cash - qr;
+    summary.setAttribute('aria-live', 'polite');
+    summary.textContent = cash < 0 || qr < 0 ? 'Los importes no pueden ser negativos.' : matches ? 'Distribución completa: coincide con el total.' : difference > 0 ? `Falta asignar ${formatCurrency(difference)}` : `El importe supera el total por ${formatCurrency(-difference)}`;
+    summary.classList.toggle('is-valid', matches);
+    summary.classList.toggle('is-invalid', !matches);
+};
+
+window.updateActivePaymentFields = function() {
+    const method = document.getElementById('active-payment-method')?.value || 'efectivo';
+    const mixed = document.getElementById('active-payment-mixed-section');
+    const credit = document.getElementById('active-payment-credit-section');
+    if (mixed) mixed.style.display = method === 'mixto' ? '' : 'none';
+    if (credit) credit.style.display = method === 'credito' ? '' : 'none';
+    document.getElementById('active-payment-confirm-label').textContent = method === 'credito' ? 'Registrar crédito' : 'Cobrar e imprimir';
+    const hints = {
+        efectivo: 'Confirma el cobro cuando hayas recibido el efectivo.',
+        qr: 'Verifica la recepción de la transferencia antes de confirmar.',
+        tarjeta: 'Confirma cuando el pago con tarjeta haya sido aprobado.',
+        mixto: 'Distribuye el total entre efectivo y QR. Los importes deben coincidir con el pedido.',
+        credito: 'Se registrará una cuenta por cobrar con la fecha de vencimiento indicada.'
+    };
+    document.getElementById('active-payment-hint').textContent = hints[method] || '';
+    if (method === 'mixto') window.updateActivePaymentMixedTotal();
+};
+
+window.openActiveOrderPaymentModal = function(orderId) {
+    const order = state.activeOrders.find(item => item.id === orderId);
+    if (!order) return showToast('Pedido no encontrado.', 'error');
+    if (order.paid) return showToast('Este pedido ya está pagado.', 'info');
+    activePaymentOrderId = orderId;
+    const client = document.getElementById('active-payment-client');
+    const method = document.getElementById('active-payment-method');
+    if (client) client.textContent = order.customer || 'Cliente';
+    const delivery = order.deliveryType || order.delivery_type;
+    document.getElementById('active-payment-context').textContent = ({ mesa: 'En mesa', llevar: 'Para llevar', delivery: 'Delivery' })[delivery] || '';
+    if (method) method.value = 'efectivo';
+    document.getElementById('active-payment-cash').value = Number(order.total || 0).toFixed(2);
+    document.getElementById('active-payment-qr').value = '0';
+    document.getElementById('active-payment-due-date').value = '';
+    document.getElementById('active-payment-credit-reason').value = '';
+    renderActivePaymentItems(order);
+    window.updateActivePaymentFields();
+    openModal('modal-active-order-payment');
+};
+
+window.confirmActiveOrderPayment = async function() {
+    const order = state.activeOrders.find(item => item.id === activePaymentOrderId);
+    const method = document.getElementById('active-payment-method')?.value || 'efectivo';
+    const button = document.getElementById('btn-confirm-active-payment');
+    if (!order || order.paid) return;
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
+    try {
+        let paymentMethod = method;
+        let paid = true;
+        let dueDate = null;
+        if (method === 'mixto') {
+            const cash = Number(document.getElementById('active-payment-cash')?.value || 0);
+            const qr = Number(document.getElementById('active-payment-qr')?.value || 0);
+            if (Math.abs(cash + qr - Number(order.total || 0)) > 0.01) throw new Error('La suma de pagos mixtos debe coincidir con el total.');
+            paymentMethod = { efectivo: cash, qr };
+        }
+        if (method === 'credito') {
+            dueDate = document.getElementById('active-payment-due-date')?.value || '';
+            if (!dueDate) throw new Error('Indica la fecha de vencimiento para la venta a crédito.');
+            paid = false;
+        }
+        const payload = {
+            ...order,
+            status: 'pendiente',
+            paid,
+            paymentMethod,
+            dueDate,
+            credit_override_reason: document.getElementById('active-payment-credit-reason')?.value.trim() || '',
+            soldAt: new Date().toISOString(),
+            tableId: order.tableId || null
+        };
+        const data = await AppApi.request('save_order', payload);
+        if (data.status !== 'success') throw new Error(data.message || 'No se pudo registrar el cobro.');
+        order.paid = paid;
+        order.paymentMethod = paymentMethod;
+        order.soldAt = payload.soldAt;
+        order.dueDate = dueDate;
+        if (method === 'credito') order.status = 'completado';
+        order.paidByName = state.authUser?.name || order.paidByName;
+        window.updateActiveOrder?.(order.id, { paid, paymentMethod, soldAt: order.soldAt, dueDate, status: order.status, paidByName: order.paidByName });
+        if (paid) PrintJobs.printPayment(order);
+        closeModal('modal-active-order-payment');
+        showToast(method === 'credito' ? 'Venta a crédito registrada.' : 'Cobro registrado. La mesa continúa ocupada hasta cerrar el pedido.', 'success');
+    } catch (error) {
+        console.error('[ORDER] active payment error:', error);
+        showToast(error.message || 'No se pudo registrar el cobro.', 'error');
+    } finally {
+        if (button) button.disabled = false;
+    }
+};
 
 window.closePaidOrder = async function(orderId) {
     const order = state.activeOrders.find(o => o.id === orderId);
@@ -766,12 +940,8 @@ window.closePaidOrder = async function(orderId) {
     }
 
     try {
-        let paymentMethod = order.paymentMethod || 'efectivo';
-        const validPayments = ['efectivo', 'qr', 'tarjeta'];
-        if (typeof paymentMethod === 'string' && !validPayments.includes(paymentMethod)) {
-            paymentMethod = 'efectivo';
-        }
-        const data = await AppApi.request('complete_order', { id: orderId, paymentMethod: paymentMethod, soldAt: new Date().toISOString() });
+        const paymentMethod = order.paymentMethod || 'efectivo';
+        const data = await AppApi.request('complete_order', { id: orderId, paymentMethod, soldAt: order.soldAt || new Date().toISOString() });
         if (data.status === 'success') {
             const completedOrder = {
                 ...order,

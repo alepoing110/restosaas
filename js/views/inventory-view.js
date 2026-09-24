@@ -7,6 +7,26 @@ function renderInventoryTab() {
     renderSopasStockTable();
     renderPlatosExtrasStockTable();
     renderExtrasStockTable();
+    renderSaucesAndAccompanimentsStockTable();
+    applyInventoryCategory(window.inventoryCategory || 'meals');
+}
+
+function setInventoryCategory(category) {
+    const validCategories = ['meals', 'extras', 'drinks', 'sauces'];
+    window.inventoryCategory = validCategories.includes(category) ? category : 'meals';
+    applyInventoryCategory(window.inventoryCategory);
+}
+
+function applyInventoryCategory(category) {
+    document.querySelectorAll('#screen-inventory [data-inventory-category]').forEach(element => {
+        if (element.classList.contains('inventory-category-tab')) return;
+        element.style.display = element.dataset.inventoryCategory === category ? '' : 'none';
+    });
+    document.querySelectorAll('#screen-inventory .inventory-category-tab').forEach(button => {
+        const active = button.dataset.inventoryCategory === category;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+    });
 }
 
 function renderSecondsStockTable() {
@@ -29,6 +49,7 @@ function renderSecondsStockTable() {
             const statusTag = isActive ? '' : ' <span class="badge badge-danger" style="font-size:9px;">Inactivo</span>';
             tr.innerHTML = `
                 <td><strong>${escapeHtml(sec.name)}</strong>${statusTag}</td>
+                <td style="text-align:center;">${isActive ? '<span class="badge badge-success" style="font-size:9px;">Activo</span>' : '<span class="badge badge-danger" style="font-size:9px;">Inactivo</span>'}</td>
                 <td>
                     <input type="number" class="td-edit-input" style="width: 100px;" value="${currentStock}" id="stock-val-sec-${sec.id}" ${!isActive ? 'disabled' : ''}>
                 </td>
@@ -139,4 +160,26 @@ function renderExtrasStockTable() {
             tbody.appendChild(tr);
         });
     }
+}
+
+function renderSaucesAndAccompanimentsStockTable() {
+    const tbody = document.getElementById('sauces-accompaniments-stock-table-body');
+    if (!tbody) return;
+    const items = [
+        ...(state.salsas || []).map(item => ({ ...item, stockType: 'salsa', price: item.price })),
+        ...(state.accompaniments || []).map(item => ({ ...item, stockType: 'acompanamiento', price: item.price_extra }))
+    ];
+    tbody.innerHTML = items.length ? items.map(item => {
+        const currentStock = item.stockType === 'salsa'
+            ? getAvailableSalsaStock(item.id)
+            : getAvailableAccompanimentStock(item.id);
+        const isActive = Number(item.active) !== 0;
+        const rowClass = !isActive ? '' : currentStock <= 5 ? 'low-stock-row' : '';
+        return `<tr class="${rowClass}" style="${isActive ? '' : 'opacity:.5;'}">
+            <td><strong>${escapeHtml(item.name)}</strong><br><small>${item.stockType === 'salsa' ? 'Salsa' : 'Acompañamiento'}</small></td>
+            <td>${isActive ? '<span class="badge badge-success" style="font-size:9px;">Activo</span>' : '<span class="badge badge-danger" style="font-size:9px;">Inactivo</span>'}</td>
+            <td><input type="number" class="td-edit-input" style="width:100px;" value="${currentStock}" min="0" id="stock-val-${item.stockType}-${item.id}" ${!isActive ? 'disabled' : ''}></td>
+            <td style="text-align:right;"><button class="btn btn-outline btn-sm" onclick="saveStockInline('${item.id}', '${item.stockType}')" title="Guardar Stock" ${!isActive ? 'disabled' : ''}><i class="fa-solid fa-save"></i></button></td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="4" class="text-muted" style="text-align:center;">No hay salsas ni acompañamientos registrados.</td></tr>';
 }

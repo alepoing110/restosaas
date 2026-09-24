@@ -626,7 +626,8 @@ try {
         'reservations'  => ['delivery_type', 'items', 'total', 'tenant_id', 'branch_id', 'source', 'verification_status', 'kitchen_printed_at', 'customer_id'],
         'clientes'      => ['phone_normalized', 'whatsapp_phone', 'source', 'marketing_opt_in'],
         'products'      => ['category_id', 'tenant_id', 'branch_id', 'accepts_accompaniment', 'max_included_accompaniments'],
-        'acompanamientos' => ['id', 'price_extra', 'active', 'tenant_id', 'branch_id'],
+        'acompanamientos' => ['id', 'price_extra', 'stock', 'active', 'tenant_id', 'branch_id'],
+        'salsas'        => ['id', 'price', 'stock', 'active', 'tenant_id', 'branch_id'],
     ];
     foreach ($requiredColumns as $table => $columns) {
         foreach ($columns as $col) {

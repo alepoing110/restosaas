@@ -1208,7 +1208,7 @@ body.no-scroll { overflow: hidden; }
         margin-top: 12px;
     }
     .pos-grid.show-cart .pos-catalog { display: none; }
-    .pos-grid.show-cart .pos-cart { display: flex; height: calc(100vh - 116px); max-height: calc(100vh - 116px); overflow: hidden; }
+    .pos-grid.show-cart .pos-cart { display: flex; height: calc(100dvh - 140px); max-height: calc(100dvh - 140px); min-height: 0; overflow: hidden; }
 
     .mobile-cart-toggle {
         display: flex;
@@ -1222,6 +1222,10 @@ body.no-scroll { overflow: hidden; }
         -webkit-overflow-scrolling: touch;
     }
     .catalog-tab-btn { padding: 8px 10px; font-size: 11px; flex: 0 0 auto; min-height: 44px; }
+
+    .reservations-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+    .reservations-table-scroll .seconds-table { min-width: 980px; }
+    .reservations-table-card { min-width: 0; overflow: hidden; }
 
     .menu-selector-bar { padding: 6px 10px !important; margin-bottom: 8px !important; }
     .menu-selector-bar label { font-size: 10px !important; }
@@ -1507,4 +1511,20 @@ body.no-scroll { overflow: hidden; }
     .config-card-panel { padding: 10px !important; }
     .panel-title { font-size: 13px; }
     .panel-subtitle { font-size: 10px; }
+}
+
+@media (max-width: 768px) {
+    .print-agent-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .print-agent-actions {
+        width: 100%;
+    }
+
+    .print-agent-actions .btn {
+        flex: 1 1 140px;
+        min-height: 44px;
+    }
 }

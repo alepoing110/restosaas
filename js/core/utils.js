@@ -65,6 +65,16 @@ export function countExtraUsage(items, extraId) {
     }, 0);
 }
 
+export function countSalsaUsage(items, salsaId) {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((acc, item) => item.type === 'salsa' && item.salsaId === salsaId || (item.salsas || []).some(salsa => (salsa.salsaId || salsa.id) === salsaId) ? acc + (item.quantity || item.qty || 1) : acc, 0);
+}
+
+export function countAccompanimentUsage(items, accompanimentId) {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((acc, item) => item.type === 'acompanamiento' && item.accompanimentId === accompanimentId || (item.accompaniments || []).some(accompaniment => (accompaniment.accompanimentId || accompaniment.id) === accompanimentId) ? acc + (item.quantity || item.qty || 1) : acc, 0);
+}
+
 export function createInitialState() {
     return {
         soupStock: { total: 50, used: 0 },

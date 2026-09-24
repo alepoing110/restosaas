@@ -47,18 +47,20 @@
                         (window.state.activeOrders || [])
                             .filter(o => o.status === 'pendiente' && o.deliveryType === 'mesa')
                             .map(o => {
+                                if (o.tableId) return o.tableId;
                                 const cust = o.customer || '';
                                 const dashIdx = cust.indexOf(' - ');
                                 return dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
                             })
                     );
-                    if (occupiedTables.has(e.target.value)) {
+                    const selectedTable = (window.state.tables || []).find(table => table.name === e.target.value);
+                    if (occupiedTables.has(selectedTable?.id) || occupiedTables.has(e.target.value)) {
                         const existingOrder = window.state.activeOrders.find(o => {
                             if (o.status !== 'pendiente' || o.deliveryType !== 'mesa') return false;
                             const cust = o.customer || '';
                             const dashIdx = cust.indexOf(' - ');
                             const tableName = dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
-                            return tableName === e.target.value;
+                            return o.tableId === selectedTable?.id || tableName === e.target.value;
                         });
                         showToast(`La mesa "${e.target.value}" ya tiene un pedido activo (Bs ${existingOrder ? existingOrder.total.toFixed(2) : '0'}). Use "Agregar Ítems" desde el board.`, 'warning');
                         e.target.value = 'Llevar';
@@ -98,6 +100,36 @@
             }
         });
         document.getElementById('btn-remove-promo')?.addEventListener('click', () => removePromo());
+
+        document.getElementById('btn-open-order-details')?.addEventListener('click', () => {
+            window.openModal?.('modal-order-details');
+        });
+        document.getElementById('btn-complete-sale')?.addEventListener('click', () => {
+            if (!window.state.cart?.length) return showToast('El pedido está vacío.', 'warning');
+            window.PosView?.syncPaymentModalSummary?.();
+            window.openModal?.('modal-order-payment');
+        });
+        document.getElementById('btn-save-pending')?.addEventListener('click', async () => {
+            const button = document.getElementById('btn-save-pending');
+            if (button?.disabled) return;
+            if (button) button.disabled = true;
+            try {
+                await checkoutOrder(true);
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+        document.getElementById('btn-confirm-sale')?.addEventListener('click', async () => {
+            const button = document.getElementById('btn-confirm-sale');
+            if (button?.disabled) return;
+            if (button) button.disabled = true;
+            try {
+                await checkoutOrder(false);
+                window.closeModal?.('modal-order-payment');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
 
         initialized = true;
         relocatePosFlowControls();
@@ -192,6 +224,7 @@
 
         const action = actionTarget.dataset.action;
         if (action === 'add-cart-type') {
+            event.preventDefault();
             const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
             const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
             addToCart(actionTarget.dataset.itemType, qty);
@@ -199,9 +232,15 @@
             return;
         }
         if (action === 'add-plato-extra') {
+            event.preventDefault();
+            event.stopPropagation();
             const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
             const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
-            addPlatoExtraToCart(actionTarget.dataset.platoId, qty);
+            addPlatoExtraToCart(actionTarget.dataset.platoId, qty, {
+                accepts_salsa: actionTarget.dataset.acceptsSalsa,
+                accepts_accompaniment: actionTarget.dataset.acceptsAccompaniment,
+                max_included_accompaniments: actionTarget.dataset.maxIncludedAccompaniments
+            });
             if (qtyInput) qtyInput.value = 1;
             return;
         }
@@ -401,8 +440,8 @@
         if (item.type === 'sopa') return `sopa|${item.sopaId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
         if (item.type === 'plato_extra') return `plato_extra|${item.platoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
         if (item.type === 'extra') return `extra|${item.extraId}|${item.serviceType}`;
-        if (item.type === 'salsa') return `salsa|${item.salsaId}`;
-        if (item.type === 'acompanamiento') return `acompanamiento|${item.accompanimentId}`;
+        if (item.type === 'salsa') return `salsa|${item.salsaId}|${item.serviceType}`;
+        if (item.type === 'acompanamiento') return `acompanamiento|${item.accompanimentId}|${item.serviceType}`;
         return item.id;
     }
 
@@ -420,20 +459,32 @@
     }
 
     function getCanonicalProduct(appState, id, fallback) {
-        return (appState.products || []).find(product => product.id === id) || fallback;
+        const canonical = (appState.products || []).find(product => product.id === id);
+        if (!canonical) return fallback || {};
+        return {
+            ...(fallback || {}),
+            ...canonical,
+            accepts_salsa: canonical.accepts_salsa ?? fallback?.accepts_salsa,
+            accepts_accompaniment: canonical.accepts_accompaniment ?? fallback?.accepts_accompaniment,
+            max_included_accompaniments: canonical.max_included_accompaniments ?? fallback?.max_included_accompaniments
+        };
     }
 
     function chooseItemOptions(itemData, optionProduct, complete) {
+        const selectionProduct = { ...(optionProduct || {}), selectionQuantity: itemData.qty || itemData.quantity || 1 };
+        const optionEnabled = value => value === true || value === 1 || value === '1';
         const selectAccompaniments = () => {
-            if (optionProduct?.accepts_accompaniment) {
-                openAccompanimentSelectModal(optionProduct, (accompaniments) => {
+            if (optionEnabled(selectionProduct.accepts_accompaniment)) {
+                openAccompanimentSelectModal(selectionProduct, (accompaniments) => {
+                    if (accompaniments === null) return;
                     if (accompaniments?.length) itemData.accompaniments = accompaniments;
                     complete();
                 });
             } else complete();
         };
-        if (optionProduct?.accepts_salsa) {
-            openSalsaSelectModal(optionProduct, (salsas) => {
+        if (optionEnabled(selectionProduct.accepts_salsa)) {
+            openSalsaSelectModal(selectionProduct, (salsas) => {
+                if (salsas === null) return;
                 if (salsas?.length) itemData.salsas = salsas;
                 selectAccompaniments();
             });
@@ -534,7 +585,7 @@
             const itemData = {
                 id: generateId(),
                 type: 'segundo',
-                name: 'Segundo Suelto',
+                 name: chosenSec.name,
                 segundoId: segundoId,
                 segundoName: chosenSec.name,
                 serviceType: serviceType,
@@ -596,7 +647,7 @@
         }
     }
 
-    function addPlatoExtraToCart(platoId, qty = 1) {
+    function addPlatoExtraToCart(platoId, qty = 1, renderedOptions = null) {
         const appState = window.state;
         const plato = appState.platosExtras.find(p => p.id === platoId);
         if (!plato) return;
@@ -622,7 +673,8 @@
             qty: qty
         };
 
-        chooseItemOptions(itemData, getCanonicalProduct(appState, platoId, plato), () => {
+        const optionProduct = { ...getCanonicalProduct(appState, platoId, plato), ...(renderedOptions || {}) };
+        chooseItemOptions(itemData, optionProduct, () => {
             appendCartItem(itemData);
             showToast(`${qty > 1 ? qty + 'x ' : ''}"${plato.name}" añadido(s) al pedido`, 'success');
         });
@@ -646,6 +698,7 @@
             return;
         }
 
+        const drinkService = document.querySelector(`input[name="drink-${extraId}-type"]:checked`)?.value || 'servirse';
         appendCartItem({
             id: generateId(),
             type: 'extra',
@@ -653,7 +706,7 @@
             extraId: extraId,
             segundoId: null,
             segundoName: null,
-            serviceType: 'llevar',
+            serviceType: drinkService,
             price: extra.price,
             qty: qty
         });
@@ -675,17 +728,23 @@
             : (appState.accompaniments || []).find(item => item.id === id);
         if (!source || Number(source.active) === 0) return;
         const price = type === 'salsa' ? Number(source.price || 0) : Number(source.price_extra || 0);
+        const availableStock = type === 'salsa' ? getAvailableSalsaStock(id) : getAvailableAccompanimentStock(id);
+        if (availableStock < qty) {
+            showToast(`Stock insuficiente de "${source.name}". Disponible: ${availableStock}`, 'error');
+            return;
+        }
         if (price < 0) {
             showToast('El precio del producto no es válido.', 'error');
             return;
         }
+        const serviceType = document.querySelector(`input[name="${type}-${id}-service"]:checked`)?.value || 'servirse';
         appendCartItem({
             id: generateId(),
             type,
             name: source.name,
             salsaId: type === 'salsa' ? source.id : null,
             accompanimentId: type === 'acompanamiento' ? source.id : null,
-            serviceType: 'llevar',
+            serviceType,
             price,
             qty
         });
@@ -712,6 +771,7 @@
 
         const tableSelect = document.getElementById('order-table-select');
         const locationName = tableSelect ? tableSelect.value : 'Llevar';
+        const selectedTable = (appState.tables || []).find(table => table.name === locationName);
         const customerInput = document.getElementById('order-customer-name');
         const enteredCustomerName = customerInput ? customerInput.value.trim() : '';
         const selectedCustomerId = document.getElementById('order-customer-id')?.value || '';
@@ -800,6 +860,7 @@
             customer: customerName,
             customerId: selectedCustomerId || null,
             deliveryType: deliveryType,
+            tableId: deliveryType === 'mesa' ? (selectedTable?.id || null) : null,
             items: [...appState.cart],
             total: total,
             subtotal: grossTotal,
@@ -825,23 +886,25 @@
 
             await saveOrderOnServer(newOrder);
 
-            if (window.PrintJobs) {
-                PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
-                const takeoutItems = (newOrder.items || []).filter(item => item.serviceType === 'llevar');
-                if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
-            }
-
-            Notifications.notify(`🛒 Nuevo pedido: ${customerName}`, 'success');
             try {
                 commitCart([]);
                 resetCartInputs();
                 if (typeof window.upsertActiveOrder === 'function') {
                     window.upsertActiveOrder(newOrder);
                 }
-                 showToast('La comanda quedó registrada.', 'success');
             } catch (e) {
-                console.error('[POS] Error post-comanda:', e);
+                console.error('[POS] Error actualizando pedido activo:', e);
             }
+
+            if (window.PrintJobs) {
+                const kitchenItems = (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
+                if (kitchenItems.length) PrintJobs.printKitchen(newOrder, kitchenItems);
+                const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
+                if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+            }
+
+            Notifications.notify(`🛒 Nuevo pedido: ${customerName}`, 'success');
+            showToast('La comanda quedó registrada.', 'success');
             return;
         }
 
@@ -852,22 +915,26 @@
 
         await saveOrderOnServer(newOrder);
 
-        if (window.PrintJobs) {
-            PrintJobs.printKitchen(newOrder, (newOrder.items || []).filter(item => item.type !== 'extra'));
-            PrintJobs.printPayment(newOrder);
-        }
-
-        Notifications.notify(`💰 Venta cobrada: ${customerName}`, 'success');
         try {
             commitCart([]);
             resetCartInputs();
             if (typeof window.upsertActiveOrder === 'function') {
                 window.upsertActiveOrder(newOrder);
             }
-             showToast('Pedido cobrado correctamente.', 'success');
         } catch (e) {
-            console.error('[POS] Error post-venta:', e);
+            console.error('[POS] Error actualizando pedido activo:', e);
         }
+
+        if (window.PrintJobs) {
+            const kitchenItems = (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
+            if (kitchenItems.length) PrintJobs.printKitchen(newOrder, kitchenItems);
+            PrintJobs.printPayment(newOrder);
+            const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
+            if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+        }
+
+        Notifications.notify(`💰 Venta cobrada: ${customerName}`, 'success');
+        showToast('Pedido cobrado correctamente.', 'success');
     }
 
     async function saveOrderOnServer(order) {
@@ -930,9 +997,12 @@
         if (mixedEfectivo) mixedEfectivo.value = '0';
         const mixedQr = document.getElementById('mixed-qr');
         if (mixedQr) mixedQr.value = '0';
-        const couponInput = document.getElementById('cart-coupon-input');
-        if (couponInput) couponInput.value = '';
-        updatePickupTimeVisibility('Llevar');
+         const couponInput = document.getElementById('cart-coupon-input');
+         if (couponInput) couponInput.value = '';
+         const promoPopover = document.getElementById('cart-promo-popover');
+         if (promoPopover) promoPopover.style.display = 'none';
+         document.getElementById('btn-open-promos')?.setAttribute('aria-expanded', 'false');
+         updatePickupTimeVisibility('Llevar');
     }
 
     function notify() {

@@ -2,6 +2,22 @@
 // SCREEN 5: REPORTS VIEW
 // ==========================================================================
 
+function reportItemUnitTotal(item) {
+    return Number(item.price || 0)
+        + (item.salsas || []).reduce((sum, salsa) => sum + Number(salsa.salsaPrice || 0), 0)
+        + (item.accompaniments || []).reduce((sum, accompaniment) => sum + Number(accompaniment.accompanimentPrice || 0), 0);
+}
+
+function reportItemDetails(item) {
+    const details = [];
+    if (item.sopaName) details.push(`Sopa: ${item.sopaName}`);
+    if (item.segundoName && item.type !== 'segundo') details.push(`Segundo: ${item.segundoName}`);
+    (item.salsas || []).forEach(salsa => details.push(`Salsa: ${salsa.salsaName || salsa.name || 'Sin nombre'} (${salsa.salsaMode === 'aparte' ? 'Aparte' : 'Bañar'})`));
+    (item.accompaniments || []).forEach(accompaniment => details.push(`Acomp.: ${accompaniment.accompanimentName || accompaniment.name || 'Sin nombre'}`));
+    if (item.note) details.push(`Nota: ${item.note}`);
+    return details;
+}
+
 function renderReports() {
     let totalRevenue = 0;
     let revenueEfectivo = 0;
@@ -117,8 +133,8 @@ function renderTopSellers() {
         (sale.items || []).forEach(item => {
             const name = item.name || 'Producto Sin Nombre';
             const type = item.type || 'otro';
-            const qty = Math.max(1, parseInt(item.quantity || 1, 10));
-            const price = parseFloat(item.price || 0);
+            const qty = Math.max(1, parseInt(item.qty || item.quantity || 1, 10));
+            const price = reportItemUnitTotal(item);
             const total = price * qty;
             grandTotalRevenue += total;
 
@@ -254,14 +270,12 @@ function renderSalesHistory() {
         let itemsSummary = '<div class="sale-items-compact-list">';
         (sale.items || []).forEach(item => {
             const qty = item.qty || item.quantity || 1;
-            let details = '';
-            if (item.type === 'almuerzo' || item.type === 'segundo') {
-                details = item.segundoName ? `(${item.segundoName})` : '';
-            }
+            const details = reportItemDetails(item);
             itemsSummary += `
                 <span class="sale-item-compact-row">
-                    <strong>${qty}x</strong> ${escapeHtml(item.name)} ${escapeHtml(details)}
-                    <span class="item-detail-badge ${item.serviceType}">${escapeHtml(item.serviceType)}</span>
+                    <strong>${qty}x</strong> ${escapeHtml(item.name || 'Producto')}
+                    ${item.serviceType ? `<span class="item-detail-badge ${escapeHtml(item.serviceType)}">${escapeHtml(item.serviceType)}</span>` : ''}
+                    ${details.length ? `<small>${escapeHtml(details.join(' | '))}</small>` : ''}
                 </span>
             `;
         });
@@ -289,7 +303,8 @@ function renderSalesHistory() {
             const method = sale.paymentMethod ? sale.paymentMethod : 'efectivo';
             methodBadgeHtml = method === 'efectivo' ? '<span class="item-detail-badge servirse">💵 Efec.</span>' :
                                 method === 'qr' ? '<span class="item-detail-badge eating">📱 QR</span>' :
-                                '<span class="item-detail-badge llevar">💳 Tarj.</span>';
+                                method === 'tarjeta' ? '<span class="item-detail-badge llevar">💳 Tarj.</span>' :
+                                `<span class="item-detail-badge">${escapeHtml(method)}</span>`;
         }
 
         const buttons = isPaid

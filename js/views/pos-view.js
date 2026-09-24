@@ -47,6 +47,8 @@
         if (!container || !appState) return;
 
         container.innerHTML = '';
+        container.classList.toggle('catalog-cards--compact', currentCategory !== 'meals');
+        container.classList.toggle('catalog-cards--meals', currentCategory === 'meals');
 
         if (currentCategory === 'meals') {
             renderMealsCatalog(container, appState);
@@ -73,11 +75,18 @@
             const isSalsa = type === 'salsa';
             const price = isSalsa ? Number(item.price || 0) : Number(item.price_extra || 0);
             const id = isSalsa ? item.id : item.id;
-            return `<div class="catalog-card">
+            const availableStock = isSalsa ? getAvailableSalsaStock(id) : getAvailableAccompanimentStock(id);
+            return `<div class="catalog-card catalog-card--compact">
                 <div class="card-top-qty"><label for="qty-${type}-${id}">Cant:</label><input type="number" class="card-qty-input-top" id="qty-${type}-${id}" min="1" max="99" value="1"></div>
                 <div class="card-icon-wrapper ${isSalsa ? 'accent-color' : 'secondary-color'}"><i class="fa-solid ${isSalsa ? 'fa-bowl-food' : 'fa-bowl-rice'}"></i></div>
-                <div class="card-details"><h4>${escapeHtml(item.name)}</h4><p class="card-description">${isSalsa ? 'Salsa adicional para vender por separado.' : 'Acompañamiento adicional para vender por separado.'}</p><span class="card-price">${formatCurrency(price)}</span></div>
-                <button class="btn btn-primary btn-add-cart" data-action="add-standalone-catalog" data-standalone-type="${type}" data-standalone-id="${id}"><i class="fa-solid fa-plus"></i> Agregar al Pedido</button>
+                <div class="card-details"><h4>${escapeHtml(item.name)}</h4><span class="card-price">${formatCurrency(price)}</span><span class="card-stock ${availableStock <= 0 ? 'stock-empty' : availableStock <= 3 ? 'stock-low' : ''}">Stock: ${availableStock}</span></div>
+                <div class="radio-toggle standalone-service-toggle" onclick="event.stopPropagation()">
+                    <input type="radio" id="${type}-${id}-servir" name="${type}-${id}-service" value="servirse" checked>
+                    <label for="${type}-${id}-servir"><i class="fa-solid fa-plate-wheat"></i> Servir</label>
+                    <input type="radio" id="${type}-${id}-llevar" name="${type}-${id}-service" value="llevar">
+                    <label for="${type}-${id}-llevar"><i class="fa-solid fa-bag-shopping"></i> Llevar</label>
+                </div>
+                <button class="btn btn-primary btn-add-cart" aria-label="${availableStock <= 0 ? 'Agotado' : 'Agregar al pedido'}" title="${availableStock <= 0 ? 'Agotado' : 'Agregar al pedido'}" data-action="add-standalone-catalog" data-standalone-type="${type}" data-standalone-id="${id}" ${availableStock <= 0 ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
             </div>`;
         };
         const cards = sauces.map(item => buildCard(item, 'salsa')).concat(accompaniments.map(item => buildCard(item, 'acompanamiento')));
@@ -121,7 +130,7 @@
         const almuerzoAgotado = allSopasAgotado || allSecondsAgotado;
 
         container.innerHTML = `
-            <div class="catalog-card ${almuerzoAgotado ? 'disabled-by-stock' : ''}">
+            <div class="catalog-card catalog-card--meal ${almuerzoAgotado ? 'disabled-by-stock' : ''}">
                 <div class="card-header-tag">Sopa + Segundo</div>
                 <div class="card-top-qty">
                     <label for="qty-almuerzo">Cant:</label>
@@ -137,11 +146,11 @@
                 </div>
                 <div class="card-options">
                     <div class="option-group">
-                        <label>Sopa:</label>
+                        <label for="pos-select-sopa-almuerzo">Sopa:</label>
                         <select id="pos-select-sopa-almuerzo" class="form-select">${sopasOptions}</select>
                     </div>
                     <div class="option-group">
-                        <label>Segundo:</label>
+                        <label for="pos-select-segundo-almuerzo">Segundo:</label>
                         <select id="pos-select-segundo-almuerzo" class="form-select">${secondsOptions}</select>
                     </div>
                     <div class="option-group">
@@ -154,12 +163,12 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary btn-add-cart" data-action="add-cart-type" data-item-type="almuerzo" ${almuerzoAgotado ? 'disabled' : ''}>
-                    <i class="fa-solid fa-plus"></i> Agregar al Pedido
+                <button class="btn btn-primary btn-add-cart" aria-label="Agregar almuerzo al pedido" title="Agregar almuerzo al pedido" data-action="add-cart-type" data-item-type="almuerzo" ${almuerzoAgotado ? 'disabled' : ''}>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 </button>
             </div>
 
-            <div class="catalog-card ${allSecondsAgotado ? 'disabled-by-stock' : ''}">
+            <div class="catalog-card catalog-card--meal ${allSecondsAgotado ? 'disabled-by-stock' : ''}">
                 <div class="card-top-qty">
                     <label for="qty-segundo">Cant:</label>
                     <input type="number" class="card-qty-input-top" id="qty-segundo" min="1" max="99" value="1">
@@ -174,7 +183,7 @@
                 </div>
                 <div class="card-options">
                     <div class="option-group">
-                        <label>Segundo:</label>
+                        <label for="pos-select-segundo-suelto">Segundo:</label>
                         <select id="pos-select-segundo-suelto" class="form-select">${secondsOptions}</select>
                     </div>
                     <div class="option-group">
@@ -187,12 +196,12 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-secondary btn-add-cart" data-action="add-cart-type" data-item-type="segundo" ${allSecondsAgotado ? 'disabled' : ''}>
-                    <i class="fa-solid fa-plus"></i> Agregar al Pedido
+                <button class="btn btn-secondary btn-add-cart" aria-label="Agregar segundo al pedido" title="Agregar segundo al pedido" data-action="add-cart-type" data-item-type="segundo" ${allSecondsAgotado ? 'disabled' : ''}>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 </button>
             </div>
 
-            <div class="catalog-card ${allSopasAgotado ? 'disabled-by-stock' : ''}">
+            <div class="catalog-card catalog-card--meal ${allSopasAgotado ? 'disabled-by-stock' : ''}">
                 <div class="card-top-qty">
                     <label for="qty-sopa">Cant:</label>
                     <input type="number" class="card-qty-input-top" id="qty-sopa" min="1" max="99" value="1">
@@ -207,7 +216,7 @@
                 </div>
                 <div class="card-options">
                     <div class="option-group">
-                        <label>Sopa:</label>
+                        <label for="pos-select-sopa-suelta">Sopa:</label>
                         <select id="pos-select-sopa-suelta" class="form-select">${sopasOptions}</select>
                     </div>
                     <div class="option-group">
@@ -220,8 +229,8 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-accent btn-add-cart" data-action="add-cart-type" data-item-type="sopa" ${allSopasAgotado ? 'disabled' : ''}>
-                    <i class="fa-solid fa-plus"></i> Agregar al Pedido
+                <button class="btn btn-accent btn-add-cart" aria-label="Agregar sopa al pedido" title="Agregar sopa al pedido" data-action="add-cart-type" data-item-type="sopa" ${allSopasAgotado ? 'disabled' : ''}>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 </button>
             </div>
         `;
@@ -241,7 +250,7 @@
                 : '';
 
             cardsHtml += `
-                <div class="catalog-card ${isAgotado ? 'disabled-by-stock' : ''}">
+                <div class="catalog-card catalog-card--compact ${isAgotado ? 'disabled-by-stock' : ''}">
                     <div class="card-top-qty">
                         <label for="qty-pe-${plato.id}">Cant:</label>
                         <input type="number" class="card-qty-input-top" id="qty-pe-${plato.id}" min="1" max="99" value="1">
@@ -251,7 +260,7 @@
                     </div>
                     <div class="card-details">
                         <h4>${escapeHtml(plato.name)}</h4>
-                        <p class="card-description">Stock Disponible: <strong style="color: ${stockColor}">${availStock}</strong> ${warningBadge}</p>
+                        <p class="card-description">Stock: <strong style="color: ${stockColor}">${availStock}</strong> ${warningBadge}</p>
                         <span class="card-price">${formatCurrency(plato.price)}</span>
                     </div>
                     <div class="card-options">
@@ -265,8 +274,8 @@
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-primary btn-add-cart" data-action="add-plato-extra" data-plato-id="${plato.id}" ${isAgotado ? 'disabled' : ''}>
-                        <i class="fa-solid fa-plus"></i> Agregar al Pedido
+                    <button type="button" class="btn btn-primary btn-add-cart" aria-label="${isAgotado ? 'Agotado' : 'Agregar al pedido'}" title="${isAgotado ? 'Agotado' : 'Agregar al pedido'}" data-action="add-plato-extra" data-plato-id="${plato.id}" data-accepts-salsa="${plato.accepts_salsa ? '1' : '0'}" data-accepts-accompaniment="${plato.accepts_accompaniment ? '1' : '0'}" data-max-included-accompaniments="${Number(plato.max_included_accompaniments || 0)}" ${isAgotado ? 'disabled' : ''}>
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
                     </button>
                 </div>
             `;
@@ -297,16 +306,23 @@
             const warningIcon = isLowStock ? 'Stock bajo: ' : '';
 
             cardsHtml += `
-                <div class="drink-minimal-btn ${isAgotado ? 'disabled-by-stock' : ''} ${isLowStock ? 'low-stock-drink' : ''}" data-action="add-extra" data-extra-id="${extra.id}">
-                    <i class="fa-solid fa-bottle-water" style="font-size: 20px; color: ${isLowStock ? 'var(--primary)' : 'var(--accent)'}; margin-bottom: 2px;"></i>
-                    <span class="drink-minimal-name">${escapeHtml(extra.name)}</span>
-                    <span class="drink-minimal-price">${formatCurrency(extra.price)}</span>
-                    <span class="drink-minimal-stock" style="${stockStyle}">${warningIcon}Stock: ${availStock}</span>
-                    <div class="drink-qty-wrapper">
-                        <button class="drink-qty-btn" data-qty-action="dec" data-extra-id="${extra.id}">−</button>
-                        <input type="number" class="drink-qty-input" id="qty-extra-${extra.id}" min="1" max="99" value="1" onclick="event.stopPropagation()">
-                        <button class="drink-qty-btn" data-qty-action="inc" data-extra-id="${extra.id}">+</button>
+                <div class="catalog-card catalog-card--compact">
+                    <div class="card-details">
+                        <h4>${escapeHtml(extra.name)}</h4>
+                        <span class="card-price">${formatCurrency(extra.price)}</span>
+                        <span class="card-stock ${isAgotado ? 'stock-empty' : ''}" style="${stockStyle}">${warningIcon}Stock: ${availStock}</span>
                     </div>
+                    <div class="radio-toggle drink-service-toggle" onclick="event.stopPropagation()">
+                        <input type="radio" id="drink-${extra.id}-servir" name="drink-${extra.id}-type" value="servirse" checked>
+                        <label for="drink-${extra.id}-servir"><i class="fa-solid fa-plate-wheat"></i> Servir</label>
+                        <input type="radio" id="drink-${extra.id}-llevar" name="drink-${extra.id}-type" value="llevar">
+                        <label for="drink-${extra.id}-llevar"><i class="fa-solid fa-bag-shopping"></i> Llevar</label>
+                    </div>
+                    <div class="card-top-qty">
+                        <label for="qty-extra-${extra.id}">Cantidad</label>
+                        <input type="number" class="card-qty-input-top" id="qty-extra-${extra.id}" min="1" max="99" value="1">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-add-cart" aria-label="${isAgotado ? 'Agotado' : 'Agregar bebida al pedido'}" title="${isAgotado ? 'Agotado' : 'Agregar bebida al pedido'}" data-action="add-extra" data-extra-id="${extra.id}" ${isAgotado ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
                 </div>
             `;
         });
@@ -321,7 +337,7 @@
             return;
         }
 
-        container.innerHTML = `<div class="drinks-grid">${cardsHtml}</div>`;
+        container.innerHTML = cardsHtml;
     }
 
     function renderCart() {
@@ -391,7 +407,7 @@
                 <div class="item-pricing">
                     ${priceHtml}
                 </div>
-                <button class="btn-remove-item" data-action="remove-cart-item" data-item-id="${item.id}" title="Eliminar">
+                <button type="button" class="btn-remove-item" data-action="remove-cart-item" data-item-id="${item.id}" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)} del pedido">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
             `;

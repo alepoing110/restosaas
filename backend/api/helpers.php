@@ -159,18 +159,24 @@ function normalizeStockUsage(array $items): array {
         if ($type === 'almuerzo') {
             $add($item['sopaId'] ?? null, $quantity);
             $add($item['segundoId'] ?? null, $quantity);
-            continue;
+        } else {
+            $productId = match ($type) {
+                'sopa' => $item['sopaId'] ?? $item['product_id'] ?? null,
+                'segundo' => $item['segundoId'] ?? $item['product_id'] ?? null,
+                'plato_extra' => $item['platoId'] ?? $item['product_id'] ?? null,
+                'extra', 'refresco' => $item['extraId'] ?? $item['product_id'] ?? null,
+                'salsa' => $item['salsaId'] ?? $item['product_id'] ?? null,
+                'acompanamiento' => $item['accompanimentId'] ?? $item['product_id'] ?? null,
+                default => $item['product_id'] ?? null,
+            };
+            $add($productId, $quantity);
         }
-        $productId = match ($type) {
-            'sopa' => $item['sopaId'] ?? $item['product_id'] ?? null,
-            'segundo' => $item['segundoId'] ?? $item['product_id'] ?? null,
-            'plato_extra' => $item['platoId'] ?? $item['product_id'] ?? null,
-            'extra', 'refresco' => $item['extraId'] ?? $item['product_id'] ?? null,
-            'salsa' => null,
-            'acompanamiento' => null,
-            default => $item['product_id'] ?? null,
-        };
-        $add($productId, $quantity);
+        foreach (($item['salsas'] ?? []) as $salsa) {
+            $add($salsa['salsaId'] ?? $salsa['id'] ?? null, $quantity);
+        }
+        foreach (($item['accompaniments'] ?? []) as $accompaniment) {
+            $add($accompaniment['accompanimentId'] ?? $accompaniment['id'] ?? null, $quantity);
+        }
     }
     return $usage;
 }
@@ -379,11 +385,12 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
 
     $salsas = [];
     try {
-        $stmt = $pdo->prepare("SELECT * FROM `salsas` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id");
+        $stmt = $pdo->prepare("SELECT s.*, COALESCE(p.stock, s.stock) AS stock FROM `salsas` s LEFT JOIN `products` p ON p.id = s.id AND p.tenant_id = s.tenant_id AND p.branch_id = s.branch_id WHERE s.tenant_id = :tenant_id AND s.branch_id = :branch_id");
         $stmt->execute($params);
         $salsaRows = $stmt->fetchAll();
         foreach ($salsaRows as &$sa) {
             $sa['price'] = (float)$sa['price'];
+            $sa['stock'] = (int)$sa['stock'];
             $sa['active'] = isset($sa['active']) ? (bool)$sa['active'] : true;
             $salsas[] = $sa;
         }
@@ -394,10 +401,11 @@ function _loadCatalogStateFromDb(PDO $pdo, array $authContext) {
 
     $accompaniments = [];
     try {
-        $stmt = $pdo->prepare("SELECT * FROM `acompanamientos` WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id ORDER BY `name`");
+        $stmt = $pdo->prepare("SELECT a.*, COALESCE(p.stock, a.stock) AS stock FROM `acompanamientos` a LEFT JOIN `products` p ON p.id = a.id AND p.tenant_id = a.tenant_id AND p.branch_id = a.branch_id WHERE a.tenant_id = :tenant_id AND a.branch_id = :branch_id ORDER BY a.`name`");
         $stmt->execute($params);
         foreach ($stmt->fetchAll() as $accompaniment) {
             $accompaniment['price_extra'] = (float)$accompaniment['price_extra'];
+            $accompaniment['stock'] = (int)$accompaniment['stock'];
             $accompaniment['active'] = (bool)$accompaniment['active'];
             $accompaniments[] = $accompaniment;
         }
@@ -484,6 +492,7 @@ function normalizeOrders(array $orders) {
         $order['paymentMethod'] = $order['payment_method'];
         $order['delivery_type'] = $order['delivery_type'] ?? 'mesa';
         $order['deliveryType'] = $order['delivery_type'];
+        $order['tableId'] = $order['table_id'] ?? null;
         $order['kitchenNote'] = $order['kitchen_note'] ?? '';
         $order['waiterNote'] = $order['waiter_note'] ?? '';
         $order['pickupTime'] = $order['pickup_time'] ?? null;
@@ -614,6 +623,13 @@ function loadCajaCierres(PDO $pdo, array $authContext, $limit = null) {
     return $cierres;
 }
 
+function dashboardOrderItemUnitTotal(array $item): float {
+    $unitTotal = (float)($item['price'] ?? 0);
+    foreach (($item['salsas'] ?? []) as $salsa) $unitTotal += (float)($salsa['salsaPrice'] ?? 0);
+    foreach (($item['accompaniments'] ?? []) as $accompaniment) $unitTotal += (float)($accompaniment['accompanimentPrice'] ?? 0);
+    return $unitTotal;
+}
+
 function loadDashboardData(PDO $pdo, array $authContext, string $startDate, string $endDate) {
     $params = [
         ':start' => $startDate . ' 00:00:00',
@@ -624,11 +640,11 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
 
     $summaryStmt = $pdo->prepare("
         SELECT
-            COALESCE(SUM(CASE WHEN `status` = 'completado' THEN `total` ELSE 0 END), 0) AS totalRevenue,
-            COUNT(CASE WHEN `status` = 'completado' THEN 1 END) AS totalOrders,
+            COALESCE(SUM(CASE WHEN `status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1) THEN `total` ELSE 0 END), 0) AS totalRevenue,
+            COUNT(CASE WHEN `status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1) THEN 1 END) AS totalOrders,
             COUNT(CASE WHEN `status` = 'anulado' THEN 1 END) AS totalAnulled
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` IN ('completado', 'anulado')
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` IN ('completado', 'anulado') OR (`status` = 'pendiente' AND `paid` = 1))
     ");
     $summaryStmt->execute($params);
     $summary = $summaryStmt->fetch();
@@ -637,12 +653,12 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
     $avgTicket = $totalOrders > 0 ? round($totalRevenue / $totalOrders, 2) : 0;
 
     $byDayStmt = $pdo->prepare("
-        SELECT DATE(`timestamp`) AS `day`,
+        SELECT DATE(COALESCE(`sold_at`, `timestamp`)) AS `day`,
                SUM(`total`) AS revenue,
                COUNT(*) AS orders
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
-        GROUP BY DATE(`timestamp`)
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
+        GROUP BY DATE(COALESCE(`sold_at`, `timestamp`))
         ORDER BY `day` ASC
     ");
     $byDayStmt->execute($params);
@@ -653,7 +669,7 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
 
     $ordersStmt = $pdo->prepare("
         SELECT `items` FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
     ");
     $ordersStmt->execute($params);
     $categoryMap = ['sopa' => 'Sopa', 'segundo' => 'Segundo', 'plato_extra' => 'Plato Extra', 'refresco' => 'Refresco'];
@@ -666,8 +682,8 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
         foreach ($items as $item) {
             $type = $item['type'] ?? '';
             $name = $item['name'] ?? 'Desconocido';
-            $qty = (int)($item['quantity'] ?? 1);
-            $price = (float)($item['price'] ?? 0);
+            $qty = max(1, (int)($item['qty'] ?? $item['quantity'] ?? 1));
+            $price = dashboardOrderItemUnitTotal($item);
             $catLabel = $categoryMap[$type] ?? ucfirst($type);
             $catCounts[$catLabel] = ($catCounts[$catLabel] ?? 0) + $qty;
             $catRevenue[$catLabel] = ($catRevenue[$catLabel] ?? 0) + ($price * $qty);
@@ -693,30 +709,23 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
     $payStmt = $pdo->prepare("
         SELECT `payment_method`, `total`
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
     ");
     $payStmt->execute($params);
-    $paymentAgg = ['efectivo' => 0, 'qr' => 0, 'tarjeta' => 0];
-    $paymentCounts = ['efectivo' => 0, 'qr' => 0, 'tarjeta' => 0];
+    $paymentAgg = ['efectivo' => 0, 'qr' => 0, 'tarjeta' => 0, 'transferencia' => 0, 'otro' => 0];
+    $paymentCounts = ['efectivo' => 0, 'qr' => 0, 'tarjeta' => 0, 'transferencia' => 0, 'otro' => 0];
     foreach ($payStmt->fetchAll() as $row) {
         $pm = $row['payment_method'] ?? 'efectivo';
         $total = (float)$row['total'];
         $decoded = json_decode($pm, true);
         if (is_array($decoded)) {
-            if (isset($decoded['efectivo']) && $decoded['efectivo'] > 0) {
-                $paymentAgg['efectivo'] += (float)$decoded['efectivo'];
-                $paymentCounts['efectivo']++;
-            }
-            if (isset($decoded['qr']) && $decoded['qr'] > 0) {
-                $paymentAgg['qr'] += (float)$decoded['qr'];
-                $paymentCounts['qr']++;
-            }
-            if (isset($decoded['tarjeta']) && $decoded['tarjeta'] > 0) {
-                $paymentAgg['tarjeta'] += (float)$decoded['tarjeta'];
-                $paymentCounts['tarjeta']++;
+            foreach ($paymentAgg as $method => $_) {
+                if ((float)($decoded[$method] ?? 0) <= 0) continue;
+                $paymentAgg[$method] += (float)$decoded[$method];
+                $paymentCounts[$method]++;
             }
         } else {
-            $method = in_array($pm, ['efectivo', 'qr', 'tarjeta']) ? $pm : 'efectivo';
+            $method = array_key_exists($pm, $paymentAgg) ? $pm : 'otro';
             $paymentAgg[$method] += $total;
             $paymentCounts[$method]++;
         }
@@ -729,10 +738,10 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
     }
 
     $hourStmt = $pdo->prepare("
-        SELECT HOUR(`timestamp`) AS hr, COUNT(*) AS orders
+        SELECT HOUR(COALESCE(`sold_at`, `timestamp`)) AS hr, COUNT(*) AS orders
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
-        GROUP BY HOUR(`timestamp`)
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
+        GROUP BY HOUR(COALESCE(`sold_at`, `timestamp`))
         ORDER BY `hr` ASC
     ");
     $hourStmt->execute($params);
@@ -742,12 +751,12 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
     }
 
     $weekStmt = $pdo->prepare("
-        SELECT YEARWEEK(`timestamp`, 1) AS wk,
+        SELECT YEARWEEK(COALESCE(`sold_at`, `timestamp`), 1) AS wk,
                SUM(`total`) AS revenue,
                COUNT(*) AS orders
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `status` = 'completado' AND `timestamp` BETWEEN DATE_SUB(:start, INTERVAL 90 DAY) AND :end
-        GROUP BY YEARWEEK(`timestamp`, 1)
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1)) AND COALESCE(`sold_at`, `timestamp`) BETWEEN DATE_SUB(:start, INTERVAL 90 DAY) AND :end
+        GROUP BY YEARWEEK(COALESCE(`sold_at`, `timestamp`), 1)
         ORDER BY `wk` ASC
     ");
     $weekStmt->execute($params);
@@ -757,10 +766,10 @@ function loadDashboardData(PDO $pdo, array $authContext, string $startDate, stri
     }
 
     $detailStmt = $pdo->prepare("
-        SELECT `id`, `customer`, `total`, `payment_method`, `timestamp`, `items`
+        SELECT `id`, `customer`, `total`, `payment_method`, `timestamp`, `sold_at`, `items`, `status`, `paid`, `delivery_type`, `table_id`, `subtotal`, `discount_total`
         FROM `pedidos`
-        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND `timestamp` BETWEEN :start AND :end AND `status` = 'completado'
-        ORDER BY `timestamp` DESC
+        WHERE `tenant_id` = :tenant_id AND `branch_id` = :branch_id AND COALESCE(`sold_at`, `timestamp`) BETWEEN :start AND :end AND (`status` = 'completado' OR (`status` = 'pendiente' AND `paid` = 1))
+        ORDER BY COALESCE(`sold_at`, `timestamp`) DESC
     ");
     $detailStmt->execute($params);
     $orderDetails = normalizeOrders($detailStmt->fetchAll());

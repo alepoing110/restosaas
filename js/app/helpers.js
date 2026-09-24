@@ -200,7 +200,7 @@ window.countSopaUsage = countSopaUsage;
 function countSalsaUsage(items, salsaId) {
     if (!items || !Array.isArray(items)) return 0;
     return items.reduce((acc, item) => {
-        if (item.salsaId === salsaId) {
+        if (item.type === 'salsa' && item.salsaId === salsaId || (item.salsas || []).some(salsa => (salsa.salsaId || salsa.id) === salsaId)) {
             return acc + (item.quantity || item.qty || 1);
         }
         return acc;
@@ -208,6 +208,18 @@ function countSalsaUsage(items, salsaId) {
 }
 
 window.countSalsaUsage = countSalsaUsage;
+
+function countAccompanimentUsage(items, accompanimentId) {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((acc, item) => {
+        if (item.type === 'acompanamiento' && item.accompanimentId === accompanimentId || (item.accompaniments || []).some(accompaniment => (accompaniment.accompanimentId || accompaniment.id) === accompanimentId)) {
+            return acc + (item.quantity || item.qty || 1);
+        }
+        return acc;
+    }, 0);
+}
+
+window.countAccompanimentUsage = countAccompanimentUsage;
 
 function getTableName(tableId) {
     const tables = (typeof state !== 'undefined' && state.tables) ? state.tables : [];
@@ -297,6 +309,18 @@ function openLowStockModal() {
             }
         }
     });
+    (state.salsas || []).forEach(s => {
+        if (Number(s.active) !== 0) {
+            const avail = getAvailableSalsaStock(s.id);
+            if (avail <= 5) items.push({ category: 'Salsa Extra', name: s.name, stock: avail, total: s.stock || 0 });
+        }
+    });
+    (state.accompaniments || []).forEach(a => {
+        if (Number(a.active) !== 0) {
+            const avail = getAvailableAccompanimentStock(a.id);
+            if (avail <= 5) items.push({ category: 'Acompañamiento Extra', name: a.name, stock: avail, total: a.stock || 0 });
+        }
+    });
 
     if (items.length === 0) {
         listEl.innerHTML = '<p class="text-muted" style="text-align:center; padding:24px;">No hay productos con bajo stock.</p>';
@@ -361,12 +385,15 @@ function openSalsaSelectModal(productData, callback) {
         } else {
             salsas.forEach(s => {
                 const priceText = ' (Incluida)';
+                const quantity = Math.max(1, Number(productData.selectionQuantity || 1));
+                const availableStock = typeof window.getAvailableSalsaStock === 'function' ? window.getAvailableSalsaStock(s.id) : Number(s.stock || 0);
+                const disabled = availableStock < quantity ? ' disabled' : '';
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--border);';
                 row.innerHTML = `
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; flex:1;">
-                        <input type="checkbox" class="salsa-check" data-salsa-id="${s.id}" data-salsa-name="${escapeHtml(s.name)}" data-salsa-price="0" onchange="updateSalsaPriceHint()">
-                        <span>${escapeHtml(s.name)}<span style="color:var(--text-muted); font-size:11px;">${priceText}</span></span>
+                        <input type="checkbox" class="salsa-check" data-salsa-id="${s.id}" data-salsa-name="${escapeHtml(s.name)}" data-salsa-price="0"${disabled} onchange="updateSalsaPriceHint()">
+                        <span>${escapeHtml(s.name)}<span style="color:var(--text-muted); font-size:11px;">${priceText} Stock: ${availableStock}</span></span>
                     </label>
                     <select class="form-select salsa-mode-select" style="width:auto; font-size:11px; padding:2px 4px;" data-salsa-id="${s.id}">
                         <option value="banar">Bañar</option>
@@ -380,8 +407,8 @@ function openSalsaSelectModal(productData, callback) {
 
     if (priceHint) priceHint.style.display = 'none';
 
-    const modal = document.getElementById('modal-salsa-select');
-    if (modal) modal.classList.add('open');
+    if (typeof window.openModal === 'function') window.openModal('modal-salsa-select');
+    else document.getElementById('modal-salsa-select')?.classList.add('open');
 }
 
 function updateSalsaPriceHint() {
@@ -400,11 +427,17 @@ function updateSalsaPriceHint() {
     }
 }
 
-function closeSalsaSelectModal() {
-    const modal = document.getElementById('modal-salsa-select');
-    if (modal) modal.classList.remove('open');
+function finishSalsaSelection(selection) {
+    const callback = _salsaSelectCallback;
+    if (typeof window.closeModal === 'function') window.closeModal('modal-salsa-select');
+    else document.getElementById('modal-salsa-select')?.classList.remove('open');
     _salsaSelectCallback = null;
     _salsaSelectProductData = null;
+    if (callback) callback(selection);
+}
+
+function closeSalsaSelectModal() {
+    finishSalsaSelection(null);
 }
 
 function confirmSalsaSelection() {
@@ -422,35 +455,41 @@ function confirmSalsaSelection() {
         });
     });
 
-    const callback = _salsaSelectCallback;
-    closeSalsaSelectModal();
+    finishSalsaSelection(salsas);
+}
 
-    if (callback) {
-        callback(salsas.length > 0 ? salsas : null);
-    }
+function skipSalsaSelection() {
+    finishSalsaSelection([]);
 }
 
 window.openSalsaSelectModal = openSalsaSelectModal;
 window.updateSalsaPriceHint = updateSalsaPriceHint;
 window.closeSalsaSelectModal = closeSalsaSelectModal;
 window.confirmSalsaSelection = confirmSalsaSelection;
+window.skipSalsaSelection = skipSalsaSelection;
 
 function openAccompanimentSelectModal(productData, callback) {
     const accompaniments = (state.accompaniments || []).filter(item => Number(item.active) !== 0);
     const maxIncluded = Math.max(0, Number(productData.max_included_accompaniments || 0));
     const modal = document.createElement('div');
-    modal.className = 'modal-backdrop open';
-    modal.innerHTML = `<div class="modal-content modal-content--sm" style="max-width:460px;"><div class="modal-header"><h3><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</h3><button class="btn-close-modal" type="button" aria-label="Cerrar">&times;</button></div><div class="modal-body"><p class="modal-subtitle"><strong>${escapeHtml(productData.name || '')}</strong></p><p class="text-muted" style="font-size:12px;">Los primeros ${maxIncluded} acompañamiento(s) son incluidos. Los adicionales se cobran como extra.</p><div class="accompaniment-select-list">${accompaniments.length ? accompaniments.map(item => `<label style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);"><span><input type="checkbox" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-price="${Number(item.price_extra || 0)}"> ${escapeHtml(item.name)}</span><strong>Extra: ${formatCurrency(item.price_extra || 0)}</strong></label>`).join('') : '<p class="text-muted">No hay acompañamientos disponibles.</p>'}</div></div><div class="modal-actions"><button class="btn btn-outline" type="button" data-cancel>Cancelar</button><button class="btn btn-primary" type="button" data-confirm>Confirmar</button></div></div>`;
-    const close = () => modal.remove();
-    modal.querySelector('.btn-close-modal').addEventListener('click', () => { close(); callback(null); });
-    modal.querySelector('[data-cancel]').addEventListener('click', () => { close(); callback(null); });
+    modal.className = 'modal-backdrop modal-backdrop--product-options open';
+    const quantity = Math.max(1, Number(productData.selectionQuantity || 1));
+    modal.innerHTML = `<div class="modal-content modal-content--sm" style="max-width:460px;"><div class="modal-header"><h3><i class="fa-solid fa-bowl-rice"></i> Acompañamientos</h3><button class="btn-close-modal" type="button" aria-label="Cancelar producto">&times;</button></div><div class="modal-body"><p class="modal-subtitle"><strong>${escapeHtml(productData.name || '')}</strong></p><p class="text-muted" style="font-size:12px;">Los primeros ${maxIncluded} acompañamiento(s) son incluidos; cada plato consume una unidad.</p><div class="accompaniment-select-list">${accompaniments.length ? accompaniments.map(item => { const availableStock = typeof window.getAvailableAccompanimentStock === 'function' ? window.getAvailableAccompanimentStock(item.id) : Number(item.stock || 0); const disabled = availableStock < quantity ? ' disabled' : ''; return `<label style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);"><span><input type="checkbox" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-price="${Number(item.price_extra || 0)}"${disabled}> ${escapeHtml(item.name)} <small>Stock: ${availableStock}</small></span><strong>Extra: ${formatCurrency(item.price_extra || 0)}</strong></label>`; }).join('') : '<p class="text-muted">No hay acompañamientos disponibles.</p>'}</div></div><div class="modal-actions"><button class="btn btn-outline-danger" type="button" data-cancel>Cancelar producto</button><button class="btn btn-outline" type="button" data-skip>Continuar sin acompañamiento</button><button class="btn btn-primary" type="button" data-confirm>Confirmar</button></div></div>`;
+    const close = () => {
+        if (typeof window.releaseFocus === 'function') window.releaseFocus();
+        modal.remove();
+    };
+    const finish = selection => { close(); callback(selection); };
+    modal.querySelector('.btn-close-modal').addEventListener('click', () => finish(null));
+    modal.querySelector('[data-cancel]').addEventListener('click', () => finish(null));
+    modal.querySelector('[data-skip]').addEventListener('click', () => finish([]));
     modal.querySelector('[data-confirm]').addEventListener('click', () => {
         const selected = Array.from(modal.querySelectorAll('input:checked')).map((input, index) => ({ accompanimentId: input.dataset.id, accompanimentName: input.dataset.name, accompanimentMode: index < maxIncluded ? 'included' : 'extra', accompanimentPrice: index < maxIncluded ? 0 : Number(input.dataset.price || 0) }));
         showToast(selected.length ? `${selected.length} acompañamiento(s) seleccionado(s).` : 'Sin acompañamientos seleccionados.', selected.length ? 'success' : 'info');
-        close();
-        callback(selected);
+        finish(selected);
     });
     document.body.appendChild(modal);
+    if (typeof window.trapFocus === 'function') window.trapFocus(modal);
 }
 
 window.openAccompanimentSelectModal = openAccompanimentSelectModal;

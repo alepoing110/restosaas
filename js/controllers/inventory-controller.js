@@ -19,8 +19,12 @@ window.saveStockInline = async function(id, type) {
             state.salesHistory.forEach(s => {
                 if (s.status === 'completado' || (s.status === 'pendiente' && s.paid)) usage += countSegundoUsage(s.items, id);
             });
+            (state.reservations || []).forEach(res => {
+                if (['pendiente', 'confirmada'].includes(res.status)) usage += countSegundoUsage(res.items, id);
+            });
+            if (typeof window.getAppendItemsPending === 'function') usage += countSegundoUsage(window.getAppendItemsPending(), id);
             const newTotalStock = newCurrentStock + usage;
-            const success = await window.saveItemOnServer('segundo', { id: id, name: sec.name, stock: newTotalStock });
+            const success = await window.saveItemOnServer('segundo', { id: id, name: sec.name, stock: newTotalStock, active: Number(sec.active) !== 0 ? 1 : 0 });
             if (success) {
                 showToast(`Stock de "${sec.name}" actualizado en base de datos.`, 'success');
                 await window.loadStateForTab('inventory');
@@ -97,7 +101,33 @@ window.saveStockInline = async function(id, type) {
                 renderInventoryTab();
             }
         }
+    } else if (type === 'salsa' || type === 'acompanamiento') {
+        inputEl = document.getElementById(`stock-val-${type}-${id}`);
+        if (!inputEl) return;
+        newCurrentStock = parseInt(inputEl.value, 10);
+        if (isNaN(newCurrentStock) || newCurrentStock < 0) return;
+
+        const collection = type === 'salsa' ? state.salsas : state.accompaniments;
+        const item = (collection || []).find(entry => entry.id === id);
+        if (!item) return;
+        let usage = type === 'salsa' ? countSalsaUsage(state.cart, id) : countAccompanimentUsage(state.cart, id);
+        state.activeOrders.forEach(order => {
+            usage += type === 'salsa' ? countSalsaUsage(order.items, id) : countAccompanimentUsage(order.items, id);
+        });
+        state.salesHistory.forEach(sale => {
+            if (sale.status === 'completado' || (sale.status === 'pendiente' && sale.paid)) {
+                usage += type === 'salsa' ? countSalsaUsage(sale.items, id) : countAccompanimentUsage(sale.items, id);
+            }
+        });
+        const newTotalStock = newCurrentStock + usage;
+        const payload = type === 'salsa'
+            ? { id, name: item.name, price: item.price, stock: newTotalStock, active: Number(item.active) !== 0 ? 1 : 0 }
+            : { id, name: item.name, price: item.price_extra, stock: newTotalStock, active: Number(item.active) !== 0 ? 1 : 0 };
+        const success = await window.saveItemOnServer(type, payload);
+        if (success) {
+            showToast(`Stock de "${item.name}" actualizado en base de datos.`, 'success');
+            await window.loadStateForTab('inventory');
+            renderInventoryTab();
+        }
     }
 };
-
-

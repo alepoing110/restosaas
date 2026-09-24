@@ -355,6 +355,68 @@
     margin-top: 2px;
 }
 
+.order-option-detail {
+    flex-basis: 100%;
+    color: var(--text-muted);
+    font-size: 9px;
+    line-height: 1.25;
+}
+
+/* The shared .modal-content rule is loaded later; scope sizing to this dialog. */
+#modal-active-order-payment .active-payment-modal { width: min(860px, calc(100vw - 32px)); max-width: 860px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.active-payment-modal .modal-header, .active-payment-modal .modal-actions { flex-shrink: 0; }
+.active-payment-modal .modal-body { min-height: 0; overflow-y: auto; padding: 16px; }
+.active-payment-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px; align-items: start; }
+.active-payment-order-panel, .active-payment-method-panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-main); padding: 12px; }
+.active-payment-method-panel { background: var(--bg-surface); }
+.active-payment-section-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 10px; padding-bottom: 9px; margin-bottom: 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.active-payment-section-heading > span { font-weight: 700; color: var(--text-main); }
+.active-payment-section-heading i { color: var(--primary); margin-right: 5px; }
+.active-payment-section-heading > strong { color: var(--text-bright); font-size: 12px; text-align: right; white-space: nowrap; }
+.active-payment-items { display: flex; flex-direction: column; gap: 12px; max-height: min(40dvh, 340px); overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding-right: 4px; }
+.active-payment-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: start; font-size: 12px; padding-bottom: 7px; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.active-payment-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.active-payment-item-qty { color: var(--primary); font-weight: 800; }
+.active-payment-item div { min-width: 0; }
+.active-payment-item small { display: block; color: var(--text-muted); font-size: 12px; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
+.active-payment-item > strong:last-child { white-space: nowrap; }
+.active-payment-summary { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.active-payment-summary > div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-muted); }
+.active-payment-summary .active-payment-total { padding-top: 7px; border-top: 1px dashed var(--border); color: var(--text-main); font-size: 16px; font-weight: 800; }
+.active-payment-summary .active-payment-total strong { color: var(--primary); }
+.active-payment-method-panel .form-group { margin-bottom: 12px; }
+.active-payment-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 2px; }
+.active-payment-split .form-group, .active-payment-credit .form-group { margin: 0; }
+.active-payment-mixed-total { grid-column: 1 / -1; margin: 0; font-size: 12px; font-weight: 700; color: var(--danger); }
+.active-payment-mixed-total.is-valid { color: var(--success); }
+.active-payment-credit { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.active-payment-context { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0 0; font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.active-payment-context strong { color: var(--text-main); }
+.active-payment-modal .modal-header { align-items: flex-start; gap: 12px; }
+.active-payment-modal .modal-header > div { min-width: 0; }
+.active-payment-modal .form-input, .active-payment-modal .form-select { width: 100%; min-width: 0; min-height: 46px; font-size: 16px; box-sizing: border-box; }
+.active-payment-modal .form-group label { display: block; margin-bottom: 7px; line-height: 1.4; }
+.active-payment-item { font-size: 14px; line-height: 1.4; }
+.active-payment-item div > strong { overflow-wrap: anywhere; }
+.active-payment-item-qty { padding: 3px 5px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 10%, transparent); font-size: 12px; }
+.active-payment-hint { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+.active-payment-mixed-total { line-height: 1.5; padding: 10px; background: var(--bg-main); border-radius: 6px; }
+.active-payment-modal .active-payment-footer { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--border); margin: 0; }
+.active-payment-footer-total { display: flex; flex-direction: column; gap: 3px; margin-right: auto; font-variant-numeric: tabular-nums; }
+.active-payment-footer-total span { color: var(--text-muted); font-size: 12px; }
+.active-payment-footer-total strong { color: var(--primary); font-size: 24px; line-height: 1.2; }
+.active-payment-modal .btn { min-height: 44px; }
+.active-payment-footer .btn { white-space: normal; }
+.active-payment-modal :is(button, input, select):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 680px) {
+    #modal-active-order-payment .active-payment-modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+    .active-payment-layout { grid-template-columns: 1fr; gap: 12px; }
+    .active-payment-items { max-height: 220px; }
+    .active-payment-modal .active-payment-footer { display: grid; grid-template-columns: auto minmax(0, 1fr); padding: 12px; }
+    .active-payment-footer-total { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; width: 100%; padding-bottom: 6px; }
+}
+@media (max-width: 480px) { .active-payment-split { grid-template-columns: 1fr; } .active-payment-modal .modal-body { padding: 10px; } .active-payment-order-panel, .active-payment-method-panel { padding: 12px; } }
+
 .order-card-price {
     font-weight: 600;
     font-size: 13px;
@@ -387,6 +449,19 @@
     color: var(--text-muted);
     cursor: pointer;
     transition: var(--transition);
+}
+
+@media (max-width: 480px) {
+    .order-state-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .btn-state-step {
+        min-width: 0;
+        min-height: 44px;
+        font-size: 11px !important;
+    }
 }
 
 .btn-state-step:hover {
@@ -451,6 +526,154 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
 }
+/* Compact active orders: totals in the header and two short action rows. */
+#active-orders-board {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    align-items: start;
+    gap: 10px;
+}
+
+#active-orders-board .order-card {
+    min-width: 0;
+    border-radius: var(--radius-md);
+}
+
+#active-orders-board .order-card-header {
+    padding: 9px 10px;
+    gap: 8px;
+}
+
+#active-orders-board .order-card-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 3px 8px;
+    min-width: 0;
+}
+
+#active-orders-board .order-card-title {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+#active-orders-board .order-time {
+    white-space: nowrap;
+    font-size: 10px;
+}
+
+#active-orders-board .order-card-amount {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    gap: 1px;
+}
+
+#active-orders-board .order-card-amount > span {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+#active-orders-board .order-card-amount > strong {
+    color: var(--primary);
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+#active-orders-board .order-card-body {
+    padding: 8px 10px;
+    flex-grow: 0;
+}
+
+#active-orders-board .order-items-list {
+    gap: 5px;
+}
+
+#active-orders-board .order-item-detail {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 5px;
+    padding-bottom: 5px;
+    font-size: 12px;
+}
+
+#active-orders-board .order-item-detail:last-child {
+    padding-bottom: 0;
+}
+
+#active-orders-board .order-item-qty,
+#active-orders-board .order-card-price {
+    margin: 0;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+#active-orders-board .order-item-label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+#active-orders-board .order-item-subdetails {
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+#active-orders-board .item-detail-badge {
+    max-width: 100%;
+    white-space: normal;
+    padding: 2px 4px;
+    font-size: 10px;
+}
+
+#active-orders-board .order-card-footer {
+    padding: 8px 10px;
+    gap: 6px;
+}
+
+#active-orders-board .order-state-controls {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+
+#active-orders-board .btn-state-step {
+    min-width: 0;
+    min-height: 36px;
+    font-size: 10px !important;
+    padding: 4px 2px !important;
+    gap: 3px;
+}
+
+#active-orders-board .btn-state-step i {
+    display: none;
+}
+
+#active-orders-board .order-card-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+#active-orders-board .order-card-actions .btn {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 36px;
+    padding: 5px 8px;
+    font-size: 11px;
+}
+
+@media (pointer: coarse) {
+    #active-orders-board .btn-state-step,
+    #active-orders-board .order-card-actions .btn {
+        min-height: 44px;
+    }
+}
+
 /* Partial order cancellation */
 #modal-cancel-order .modal-content {
     width: min(680px, calc(100vw - 32px));

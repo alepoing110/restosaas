@@ -154,6 +154,10 @@ function renderReservationCatalog() {
         renderReservationDrinksCatalog(container, query);
         return;
     }
+    if (tab === 'sauces') {
+        renderReservationSaucesCatalog(container, query);
+        return;
+    }
     renderReservationMealsCatalog(container, query);
 }
 
@@ -179,7 +183,11 @@ function getReservationAvailableStock(type, itemId) {
     let baseStock = 0;
     let reservedQty = 0;
 
-    if (type === 'sopa') {
+    if (type === 'salsa') {
+        return Math.max(0, getAvailableSalsaStock(itemId) - countSalsaUsage(cart, itemId));
+    } else if (type === 'acompanamiento') {
+        return Math.max(0, getAvailableAccompanimentStock(itemId) - countAccompanimentUsage(cart, itemId));
+    } else if (type === 'sopa') {
         baseStock = getAvailableSopaStock(itemId);
         reservedQty = countSopaUsage(cart, itemId);
     } else if (type === 'segundo') {
@@ -353,8 +361,38 @@ function renderReservationDrinksCatalog(container, query) {
             icon: 'fa-bottle-water',
             tone: 'accent-color',
             inputId: `res-qty-extra-${extra.id}`,
+            optionsHtml: `<div class="radio-toggle"><input type="radio" id="res-drink-${extra.id}-servir" name="res-drink-${extra.id}-type" value="servirse" ${getReservationItemServiceType() === 'servirse' ? 'checked' : ''}><label for="res-drink-${extra.id}-servir"><i class="fa-solid fa-plate-wheat"></i> Servir</label><input type="radio" id="res-drink-${extra.id}-llevar" name="res-drink-${extra.id}-type" value="llevar" ${getReservationItemServiceType() === 'llevar' ? 'checked' : ''}><label for="res-drink-${extra.id}-llevar"><i class="fa-solid fa-bag-shopping"></i> Llevar</label></div>`,
             buttonOnclick: `addReservationExtraToCart('${extra.id}', document.getElementById('res-qty-extra-${extra.id}')?.value)`,
             buttonClass: 'btn-accent'
+        });
+    }).join('');
+}
+
+function renderReservationSaucesCatalog(container, query) {
+    const products = [
+        ...(state.salsas || []).filter(item => Number(item.active) !== 0).map(item => ({ ...item, catalogType: 'salsa', price: Number(item.price || 0), icon: 'fa-bowl-food', tone: 'accent-color', description: 'Salsa adicional para la reserva.' })),
+        ...(state.accompaniments || []).filter(item => Number(item.active) !== 0).map(item => ({ ...item, catalogType: 'acompanamiento', price: Number(item.price_extra || 0), icon: 'fa-bowl-rice', tone: 'secondary-color', description: 'Acompañamiento adicional para la reserva.' }))
+    ].filter(item => !query || (item.name || '').toLowerCase().includes(query));
+
+    if (products.length === 0) {
+        container.innerHTML = getReservationCatalogEmptyHtml('No hay salsas ni acompañamientos disponibles.');
+        return;
+    }
+
+    container.innerHTML = products.map(item => {
+        const serviceType = getReservationItemServiceType();
+        const radioName = `res-${item.catalogType}-${item.id}-service`;
+        return getReservationProductCard({
+            title: item.name,
+            description: item.description,
+            price: item.price,
+            stock: getReservationAvailableStock(item.catalogType, item.id),
+            icon: item.icon,
+            tone: item.tone,
+            inputId: `res-qty-${item.catalogType}-${item.id}`,
+            optionsHtml: `<div class="radio-toggle"><input type="radio" id="${radioName}-servir" name="${radioName}" value="servirse" ${serviceType === 'servirse' ? 'checked' : ''}><label for="${radioName}-servir"><i class="fa-solid fa-plate-wheat"></i> Servir</label><input type="radio" id="${radioName}-llevar" name="${radioName}" value="llevar" ${serviceType === 'llevar' ? 'checked' : ''}><label for="${radioName}-llevar"><i class="fa-solid fa-bag-shopping"></i> Llevar</label></div>`,
+            buttonOnclick: `addReservationStandaloneItem('${item.catalogType}', '${item.id}', document.getElementById('res-qty-${item.catalogType}-${item.id}')?.value)`,
+            buttonClass: item.catalogType === 'salsa' ? 'btn-accent' : 'btn-secondary'
         });
     }).join('');
 }
@@ -419,14 +457,19 @@ function renderReservationCart() {
         const div = document.createElement('div');
         div.className = 'reservation-cart-item';
         const detail = item.detail ? `<small style="color:var(--text-muted);">${escapeHtml(item.detail)}</small>` : '';
-        const salsaInfo = item.salsaName
-            ? `<small style="color:var(--primary);"> + ${escapeHtml(item.salsaName)} (${item.salsaMode === 'banar' ? 'Bañar' : 'A parte'})${item.salsaPrice > 0 ? ' +' + formatCurrency(item.salsaPrice) : ''}</small>`
-            : '';
-        const lineTotal = ((item.price || 0) + (item.salsaPrice || 0)) * (item.quantity || 1);
+        const optionTotal = (item.salsas || []).reduce((sum, salsa) => sum + Number(salsa.salsaPrice || 0), 0)
+            + (item.accompaniments || []).reduce((sum, accompaniment) => sum + Number(accompaniment.accompanimentPrice || 0), 0)
+            + Number(item.salsaPrice || 0);
+        const options = [
+            ...(item.salsas || []).map(salsa => `${salsa.salsaName || salsa.name || ''}${salsa.salsaMode ? ` (${salsa.salsaMode === 'banar' ? 'Bañar' : 'Aparte'})` : ''}`),
+            ...(item.accompaniments || []).map(accompaniment => accompaniment.accompanimentName || accompaniment.name || ''),
+            item.salsaName || ''
+        ].filter(Boolean);
+        const lineTotal = ((item.price || 0) + optionTotal) * (item.quantity || 1);
         div.innerHTML = `
             <div class="res-cart-item-info">
                 <strong>${item.quantity || 1}x ${escapeHtml(item.name)}</strong>
-                ${detail}${salsaInfo}
+                ${detail}${options.map(option => `<small style="color:var(--primary);"> + ${escapeHtml(option)}</small>`).join('')}
             </div>
             <div class="res-cart-item-right">
                 <span style="font-weight:600;">${formatCurrency(lineTotal)}</span>
@@ -438,6 +481,11 @@ function renderReservationCart() {
         container.appendChild(div);
     });
 
-    const total = cart.reduce((sum, it) => sum + ((it.price || 0) + (it.salsaPrice || 0)) * (it.quantity || 1), 0);
+    const total = cart.reduce((sum, it) => {
+        const options = (it.salsas || []).reduce((value, salsa) => value + Number(salsa.salsaPrice || 0), 0)
+            + (it.accompaniments || []).reduce((value, accompaniment) => value + Number(accompaniment.accompanimentPrice || 0), 0)
+            + Number(it.salsaPrice || 0);
+        return sum + ((it.price || 0) + options) * (it.quantity || 1);
+    }, 0);
     if (totalEl) totalEl.textContent = formatCurrency(total);
 }

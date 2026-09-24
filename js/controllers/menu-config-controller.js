@@ -822,7 +822,7 @@ window.saveAccompanimentInline = async function(id) {
 };
 window.toggleAccompanimentActive = async function(id, active) {
     const item = (state.accompaniments || []).find(entry => entry.id === id);
-    if (item && await saveItemOnServer('acompanamiento', { id, name: item.name, price: item.price_extra, active: active ? 1 : 0 })) {
+        if (item && await saveItemOnServer('acompanamiento', { id, name: item.name, price: item.price_extra, active: active ? 1 : 0 })) {
         await loadStateForTab('inventory');
         renderMenuConfig();
         showToast(active ? `Acompañamiento "${item.name}" activado.` : `Acompañamiento "${item.name}" desactivado.`, 'success');
@@ -909,7 +909,7 @@ async function handleAddSalsa(e) {
     const price = Number(priceInput.value);
     if (!name || name.length > 100 || !Number.isFinite(price) || price < 0 || price > 99999999.99 || Math.round(price * 100) !== price * 100) return showToast('Valores de salsa inválidos.', 'warning');
 
-    const success = await saveItemOnServer('salsa', { id: generateId(), name, price, stock: 0, active: 1 });
+    const success = await saveItemOnServer('salsa', { id: generateId(), name, price, active: 1 });
     if (success) {
         nameInput.value = '';
         priceInput.value = '0';

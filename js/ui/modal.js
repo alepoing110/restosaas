@@ -89,6 +89,8 @@ const ConfirmDialog = {
             const dialog = document.createElement('div');
             dialog.id = 'custom-confirm-dialog';
             dialog.className = 'modal-backdrop';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
             dialog.innerHTML = `
                 <div class="modal-content" style="max-width: 400px; padding: 24px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
@@ -112,8 +114,11 @@ const ConfirmDialog = {
             const cancelBtn = document.getElementById('confirm-dialog-cancel');
 
             const cleanup = () => {
+                if (typeof window.releaseFocus === 'function') window.releaseFocus();
                 dialog.remove();
             };
+
+            if (typeof window.trapFocus === 'function') window.trapFocus(dialog);
 
             confirmBtn.addEventListener('click', () => {
                 cleanup();

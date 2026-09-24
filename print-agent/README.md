@@ -1,6 +1,6 @@
 # RestoCloud Print Agent
 
-Agente local para Windows que lista las impresoras instaladas y recibe trabajos de texto desde RestoCloud.
+Agente local para Windows que lista las impresoras instaladas y recibe trabajos ESC/POS desde RestoCloud.
 
 ## Uso
 
@@ -11,3 +11,5 @@ Agente local para Windows que lista las impresoras instaladas y recibe trabajos 
 5. Pulsar `Actualizar impresoras` y guardar la configuración.
 
 El agente escucha solamente en `127.0.0.1:3210`. Si se define `RESTOCLOUD_PRINT_TOKEN`, la aplicación debe enviar el mismo token mediante el mecanismo de configuración del agente.
+
+Los tickets se envian por `/print-raw` directamente al spooler de Windows como `RAW`, conservando alineacion, negrita, columnas y corte de papel. `/print` se mantiene como compatibilidad para pruebas de texto.

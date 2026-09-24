@@ -59,3 +59,11 @@ function getAvailableExtraStock(extraId) {
 function getAvailableSopaStock(sopaId) {
     return _getAvailableStock(sopaId, state.sopas, countSopaUsage);
 }
+
+function getAvailableSalsaStock(salsaId) {
+    return _getAvailableStock(salsaId, state.salsas, countSalsaUsage);
+}
+
+function getAvailableAccompanimentStock(accompanimentId) {
+    return _getAvailableStock(accompanimentId, state.accompaniments, countAccompanimentUsage);
+}

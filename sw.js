@@ -1,4 +1,6 @@
-const CACHE_NAME = 'restocloud-v6';
+const CACHE_PREFIX = `restocloud-${encodeURIComponent(new URL(self.registration.scope).pathname)}-`;
+const CACHE_NAME = `${CACHE_PREFIX}v11`;
+const appUrl = (path) => new URL(path.replace(/^\//, ''), self.registration.scope).href;
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -56,9 +58,15 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS).catch(() => {
-                console.log('Some assets failed to cache, continuing...');
-            });
+            return Promise.all(STATIC_ASSETS.map(async (path) => {
+                try {
+                    const request = new Request(appUrl(path), { cache: 'reload' });
+                    const response = await fetch(request);
+                    if (response.ok) await cache.put(request, response);
+                } catch (error) {
+                    console.warn('Asset unavailable for offline use:', path);
+                }
+            }));
         })
     );
     self.skipWaiting();
@@ -68,21 +76,21 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
-                cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+                cacheNames.filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME).map((name) => caches.delete(name))
             );
-        })
+        }).then(() => self.clients.claim())
     );
-    self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
 
     if (url.pathname === '/api.php' || url.pathname.includes('/api.php')) {
         event.respondWith(
             fetch(event.request).catch(() => {
                 if (event.request.method === 'POST') {
-                    event.waitUntil(
+                    if (self.registration.sync) event.waitUntil(
                         self.registration.sync.register('replay-offline-orders').catch(() => {})
                     );
                 }
@@ -94,23 +102,40 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    event.respondWith(
-        caches.match(event.request).then((cached) => {
-            return cached || fetch(event.request).then((response) => {
-                if (response.ok && event.request.method === 'GET') {
-                    const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseClone);
-                    });
+    if (event.request.method !== 'GET') return;
+    const isDocument = event.request.mode === 'navigate';
+    const isCode = ['script', 'style'].includes(event.request.destination) || /\.(css|js)$/.test(url.pathname);
+    const isStatic = ['image', 'font'].includes(event.request.destination);
+    // Do not cache API responses or other dynamic/authenticated data.
+    if (!isDocument && !isCode && !isStatic) return;
+
+    event.respondWith((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cached = () => cache.match(event.request);
+        const fromNetwork = async () => {
+            const response = await fetch(event.request, { cache: 'no-cache' });
+            if (response.ok) {
+                try { await cache.put(event.request, response.clone()); } catch (error) {
+                    console.warn('Unable to cache resource:', url.pathname);
                 }
-                return response;
-            });
-        }).catch(() => {
-            if (event.request.destination === 'document') {
-                return caches.match('/index.html');
             }
-        })
-    );
+            return response;
+        };
+        try {
+            if (isStatic) return (await cached()) || await fromNetwork();
+            const response = await fromNetwork();
+            if (response.status >= 500) return (await cached()) || response;
+            return response;
+        } catch (error) {
+            const fallback = await cached();
+            if (fallback) return fallback;
+            if (isDocument) {
+                const shell = await cache.match(appUrl('index.html'));
+                if (shell) return shell;
+            }
+            return Response.error();
+        }
+    })());
 });
 
 self.addEventListener('sync', (event) => {

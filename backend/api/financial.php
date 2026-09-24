@@ -71,7 +71,7 @@ function handle_get_financial_report(PDO $pdo, ?array $authContext, array $input
          $summaryStmt->execute($params);
          $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
          $summary = ['gross_sales' => (float)($summaryRow['gross_sales'] ?? 0), 'annulled_amount' => (float)($summaryRow['annulled_amount'] ?? 0), 'sales_count' => (int)($summaryRow['sales_count'] ?? 0), 'annulled_count' => (int)($summaryRow['annulled_count'] ?? 0)];
-         $discountTotalStmt = $pdo->prepare("SELECT COALESCE(SUM(pd.amount), 0) FROM `pedido_descuentos` pd INNER JOIN `pedidos` p ON p.id = pd.order_id AND p.tenant_id = pd.tenant_id AND p.branch_id = pd.branch_id WHERE pd.tenant_id = :tid AND pd.branch_id IN ($branchSql) AND COALESCE(p.sold_at, p.timestamp) >= :start AND COALESCE(p.sold_at, p.timestamp) < :end AND (p.status = 'completado' OR (p.status = 'pendiente' AND p.paid = 1))");
+         $discountTotalStmt = $pdo->prepare("SELECT COALESCE(SUM(p.discount_total), 0) FROM `pedidos` p WHERE p.tenant_id = :tid AND p.branch_id IN ($branchSql) AND COALESCE(p.sold_at, p.timestamp) >= :start AND COALESCE(p.sold_at, p.timestamp) < :end AND (p.status = 'completado' OR (p.status = 'pendiente' AND p.paid = 1))");
          $discountTotalStmt->execute($params);
          $summary['discount_amount'] = (float)$discountTotalStmt->fetchColumn();
          $refundTotalParams = [':tid' => $authContext['tenant_id'], ':start' => $start, ':end' => $end];
