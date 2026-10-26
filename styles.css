@@ -1,0 +1,13 @@
+/* Legacy stylesheet entry point. Keep this order aligned with index.html.
+   Component styles first, shared UI rules next, responsive rules last. */
+@import url('css/_variables.css');
+@import url('css/_base.css');
+@import url('css/_sidebar.css');
+@import url('css/_layout.css');
+@import url('css/_pos.css');
+@import url('css/_floor-orders.css');
+@import url('css/_config-reports.css');
+@import url('css/_modals-tickets.css');
+@import url('css/_dashboard-extras.css');
+@import url('css/_ui-system.css');
+@import url('css/_responsive-mobile.css');

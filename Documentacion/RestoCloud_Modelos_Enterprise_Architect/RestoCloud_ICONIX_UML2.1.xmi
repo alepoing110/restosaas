@@ -1,0 +1,919 @@
+<?xml version='1.0' encoding='utf-8'?>
+<xmi:XMI xmlns:uml="http://www.eclipse.org/uml2/3.0.0/UML" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmi:version="2.1">
+  <uml:Model xmi:id="model_20ff8439706053108bc004660911a8c9" name="RestoCloud - Modelo ICONIX">
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_01 Requisitos_72debc26e6965bcdad1b3136138f5df8" name="01 Requisitos">
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-01_6f08e5dd4c935ad6a3b13035bc91f71a" name="Autenticar usuarios y controlar sesiones">
+        <ownedComment xmi:id="comment_RF-01_afb767cecd6253d182f3ca96206074e6">
+          <body>«requirement» RF-01. Trazabilidad: CU-01,CU-02</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-02_126c2656e4405d6395022cc19f270df6" name="Gestionar pedidos durante todo su ciclo de vida">
+        <ownedComment xmi:id="comment_RF-02_55175b354c3b518aabe34eb718066f4f">
+          <body>«requirement» RF-02. Trazabilidad: CU-03,CU-04,CU-05,CU-06,CU-07,CU-08</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-03_9fc195162ef252119509ff8f0964a2bf" name="Calcular totales y descuentos de venta">
+        <ownedComment xmi:id="comment_RF-03_7dcecc829d625e1bbd9557dec202dd20">
+          <body>«requirement» RF-03. Trazabilidad: CU-09</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-04_71cc4fc1f4985f14b737f6c41e108863" name="Emitir comprobantes de venta">
+        <ownedComment xmi:id="comment_RF-04_64a873b8ab0a579b8ac77344ce3f2744">
+          <body>«requirement» RF-04. Trazabilidad: CU-10</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-05_3c36bd1c57a45fc3b9a44408a4e64666" name="Administrar catálogo, productos, menús y categorías">
+        <ownedComment xmi:id="comment_RF-05_268fbe24d7bb53e884ec94447dba2e6b">
+          <body>«requirement» RF-05. Trazabilidad: CU-11,CU-12,CU-13</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-06_a58f972972a15d67b0816cbf3241e3cf" name="Controlar stock e historial de existencias">
+        <ownedComment xmi:id="comment_RF-06_399509ab1902514795a2f4eb3f116a70">
+          <body>«requirement» RF-06. Trazabilidad: CU-14,CU-15</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-07_1bb0bc75e4aa50b8bde9bd05ea0e5e26" name="Administrar mesas y reservas">
+        <ownedComment xmi:id="comment_RF-07_0bfb3c990f7055c6b0a0ba619c45f7b2">
+          <body>«requirement» RF-07. Trazabilidad: CU-16,CU-17</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-08_a87f7f9ecae35e0da96b0e2c8341496b" name="Gestionar movimientos y cierres de caja">
+        <ownedComment xmi:id="comment_RF-08_cee709b647f657fc95a51aa69b6f0de5">
+          <body>«requirement» RF-08. Trazabilidad: CU-18,CU-19</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-09_4b2aa8cd6922517dbd00375be36aca93" name="Generar reportes, indicadores y análisis financiero">
+        <ownedComment xmi:id="comment_RF-09_6bfebae97b3656c8abc04feefb5a7c45">
+          <body>«requirement» RF-09. Trazabilidad: CU-20,CU-21,CU-22,CU-23</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-10_39cbcc728f8e5765ae15424fc10f7c97" name="Importar, exportar y configurar datos del negocio">
+        <ownedComment xmi:id="comment_RF-10_498d77c1dd095b57a1d5decd07cf92ac">
+          <body>«requirement» RF-10. Trazabilidad: CU-24,CU-25,CU-26</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-11_78050168b0c55c06ac385c6b8b991314" name="Administrar usuarios, roles y permisos">
+        <ownedComment xmi:id="comment_RF-11_3acfc6932fc551a9b5b68e730eb97554">
+          <body>«requirement» RF-11. Trazabilidad: CU-27</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-12_5f55bd74480f5786b23d6aa9833ad08f" name="Registrar restaurantes mediante autoservicio">
+        <ownedComment xmi:id="comment_RF-12_5fd7516a00945f59a3b3b181541570e2">
+          <body>«requirement» RF-12. Trazabilidad: CU-28</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-13_8b089699fa04532997b8ca52eeea1875" name="Administrar tenants, sucursales, planes y suscripciones">
+        <ownedComment xmi:id="comment_RF-13_da42842fd9575f2dbf6e5d18a087b933">
+          <body>«requirement» RF-13. Trazabilidad: CU-29,CU-30,CU-31,CU-32,CU-33</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RF-14_27246ac459d557ad8fc58a577664b1b7" name="Proporcionar atención mediante chatbot y WhatsApp">
+        <ownedComment xmi:id="comment_RF-14_2aaf1ae7bbda5d6ea02ed24ed89d9023">
+          <body>«requirement» RF-14. Trazabilidad: CU-34,CU-35,CU-36</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RNF-01_e8268ef0325457d18d2d37b39d2e1e72" name="Aislar todos los datos por tenant y sucursal">
+        <ownedComment xmi:id="comment_RNF-01_d9231700432b5bc7b2c131525287c242">
+          <body>«requirement» RNF-01. Trazabilidad: Todos</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RNF-02_ee27c2ac2ee45306ae0c229ffbbd7757" name="Proteger operaciones con autenticación, permisos y CSRF">
+        <ownedComment xmi:id="comment_RNF-02_dcacf19d368658f08dd270bf0379870c">
+          <body>«requirement» RNF-02. Trazabilidad: Todos</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RNF-03_75d566009ac151c294d17e0dc32ff16d" name="Funcionar en hosting compartido PHP/MySQL sin compilación">
+        <ownedComment xmi:id="comment_RNF-03_d50c5caac8285492b428441b243a6323">
+          <body>«requirement» RNF-03. Trazabilidad: Arquitectura</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RNF-04_20a02543eae4588ba6f1e5a9bfe75b9f" name="Ofrecer disponibilidad parcial sin conexión mediante PWA">
+        <ownedComment xmi:id="comment_RNF-04_88a7b2a4b163509aad88626f4b19e648">
+          <body>«requirement» RNF-04. Trazabilidad: CU-03</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="RNF-05_8c0f351b35805aa1b071f49dd6559415" name="Mantener trazabilidad mediante auditoría">
+        <ownedComment xmi:id="comment_RNF-05_3dd1fcff9728518e831c1afcaef44863">
+          <body>«requirement» RNF-05. Trazabilidad: Operaciones mutantes</body>
+        </ownedComment>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_02 Casos de Uso_7871b4471f595838b4aef496fd62a327" name="02 Casos de Uso">
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-01_f4371131af9c5a7aa0361e71cfeef121" name="Cajero">
+        <ownedComment xmi:id="comment_ACT-01_a661af50f01c595eaffa75591a14d798">
+          <body>ACT-01. Registra pedidos, cobra ventas y consulta información operativa.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-02_01894d2d63ce53bb89feb91e278d35cd" name="Administrador">
+        <ownedComment xmi:id="comment_ACT-02_469f79d210935bf29213c33b92c3443c">
+          <body>ACT-02. Configura la sucursal, inventario, mesas, reservas, caja y usuarios.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-03_3e903e29e60b52ddbc5131308e5d3912" name="Propietario">
+        <ownedComment xmi:id="comment_ACT-03_92aeac7dba42513b81fa52f98a6d7bd9">
+          <body>ACT-03. Administra el negocio y consulta reportes financieros.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-04_d73eb81c0305596f9af61ed5f1825dba" name="Superadministrador SaaS">
+        <ownedComment xmi:id="comment_ACT-04_620c5c7df24b56799b8d25381043db8d">
+          <body>ACT-04. Gestiona tenants, sucursales, planes, suscripciones y pagos.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-05_8cfd4d89608e530e858013cb53326cd5" name="Cliente">
+        <ownedComment xmi:id="comment_ACT-05_4de36936819e5239b14111692f9a66b7">
+          <body>ACT-05. Solicita productos, reservas y atención.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-06_a882b83a53cc5dc5a96edd50382e56c4" name="Servicio WhatsApp">
+        <ownedComment xmi:id="comment_ACT-06_fc30ce0825845a8f859bf813f6a61c41">
+          <body>ACT-06. Canal externo para mensajes del cliente.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Actor" xmi:id="ACT-07_a3d8d6bf393a5a5cb0a4190386b4ff27" name="Proveedor LLM">
+        <ownedComment xmi:id="comment_ACT-07_c60edea1a50850bba2a40d7de384a93e">
+          <body>ACT-07. Procesa lenguaje natural para el chatbot.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-01_08796c6fc94256fba9c5b82e0a2dbe77" name="Iniciar sesión">
+        <ownedComment xmi:id="comment_CU-01_a3292affc79250ee8fcd4775029aec1f">
+          <body>CU-01. Módulo: Autenticación. Actores: ACT-01,ACT-02,ACT-03,ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-01_830ef6df76ce5f2da919f8900348c922" name="ACT-01-CU-01" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-01_08796c6fc94256fba9c5b82e0a2dbe77" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-01_ead9829baf215c8fbf6b98d6b5fcb8de" name="ACT-02-CU-01" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-01_08796c6fc94256fba9c5b82e0a2dbe77" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-01_2f50a13a560e54de821cc040c4a4c4fe" name="ACT-03-CU-01" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-01_08796c6fc94256fba9c5b82e0a2dbe77" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-01_4af8b3704c0951c5b2cf73c6c0b3c257" name="ACT-04-CU-01" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-01_08796c6fc94256fba9c5b82e0a2dbe77" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-02_05e8bf37a61f587382791c74df77bc2b" name="Cambiar de sucursal">
+        <ownedComment xmi:id="comment_CU-02_b3b76fa89dfc5fb6bcf9e9de6fcab1bb">
+          <body>CU-02. Módulo: Autenticación. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-02_51afb481727d5de5a50e99dce5e167eb" name="ACT-02-CU-02" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-02_05e8bf37a61f587382791c74df77bc2b" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-02_0ef51360950155a4a514773ae7ba7924" name="ACT-03-CU-02" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-02_05e8bf37a61f587382791c74df77bc2b" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-03_c986c4a61f9650ca9cee53063df25327" name="Registrar pedido">
+        <ownedComment xmi:id="comment_CU-03_1b487dd3dc0b55dcb69f3e78616cf9a7">
+          <body>CU-03. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-03_f75cdd1d1b2e57e69f5837f7f9c3f342" name="ACT-01-CU-03" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-03_c986c4a61f9650ca9cee53063df25327" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-04_2eca05df7e645c11a7cc58ea943ad918" name="Agregar productos al pedido">
+        <ownedComment xmi:id="comment_CU-04_281efb701281582b85cf85f3d7c80d02">
+          <body>CU-04. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-04_50ec8cd3b88b5fb6b2978977b67961e6" name="ACT-01-CU-04" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-04_2eca05df7e645c11a7cc58ea943ad918" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-05_fecfa2273916526da15ddf9fa337595b" name="Cambiar estado del pedido">
+        <ownedComment xmi:id="comment_CU-05_ed9fdd272fb95df4980779c430fcb674">
+          <body>CU-05. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-05_ebf769708a1c52d38897316200ff776f" name="ACT-01-CU-05" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-05_fecfa2273916526da15ddf9fa337595b" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-06_ffa97555c2045cfd962872cfdcf319f6" name="Cobrar pedido">
+        <ownedComment xmi:id="comment_CU-06_6548e4e3b04d53e39bd9c2654b964214">
+          <body>CU-06. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-06_185c2230d3bc5ddbbbbd4e5b6b38a8b3" name="ACT-01-CU-06" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-06_ffa97555c2045cfd962872cfdcf319f6" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-07_0b174e942d5d5d09915a8ecb44f75c73" name="Cancelar pedido">
+        <ownedComment xmi:id="comment_CU-07_97e0cb63cdb15e48b38d9f9ecb76cfc0">
+          <body>CU-07. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-07_52b26c6cc10b5940b81ad8e921b7595c" name="ACT-01-CU-07" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-07_0b174e942d5d5d09915a8ecb44f75c73" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-08_23d4d499e8c4539d8d9ba7b56cf1454d" name="Anular venta">
+        <ownedComment xmi:id="comment_CU-08_6e5e709e77b05a0c8f1b198672089174">
+          <body>CU-08. Módulo: POS y pedidos. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-08_ea7e079bc40c561584aa565d509914cc" name="ACT-02-CU-08" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-08_23d4d499e8c4539d8d9ba7b56cf1454d" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-08_4808410f2f7c5ac5bdf9651188bfa907" name="ACT-03-CU-08" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-08_23d4d499e8c4539d8d9ba7b56cf1454d" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-09_cb830ec808ff524693d227e71706b418" name="Aplicar descuento">
+        <ownedComment xmi:id="comment_CU-09_2dd8ea3974135329a11241bcd6dd099b">
+          <body>CU-09. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-09_d1bb5b1c7f09512bb645f95b3042fdc0" name="ACT-01-CU-09" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-09_cb830ec808ff524693d227e71706b418" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-10_46ce196e916050eface40d3ee8db9b4d" name="Imprimir comprobante">
+        <ownedComment xmi:id="comment_CU-10_72ff409f20ad5ae78cd1d5b87359ce03">
+          <body>CU-10. Módulo: POS y pedidos. Actores: ACT-01.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-10_389c1cdf955555318c030abe2dc9c7b1" name="ACT-01-CU-10" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-10_46ce196e916050eface40d3ee8db9b4d" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-11_a191fe3394205c63a78a453941916d23" name="Gestionar productos">
+        <ownedComment xmi:id="comment_CU-11_d954cbfaeb7d5e5d89a4237395609285">
+          <body>CU-11. Módulo: Inventario. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-11_24319d1448d95d76946311cafac40806" name="ACT-02-CU-11" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-11_a191fe3394205c63a78a453941916d23" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-11_ff8d4670744d51b399547fd95b4736dc" name="ACT-03-CU-11" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-11_a191fe3394205c63a78a453941916d23" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-12_cf304825692259b2997af81382cb486c" name="Gestionar menús">
+        <ownedComment xmi:id="comment_CU-12_7bb8957008aa54808ad110920c6bab79">
+          <body>CU-12. Módulo: Inventario. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-12_e591ab0dce215e8a93044d803a2d1bef" name="ACT-02-CU-12" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-12_cf304825692259b2997af81382cb486c" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-12_aee0de00b44a56198456a9d835c57a69" name="ACT-03-CU-12" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-12_cf304825692259b2997af81382cb486c" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-13_f82093ebc9465feb8a860b8b1cf24272" name="Gestionar categorías">
+        <ownedComment xmi:id="comment_CU-13_c6ea7571df7557ee8c10695201db03b5">
+          <body>CU-13. Módulo: Inventario. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-13_b4ad3b8a856058ad89c5b5be38ba3f98" name="ACT-02-CU-13" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-13_f82093ebc9465feb8a860b8b1cf24272" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-13_6c5a435f4f2a54e8aeaa6552477c607e" name="ACT-03-CU-13" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-13_f82093ebc9465feb8a860b8b1cf24272" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-14_19c212f91dc55d1e9652b13d6a9e98d7" name="Controlar existencias">
+        <ownedComment xmi:id="comment_CU-14_d5f59781ab9e5f16b733ef955a066e78">
+          <body>CU-14. Módulo: Inventario. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-14_aa99f2fb2ef75523bafda78eea09b248" name="ACT-02-CU-14" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-14_19c212f91dc55d1e9652b13d6a9e98d7" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-14_1bd2a91b63d05fa5a52b4134292c8800" name="ACT-03-CU-14" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-14_19c212f91dc55d1e9652b13d6a9e98d7" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-15_c0564dc7f87e5ac9979a6fed30c9fcca" name="Consultar historial de stock">
+        <ownedComment xmi:id="comment_CU-15_7c008c73b1d2520c81cfa6f94053ff87">
+          <body>CU-15. Módulo: Inventario. Actores: ACT-01,ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-15_f8bcefb70d7858bbb8942b4cb6e8f73a" name="ACT-01-CU-15" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-15_c0564dc7f87e5ac9979a6fed30c9fcca" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-15_849299f1b1fe54e0946928f094eb3288" name="ACT-02-CU-15" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-15_c0564dc7f87e5ac9979a6fed30c9fcca" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-15_6cce0ed5a2795ef8aaf5fe488ddaf1b5" name="ACT-03-CU-15" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-15_c0564dc7f87e5ac9979a6fed30c9fcca" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-16_e9decf5ffb1a5b2aa5dd09081c6b2421" name="Gestionar mesas">
+        <ownedComment xmi:id="comment_CU-16_435ab4426da256a081a28a362a18b416">
+          <body>CU-16. Módulo: Operación. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-16_738c0fcb13115c86bc2ba85533b4ca89" name="ACT-02-CU-16" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-16_e9decf5ffb1a5b2aa5dd09081c6b2421" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-16_d0bd13c31b4754409722148ec4c40c9d" name="ACT-03-CU-16" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-16_e9decf5ffb1a5b2aa5dd09081c6b2421" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-17_add3f0b5e0b459f9912db445781f59a9" name="Gestionar reservas">
+        <ownedComment xmi:id="comment_CU-17_aa8c1cec938a5b1ba08b3946747d0d3b">
+          <body>CU-17. Módulo: Operación. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-17_d9744011531451ff8f901a4bcf1c6222" name="ACT-02-CU-17" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-17_add3f0b5e0b459f9912db445781f59a9" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-17_e85eba872b495dfdb986c367852a788b" name="ACT-03-CU-17" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-17_add3f0b5e0b459f9912db445781f59a9" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-18_183812dcf3645cad8e41455ccd574cbd" name="Registrar movimiento de caja">
+        <ownedComment xmi:id="comment_CU-18_698ae14194165c17b9e59e188e51c52b">
+          <body>CU-18. Módulo: Caja. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-18_9a60868bdaca5bf49b1621ff10a07872" name="ACT-02-CU-18" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-18_183812dcf3645cad8e41455ccd574cbd" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-18_9c75564b85405dbfb75aa9d2b79d7a98" name="ACT-03-CU-18" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-18_183812dcf3645cad8e41455ccd574cbd" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-19_f8f01ffcc1045402b8e6eb8ed92e204b" name="Realizar cierre de caja">
+        <ownedComment xmi:id="comment_CU-19_61a1e22a98645db895c5f70c29c3b0a3">
+          <body>CU-19. Módulo: Caja. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-19_6651ef040801544db8b7edd874e0fca9" name="ACT-02-CU-19" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-19_f8f01ffcc1045402b8e6eb8ed92e204b" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-19_03643fc58fee57278163f16533de6df9" name="ACT-03-CU-19" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-19_f8f01ffcc1045402b8e6eb8ed92e204b" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-20_68d0f0f584fb564fbc13b91f8f8b53b6" name="Consultar reportes">
+        <ownedComment xmi:id="comment_CU-20_85f4cff00e2850fdb7ad82b364bf8e87">
+          <body>CU-20. Módulo: Reportes. Actores: ACT-01,ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-20_648011428899528aa2244bf2b15d0d2d" name="ACT-01-CU-20" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-20_68d0f0f584fb564fbc13b91f8f8b53b6" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-20_1c4885b75aec5b81a2911fa7e42f97bb" name="ACT-02-CU-20" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-20_68d0f0f584fb564fbc13b91f8f8b53b6" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-20_ce640f1aa463565c865ec935724a46b0" name="ACT-03-CU-20" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-20_68d0f0f584fb564fbc13b91f8f8b53b6" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-21_10470d31b3fd58e3884e08a31f4a44ee" name="Consultar dashboard">
+        <ownedComment xmi:id="comment_CU-21_9eca276072ca55c1a7b282f65c65ba7e">
+          <body>CU-21. Módulo: Reportes. Actores: ACT-01,ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-01_CU-21_f141f5afd69a547ba101daebc3fad3b4" name="ACT-01-CU-21" memberEnd="ACT-01_f4371131af9c5a7aa0361e71cfeef121 CU-21_10470d31b3fd58e3884e08a31f4a44ee" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-21_ed22d4bcd7105d5890d0181ab812c544" name="ACT-02-CU-21" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-21_10470d31b3fd58e3884e08a31f4a44ee" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-21_3dee986ffc755fbd860b385c844bcb56" name="ACT-03-CU-21" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-21_10470d31b3fd58e3884e08a31f4a44ee" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-22_4592b921b1b5527cb2bf28f8dabb9530" name="Consultar información financiera">
+        <ownedComment xmi:id="comment_CU-22_6b63b9bf532f5912982dadba1abf3e9c">
+          <body>CU-22. Módulo: Finanzas. Actores: ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-22_8f4f90cd033b58a38e5637cd1876718c" name="ACT-03-CU-22" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-22_4592b921b1b5527cb2bf28f8dabb9530" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-23_c4eb6fedcd47541badeb3b5edddc00cd" name="Registrar gasto financiero">
+        <ownedComment xmi:id="comment_CU-23_00f74b224c635e70a7c91873da33684c">
+          <body>CU-23. Módulo: Finanzas. Actores: ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-23_cbde81f36d945e638791f55eca1a6177" name="ACT-03-CU-23" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-23_c4eb6fedcd47541badeb3b5edddc00cd" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-24_8c2ea6a5ee72575db4d4b1e5f53b3b17" name="Exportar datos del negocio">
+        <ownedComment xmi:id="comment_CU-24_8830b39206005dd6a53de8f8cf928e5a">
+          <body>CU-24. Módulo: Administración. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-24_8ab782a9928a59fe918a8e9f15d2e9d8" name="ACT-02-CU-24" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-24_8c2ea6a5ee72575db4d4b1e5f53b3b17" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-24_3eee27183156501c9e3f69d2be3148a0" name="ACT-03-CU-24" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-24_8c2ea6a5ee72575db4d4b1e5f53b3b17" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-25_ecdcedc9cfc45c07bd2df2976937f025" name="Importar datos del negocio">
+        <ownedComment xmi:id="comment_CU-25_77eddf98fd3a5a498ba833cd91e367db">
+          <body>CU-25. Módulo: Administración. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-25_09eb83f510f854958f5f1902ed57f85a" name="ACT-02-CU-25" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-25_ecdcedc9cfc45c07bd2df2976937f025" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-25_a8ca82e78548508796cfedcc05423408" name="ACT-03-CU-25" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-25_ecdcedc9cfc45c07bd2df2976937f025" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-26_8c2b1a880be051b3bf43d77e426923e1" name="Configurar restaurante">
+        <ownedComment xmi:id="comment_CU-26_3e381d12633057e8903cec0dc1dbd7e3">
+          <body>CU-26. Módulo: Administración. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-26_824386ee2cd95bb591a01537cfe2114a" name="ACT-02-CU-26" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-26_8c2b1a880be051b3bf43d77e426923e1" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-26_46d8c265b3f25d11a8977ae7f1060fc6" name="ACT-03-CU-26" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-26_8c2b1a880be051b3bf43d77e426923e1" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-27_a94642c40e3f578f8f0c528d314e663e" name="Administrar usuarios">
+        <ownedComment xmi:id="comment_CU-27_e902c38b49d5531eade4761745049524">
+          <body>CU-27. Módulo: Administración. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-27_c8e483595b8c50418e960359e6cf5a12" name="ACT-02-CU-27" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-27_a94642c40e3f578f8f0c528d314e663e" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-27_d763f42f467758b18422749b826fcab2" name="ACT-03-CU-27" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-27_a94642c40e3f578f8f0c528d314e663e" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-28_1301db25e9a151169a089a1e016312a7" name="Registrar restaurante">
+        <ownedComment xmi:id="comment_CU-28_5c411b3948285a748e74eb38cf589fda">
+          <body>CU-28. Módulo: SaaS. Actores: ACT-05.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-05_CU-28_9c555c226ef65ef092f349358fafff3c" name="ACT-05-CU-28" memberEnd="ACT-05_8cfd4d89608e530e858013cb53326cd5 CU-28_1301db25e9a151169a089a1e016312a7" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-29_02438b60ec9d5c7787fad8bad4e325e9" name="Gestionar empresas tenant">
+        <ownedComment xmi:id="comment_CU-29_e97599f64b945fbb88e4966b0662318b">
+          <body>CU-29. Módulo: SaaS. Actores: ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-29_a5c7fe534a025c2b9749defe18c23363" name="ACT-04-CU-29" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-29_02438b60ec9d5c7787fad8bad4e325e9" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-30_04ba5aae98ff5e22a73306af8ba5e1d4" name="Gestionar sucursales">
+        <ownedComment xmi:id="comment_CU-30_b4bb3c03ed575827bc84ac6327117f1a">
+          <body>CU-30. Módulo: SaaS. Actores: ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-30_04863c0096d85ffb87768571b831a70d" name="ACT-04-CU-30" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-30_04ba5aae98ff5e22a73306af8ba5e1d4" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-31_de321a49af95583eb62f691c6ec1993d" name="Gestionar planes">
+        <ownedComment xmi:id="comment_CU-31_ad77d40c5b8d5dd492eb087f590196b5">
+          <body>CU-31. Módulo: SaaS. Actores: ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-31_537336c7a7f05eb3a4f580fb3aaf7c67" name="ACT-04-CU-31" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-31_de321a49af95583eb62f691c6ec1993d" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-32_e24ee51339c05464ac119ed478b8a1b7" name="Gestionar suscripciones">
+        <ownedComment xmi:id="comment_CU-32_4f75a369650e53bbbabed915c3e0f623">
+          <body>CU-32. Módulo: SaaS. Actores: ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-32_92db34b9f28750b48d89303a988f9707" name="ACT-04-CU-32" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-32_e24ee51339c05464ac119ed478b8a1b7" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-33_74bdb54e0f5c566b94addcb9b9e975cc" name="Aprobar o rechazar pagos">
+        <ownedComment xmi:id="comment_CU-33_5d207292efe25fa5a25264a45b15943e">
+          <body>CU-33. Módulo: SaaS. Actores: ACT-04.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-04_CU-33_96b92c98420a58da9c2586a5eda46829" name="ACT-04-CU-33" memberEnd="ACT-04_d73eb81c0305596f9af61ed5f1825dba CU-33_74bdb54e0f5c566b94addcb9b9e975cc" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-34_28069f20b9225d1b943e171186cc6026" name="Atender consulta por WhatsApp">
+        <ownedComment xmi:id="comment_CU-34_2e2b88c7fdb45736ad96347deb50ffa4">
+          <body>CU-34. Módulo: Chatbot. Actores: ACT-05,ACT-06,ACT-07.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-05_CU-34_8b094d01f2645fd18d264ab3e0f21f39" name="ACT-05-CU-34" memberEnd="ACT-05_8cfd4d89608e530e858013cb53326cd5 CU-34_28069f20b9225d1b943e171186cc6026" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-06_CU-34_d92392aa9de35563b5808e64c157ee1d" name="ACT-06-CU-34" memberEnd="ACT-06_a882b83a53cc5dc5a96edd50382e56c4 CU-34_28069f20b9225d1b943e171186cc6026" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-07_CU-34_48bf388e3d735a7e9936bbbe9cbf4e97" name="ACT-07-CU-34" memberEnd="ACT-07_a3d8d6bf393a5a5cb0a4190386b4ff27 CU-34_28069f20b9225d1b943e171186cc6026" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-35_7ede4fcb174451c28e7a8041c07c169a" name="Consultar conversaciones del chatbot">
+        <ownedComment xmi:id="comment_CU-35_175c33819283503baabb7c1ca9b5fc8e">
+          <body>CU-35. Módulo: Chatbot. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-35_f8e553652a7b5055b4b1d42e14811529" name="ACT-02-CU-35" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-35_7ede4fcb174451c28e7a8041c07c169a" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-35_f6526c02ca8750828573678057766dd7" name="ACT-03-CU-35" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-35_7ede4fcb174451c28e7a8041c07c169a" />
+      <packagedElement xmi:type="uml:UseCase" xmi:id="CU-36_5fef8aba86745ddcb96b05a3b5ec7718" name="Cerrar conversación del chatbot">
+        <ownedComment xmi:id="comment_CU-36_86d58f7afdb95e11a10bb81f992b9fdc">
+          <body>CU-36. Módulo: Chatbot. Actores: ACT-02,ACT-03.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-02_CU-36_60471949a85b52d9b586caddccd924e0" name="ACT-02-CU-36" memberEnd="ACT-02_01894d2d63ce53bb89feb91e278d35cd CU-36_5fef8aba86745ddcb96b05a3b5ec7718" />
+      <packagedElement xmi:type="uml:Association" xmi:id="assoc_ACT-03_CU-36_57459ede313f5f68b7d46988b5961f24" name="ACT-03-CU-36" memberEnd="ACT-03_3e903e29e60b52ddbc5131308e5d3912 CU-36_5fef8aba86745ddcb96b05a3b5ec7718" />
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_03 Modelo de Dominio_3e434214fbfa5cb29e7ddd81c6dbc0fb" name="03 Modelo de Dominio">
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Tenant_1b53a8bea0415171bd95ed95ae6b18cc" name="Tenant">
+        <ownedAttribute xmi:id="attr_Tenant_0_422ea03d6d69563fb51671d9ea94a4ad" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Tenant_1_1d726395dd4f5538b99c03d460ef8613" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Tenant_2_aa3dde3cfe965a559c786adeefbec606" name="slug: String" />
+        <ownedAttribute xmi:id="attr_Tenant_3_dc5d19ca7cd05e3387a7bcbdb21d2880" name="activo: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Sucursal_a2aa914efdd9553a9996abb870483241" name="Sucursal">
+        <ownedAttribute xmi:id="attr_Sucursal_0_5c4a0015693c51fd8aedbe979342fde3" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Sucursal_1_4ed32e2c4a0e5dd99b85d202ec545ad0" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Sucursal_2_64b951d16ec55c78824f459cb64b6cee" name="activa: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Usuario_11a389d3f9375aac8732dfad9c1c8647" name="Usuario">
+        <ownedAttribute xmi:id="attr_Usuario_0_96cf80a9a5745e32b5b619a635e0e126" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Usuario_1_791b80e3f55555269f92283078dbee57" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Usuario_2_741d597d4e3b5313ab44ce248ba0f6f0" name="email: String" />
+        <ownedAttribute xmi:id="attr_Usuario_3_db405ef07f2c52eeb2806d5e37a3bf7f" name="rol: Rol" />
+        <ownedAttribute xmi:id="attr_Usuario_4_9f22e0b6df925a369a6cffe9daaccf92" name="activo: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Rol_a5c77308f461504aad75e38d3dd5d1dd" name="Rol">
+        <ownedAttribute xmi:id="attr_Rol_0_697c6e6d3f89523a99b6f684986605bd" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Rol_1_d95bd9e9e2dc500495ec661d2f97dc91" name="permisos: Permission[*]" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Plan_92bac5520ee75e619aaa6d524fc3922d" name="Plan">
+        <ownedAttribute xmi:id="attr_Plan_0_ae8a36e2865157cea4d45d0dc24d9ba0" name="codigo: String" />
+        <ownedAttribute xmi:id="attr_Plan_1_9d5cb0d5498b5a06910b89f3237d2c66" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Plan_2_b5b727d42fc55dd7b7f8abc5ed51e08d" name="precio: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Suscripcion_15b5914ac4c755f88380fe9187ef4217" name="Suscripcion">
+        <ownedAttribute xmi:id="attr_Suscripcion_0_5e223cea9ae758e188a931319c20b4f9" name="estado: EstadoSuscripcion" />
+        <ownedAttribute xmi:id="attr_Suscripcion_1_4a4275ddb3ab50828aebb8975b218032" name="inicio: Date" />
+        <ownedAttribute xmi:id="attr_Suscripcion_2_10e7cf3e368f5bce91fb00b27694cd9b" name="fin: Date" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Cliente_341b3f7731795e69823d6aee06239080" name="Cliente">
+        <ownedAttribute xmi:id="attr_Cliente_0_ae866f843e30539c81a326a724c3bdea" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Cliente_1_8a05856404495572bfa8e28930185aea" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Cliente_2_48c9e05f19fe5fe088f1cefbf7e9e71c" name="telefono: String" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Mesa_f2c5cd03cd8a5cada898f77230bca856" name="Mesa">
+        <ownedAttribute xmi:id="attr_Mesa_0_9a3e027debee57169f38df2de5eb2690" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Mesa_1_3ac0ec3afc215970a2b37805144f7977" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Mesa_2_e9245db7338a51fe9a38590ad76487ef" name="posicion: String" />
+        <ownedAttribute xmi:id="attr_Mesa_3_a70bbdbe0aa9515a83e9c8b24076b0c1" name="activa: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Reserva_cae949481a545f5799383cbf0d031cf7" name="Reserva">
+        <ownedAttribute xmi:id="attr_Reserva_0_85078331b2cc5acd90d29914806c7658" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Reserva_1_9f27ace25e075c22be775c5cd33a850c" name="fechaHora: DateTime" />
+        <ownedAttribute xmi:id="attr_Reserva_2_748469f8e5d456c4ae46976d128ab513" name="personas: Integer" />
+        <ownedAttribute xmi:id="attr_Reserva_3_c2c38c3673305d05869c92c34b25552b" name="estado: EstadoReserva" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" name="Pedido">
+        <ownedAttribute xmi:id="attr_Pedido_0_d0222412a7ad5f60a9ce00bbbd9978e0" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Pedido_1_1ef9b4431d6f51c7bbf6bb50da8384ee" name="fechaHora: DateTime" />
+        <ownedAttribute xmi:id="attr_Pedido_2_702ab1c8c9b15ea19577f66871b7af6d" name="estado: EstadoPedido" />
+        <ownedAttribute xmi:id="attr_Pedido_3_c0ff6223b557573c9978a68cb7ccc46b" name="total: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_DetallePedido_f2cce34d4c4a5f498ae9325f1093d123" name="DetallePedido">
+        <ownedAttribute xmi:id="attr_DetallePedido_0_86bce09f25575d3b985c2923a3f88b6c" name="cantidad: Decimal" />
+        <ownedAttribute xmi:id="attr_DetallePedido_1_c196e045328c5bfa98fddddcfd7fd62d" name="precioUnitario: Decimal" />
+        <ownedAttribute xmi:id="attr_DetallePedido_2_ca815e9847a25174bdfb23bc255bd6e6" name="subtotal: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Producto_a5d5befd33d2522d86a9a905974b2a66" name="Producto">
+        <ownedAttribute xmi:id="attr_Producto_0_e6a483a74460508aac604bcef471971d" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Producto_1_ac1f5af2231151a9bece413c11e6dfe9" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Producto_2_47f120731cd05e3bae6a1ea2a9b25a86" name="tipo: String" />
+        <ownedAttribute xmi:id="attr_Producto_3_f1937cfdc65a533ba79a2813aec51bf9" name="precio: Decimal" />
+        <ownedAttribute xmi:id="attr_Producto_4_3c5a5e4d58415fc69d7bc3d0fccd9a18" name="stock: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Categoria_a2e81f56c9d65bafbd5ea6badbf1f6b0" name="Categoria">
+        <ownedAttribute xmi:id="attr_Categoria_0_20102b783e6452dc8b0a7cfb1b20426a" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Categoria_1_4e237ae242235c998745eb504ef65b6e" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Categoria_2_94d9323f03cb5012b5a360be2c4105b6" name="orden: Integer" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Menu_67eedd74f5fa5a4eb37ad456a5ba7ae9" name="Menu">
+        <ownedAttribute xmi:id="attr_Menu_0_3c5737bb185f59c9863c9193057a49f2" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Menu_1_41f23913c04b5bdeb6e8892e892bfff2" name="nombre: String" />
+        <ownedAttribute xmi:id="attr_Menu_2_11516db9547d53068c08658cf8a727fa" name="activo: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Descuento_f52dd0ec8cee54afb79b1268f1e65c87" name="Descuento">
+        <ownedAttribute xmi:id="attr_Descuento_0_73da14b14c5f54a3a7b1c86a3d569fe5" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Descuento_1_d5f76d93dd715b0ca7ba8932f9207e75" name="tipo: String" />
+        <ownedAttribute xmi:id="attr_Descuento_2_900038e47545525c92f5a16729a1b03d" name="valor: Decimal" />
+        <ownedAttribute xmi:id="attr_Descuento_3_4095671552085c039b8a44c3542b10ad" name="activo: Boolean" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Pago_1ce9f12d92f154088973b5ee8d6910bd" name="Pago">
+        <ownedAttribute xmi:id="attr_Pago_0_8f5a571009a55a95aa0b5cc019a339f2" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Pago_1_db38e0735df55e62952caa67007df868" name="metodo: String" />
+        <ownedAttribute xmi:id="attr_Pago_2_b3a759f6a75a5d1ab9e939f5aad5a3b3" name="monto: Decimal" />
+        <ownedAttribute xmi:id="attr_Pago_3_28b05ea8ab96560399be5b566495c3db" name="fechaHora: DateTime" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_MovimientoCaja_81ed1fc939135d51bf8f425abb8246d7" name="MovimientoCaja">
+        <ownedAttribute xmi:id="attr_MovimientoCaja_0_52372d40518f5e21a73039971a55a9d3" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_MovimientoCaja_1_3805e1708db252068af14bbeb326125b" name="tipo: String" />
+        <ownedAttribute xmi:id="attr_MovimientoCaja_2_8acb7152582b59b1874cba767f4ea856" name="descripcion: String" />
+        <ownedAttribute xmi:id="attr_MovimientoCaja_3_f52f18e0e9785684a869105c423f259f" name="monto: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_CierreCaja_f9a570c51a645967819278d288f1dc0b" name="CierreCaja">
+        <ownedAttribute xmi:id="attr_CierreCaja_0_a8fc2689c1dd543293a595cbb9161eb0" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_CierreCaja_1_933880034e6a51f7aeaf789b5ed9cfcd" name="fecha: Date" />
+        <ownedAttribute xmi:id="attr_CierreCaja_2_2fff4d5c0b4c5a2f9f37733ad66a30a7" name="efectivoEsperado: Decimal" />
+        <ownedAttribute xmi:id="attr_CierreCaja_3_59a9396ffaf0569180f448a821ea84dc" name="efectivoReal: Decimal" />
+        <ownedAttribute xmi:id="attr_CierreCaja_4_a9a69bf27ac65e1381716e6fd88046cd" name="diferencia: Decimal" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_HistorialStock_588f948d73815a1dae4a176860440c09" name="HistorialStock">
+        <ownedAttribute xmi:id="attr_HistorialStock_0_196377f94534529699e8e0c4481dea65" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_HistorialStock_1_7dfeabe13a185508af4878d3625ab5c1" name="cantidadAnterior: Decimal" />
+        <ownedAttribute xmi:id="attr_HistorialStock_2_f46c54c2900553ce8016e0d1f36f2e40" name="cantidadNueva: Decimal" />
+        <ownedAttribute xmi:id="attr_HistorialStock_3_fd9eda4bd89c51a19ad5c2d6b599d57e" name="fechaHora: DateTime" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_GastoFinanciero_89a8f5ca7aaf59a0ba45dab4138a10d9" name="GastoFinanciero">
+        <ownedAttribute xmi:id="attr_GastoFinanciero_0_f743d72ec3ab5140ba1013053e47b204" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_GastoFinanciero_1_2ebbffc540515a7d96ca40388d95b913" name="concepto: String" />
+        <ownedAttribute xmi:id="attr_GastoFinanciero_2_82ed2f66aa15576bb9248296c404551d" name="monto: Decimal" />
+        <ownedAttribute xmi:id="attr_GastoFinanciero_3_e3a1a06abecb50239cb08913d2b92689" name="fecha: Date" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Conversacion_1a8994919aad5b63851dd536c9f51a6d" name="Conversacion">
+        <ownedAttribute xmi:id="attr_Conversacion_0_6f3f7d3fe9805e89b605701fb27ca1fb" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Conversacion_1_5c624ba41c18504493ac5731c1c5bd80" name="canal: String" />
+        <ownedAttribute xmi:id="attr_Conversacion_2_2c6b6fd4e33d502fb1641001d6e95693" name="estado: String" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_Mensaje_8be69d0149a2592e9f095882defcdd5f" name="Mensaje">
+        <ownedAttribute xmi:id="attr_Mensaje_0_0c6848e57dbf55b0a2acb1f49469cc60" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_Mensaje_1_0bc4eb192ffa585dac39b0dda0a6e09c" name="direccion: String" />
+        <ownedAttribute xmi:id="attr_Mensaje_2_5d86cbc5529c552c85636f067d142066" name="contenido: Text" />
+        <ownedAttribute xmi:id="attr_Mensaje_3_b26d993819915b2a83cfbc96c4d16bbd" name="fechaHora: DateTime" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="dom_RegistroAuditoria_b0067e1230e95063a3abec7b0d1297b0" name="RegistroAuditoria">
+        <ownedAttribute xmi:id="attr_RegistroAuditoria_0_4092a41be63d55dfb749af1102961485" name="id: UUID" />
+        <ownedAttribute xmi:id="attr_RegistroAuditoria_1_72d7b8291a725e01b2391036b6b51811" name="accion: String" />
+        <ownedAttribute xmi:id="attr_RegistroAuditoria_2_05081b3a2f0b599e806dda63c7ab6b70" name="entidad: String" />
+        <ownedAttribute xmi:id="attr_RegistroAuditoria_3_65ee21ae71a7542193fd92ce6ff3fc57" name="fechaHora: DateTime" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Tenant_Sucursal_95e7402c7ddb57d590d4c3815f675527" name="Tenant-Sucursal">
+        <ownedEnd xmi:id="end_Tenant_Sucursal_a_a8e61bb4e1dd536a8cd910f653d18bda" name="tenant" type="dom_Tenant_1b53a8bea0415171bd95ed95ae6b18cc" association="dom_assoc_Tenant_Sucursal_95e7402c7ddb57d590d4c3815f675527">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Sucursal_a_9bbcac5d6fe35d58a4a5f13368603c86" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Tenant_Sucursal_b_33038d1983ba5cf7833a8dcd01a34e9e" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Tenant_Sucursal_95e7402c7ddb57d590d4c3815f675527">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Sucursal_b_53d53a7d76245f538156c5353813d0b7" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Tenant_Usuario_094899b3ca6c5f3aa42e07ecac2f2845" name="Tenant-Usuario">
+        <ownedEnd xmi:id="end_Tenant_Usuario_a_e209416091d5504d8084d419a6b00166" name="tenant" type="dom_Tenant_1b53a8bea0415171bd95ed95ae6b18cc" association="dom_assoc_Tenant_Usuario_094899b3ca6c5f3aa42e07ecac2f2845">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Usuario_a_b2e8c3a590a6524faf3fe8149c135846" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Tenant_Usuario_b_421e5046976a5183a41b31ca81e02fde" name="usuario" type="dom_Usuario_11a389d3f9375aac8732dfad9c1c8647" association="dom_assoc_Tenant_Usuario_094899b3ca6c5f3aa42e07ecac2f2845">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Usuario_b_5813853e3a2f5f819890cc963d7d0a5c" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Tenant_Suscripcion_0a5ba7fa673b5fb7ae62650a7f30ad88" name="Tenant-Suscripcion">
+        <ownedEnd xmi:id="end_Tenant_Suscripcion_a_3bdc450e05c35edb9baea910b51f0b6d" name="tenant" type="dom_Tenant_1b53a8bea0415171bd95ed95ae6b18cc" association="dom_assoc_Tenant_Suscripcion_0a5ba7fa673b5fb7ae62650a7f30ad88">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Suscripcion_a_d155cd463e99519282759f881021aa25" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Tenant_Suscripcion_b_6ee1049c5469554aab08c93d9d5f0aaf" name="suscripcion" type="dom_Suscripcion_15b5914ac4c755f88380fe9187ef4217" association="dom_assoc_Tenant_Suscripcion_0a5ba7fa673b5fb7ae62650a7f30ad88">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Tenant_Suscripcion_b_f02ea48ab561533db22612a8832dfda7" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Plan_Suscripcion_54bf7a0f92765425aadc84b6ea5e5239" name="Plan-Suscripcion">
+        <ownedEnd xmi:id="end_Plan_Suscripcion_a_03949627d33d543c8760fb0f4d2f2c0c" name="plan" type="dom_Plan_92bac5520ee75e619aaa6d524fc3922d" association="dom_assoc_Plan_Suscripcion_54bf7a0f92765425aadc84b6ea5e5239">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Plan_Suscripcion_a_885398de31d8508d90d90d0e1a947fbd" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Plan_Suscripcion_b_6cc73ddf3d31536094e504ebb6c611cd" name="suscripcion" type="dom_Suscripcion_15b5914ac4c755f88380fe9187ef4217" association="dom_assoc_Plan_Suscripcion_54bf7a0f92765425aadc84b6ea5e5239">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Plan_Suscripcion_b_4bd3f97439ce53e4983783c659d6a440" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Sucursal_Usuario_5b1d3d7d46655f1886337ed2aebaa8a9" name="Sucursal-Usuario">
+        <ownedEnd xmi:id="end_Sucursal_Usuario_a_665b6cfca6365690ba7513d54bc94e05" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Sucursal_Usuario_5b1d3d7d46655f1886337ed2aebaa8a9">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Usuario_a_c75265d7b21d5d878622624c9abda0d0" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Sucursal_Usuario_b_cdbbdcf7d0b05acdb02bc56e1a0eb66d" name="usuario" type="dom_Usuario_11a389d3f9375aac8732dfad9c1c8647" association="dom_assoc_Sucursal_Usuario_5b1d3d7d46655f1886337ed2aebaa8a9">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Usuario_b_5b370878357652989997c5f7e6278190" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Usuario_Rol_744b8a6697095e0fae76a2a5a9f5043e" name="Usuario-Rol">
+        <ownedEnd xmi:id="end_Usuario_Rol_a_5bc1c55b9b825de6b582885a50531cc0" name="usuario" type="dom_Usuario_11a389d3f9375aac8732dfad9c1c8647" association="dom_assoc_Usuario_Rol_744b8a6697095e0fae76a2a5a9f5043e">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Usuario_Rol_a_38599011415757668fd4268220da5bcc" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Usuario_Rol_b_1bbacd934f4b52b0ae0e79cdd20ada34" name="rol" type="dom_Rol_a5c77308f461504aad75e38d3dd5d1dd" association="dom_assoc_Usuario_Rol_744b8a6697095e0fae76a2a5a9f5043e">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Usuario_Rol_b_618ae23aa96e5d66b07da1c3e69d08a7" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Sucursal_Mesa_cd6b556b335f513fa660c246bdcc1245" name="Sucursal-Mesa">
+        <ownedEnd xmi:id="end_Sucursal_Mesa_a_78ccc0ad4a04567988fd1917f7763bef" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Sucursal_Mesa_cd6b556b335f513fa660c246bdcc1245">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Mesa_a_4068f8122e17587f863f859f36b7ee40" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Sucursal_Mesa_b_af0a8c2ad9d053bcb28a26ba75c35115" name="mesa" type="dom_Mesa_f2c5cd03cd8a5cada898f77230bca856" association="dom_assoc_Sucursal_Mesa_cd6b556b335f513fa660c246bdcc1245">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Mesa_b_dd1aae0d0e205101965c5c0f14bff830" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Sucursal_Pedido_6cdde01cadde5538a83852cc77961761" name="Sucursal-Pedido">
+        <ownedEnd xmi:id="end_Sucursal_Pedido_a_01a2cecf0bf559cf9b1e7a9772c9e556" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Sucursal_Pedido_6cdde01cadde5538a83852cc77961761">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Pedido_a_a06d990ee38b50d58053f47d74629446" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Sucursal_Pedido_b_245402be0a2d5bd991cbfac34e662e22" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Sucursal_Pedido_6cdde01cadde5538a83852cc77961761">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Pedido_b_15078e42f5435b3db07d78f70967c90e" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Sucursal_Reserva_8d5b0b84781c57aa88daf0600541c266" name="Sucursal-Reserva">
+        <ownedEnd xmi:id="end_Sucursal_Reserva_a_557c61856a2f5954bc2387c84e96c2e9" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Sucursal_Reserva_8d5b0b84781c57aa88daf0600541c266">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Reserva_a_c34ecf94aa53552b86a57660638f49fc" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Sucursal_Reserva_b_4fc737431b8b5c07a262cd403716775f" name="reserva" type="dom_Reserva_cae949481a545f5799383cbf0d031cf7" association="dom_assoc_Sucursal_Reserva_8d5b0b84781c57aa88daf0600541c266">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_Reserva_b_11518c6ed8d9578894b32876ea23a22e" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Cliente_Pedido_ace7b4ff521c55c49aab22ef9b279588" name="Cliente-Pedido">
+        <ownedEnd xmi:id="end_Cliente_Pedido_a_20cb2c23000b5bdbba2de80258841ad0" name="cliente" type="dom_Cliente_341b3f7731795e69823d6aee06239080" association="dom_assoc_Cliente_Pedido_ace7b4ff521c55c49aab22ef9b279588">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Pedido_a_334baf965b525cc781bfa6c7597d6eba" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Cliente_Pedido_b_d054ffe04b195ec5a8dc0550bc56ad04" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Cliente_Pedido_ace7b4ff521c55c49aab22ef9b279588">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Pedido_b_98d2c45235d057809c7335cff7b56f9e" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Cliente_Reserva_03ea3a14a8df51a7a07c9c093993dfa6" name="Cliente-Reserva">
+        <ownedEnd xmi:id="end_Cliente_Reserva_a_e6761bb788a15b3d9453708a0c2ef8be" name="cliente" type="dom_Cliente_341b3f7731795e69823d6aee06239080" association="dom_assoc_Cliente_Reserva_03ea3a14a8df51a7a07c9c093993dfa6">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Reserva_a_b72b173da1fa51c1af0f9b3799a40a25" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Cliente_Reserva_b_396d8df956725127b4b78d8ca66c5e99" name="reserva" type="dom_Reserva_cae949481a545f5799383cbf0d031cf7" association="dom_assoc_Cliente_Reserva_03ea3a14a8df51a7a07c9c093993dfa6">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Reserva_b_cdca1b2d8392531383218e583238cc42" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Mesa_Pedido_d7318bda6d7150918d44643cb590059f" name="Mesa-Pedido">
+        <ownedEnd xmi:id="end_Mesa_Pedido_a_7d92785b74bd524c8e8f9254cef7675a" name="mesa" type="dom_Mesa_f2c5cd03cd8a5cada898f77230bca856" association="dom_assoc_Mesa_Pedido_d7318bda6d7150918d44643cb590059f">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Mesa_Pedido_a_b2fc6dcea2fb5436bd5fc4cc3256086d" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Mesa_Pedido_b_91b6198a57475c078fe5093800f49804" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Mesa_Pedido_d7318bda6d7150918d44643cb590059f">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Mesa_Pedido_b_62d76b94df5e55d88bf4dfa859505b60" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Mesa_Reserva_b2097cceb36352ca808aab45fc81049f" name="Mesa-Reserva">
+        <ownedEnd xmi:id="end_Mesa_Reserva_a_e69350ad6def51f8ac7f567f9cb861fb" name="mesa" type="dom_Mesa_f2c5cd03cd8a5cada898f77230bca856" association="dom_assoc_Mesa_Reserva_b2097cceb36352ca808aab45fc81049f">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Mesa_Reserva_a_1afd521f7bed5d5cb8fef63c64429160" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Mesa_Reserva_b_97657c6e816a54608685e1375cba3685" name="reserva" type="dom_Reserva_cae949481a545f5799383cbf0d031cf7" association="dom_assoc_Mesa_Reserva_b2097cceb36352ca808aab45fc81049f">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Mesa_Reserva_b_8e27562cf2b85be287b0b7148fd0f9d1" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Pedido_DetallePedido_202e8e8ffe845f1a99492276a643b183" name="Pedido-DetallePedido">
+        <ownedEnd xmi:id="end_Pedido_DetallePedido_a_e61ec6f4a05c53b68cbbb235738bd848" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Pedido_DetallePedido_202e8e8ffe845f1a99492276a643b183">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_DetallePedido_a_3743c9e2194450b487f59238a4e45e9b" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Pedido_DetallePedido_b_fd236223bf6f5d77958f9d496ab6990a" name="detallepedido" type="dom_DetallePedido_f2cce34d4c4a5f498ae9325f1093d123" association="dom_assoc_Pedido_DetallePedido_202e8e8ffe845f1a99492276a643b183">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_DetallePedido_b_d708eba075b45250bf37f637176c301f" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Producto_DetallePedido_b3dd54444b0452af8ab44b2660bd837d" name="Producto-DetallePedido">
+        <ownedEnd xmi:id="end_Producto_DetallePedido_a_6ceb4ca73c6651e9ae80f7c7176995f2" name="producto" type="dom_Producto_a5d5befd33d2522d86a9a905974b2a66" association="dom_assoc_Producto_DetallePedido_b3dd54444b0452af8ab44b2660bd837d">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Producto_DetallePedido_a_35acc8912ab05f0cad0bd7ae59a6d78e" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Producto_DetallePedido_b_5b71e8dbb1e75e80a519a08853b6a1dd" name="detallepedido" type="dom_DetallePedido_f2cce34d4c4a5f498ae9325f1093d123" association="dom_assoc_Producto_DetallePedido_b3dd54444b0452af8ab44b2660bd837d">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Producto_DetallePedido_b_a6f5e8911b1c51af96b14f045bfb741f" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Categoria_Producto_d7d0b2c70ad85531bc042b1612763e82" name="Categoria-Producto">
+        <ownedEnd xmi:id="end_Categoria_Producto_a_ebd8c198bbe25bb1ac5a3c96abde3a59" name="categoria" type="dom_Categoria_a2e81f56c9d65bafbd5ea6badbf1f6b0" association="dom_assoc_Categoria_Producto_d7d0b2c70ad85531bc042b1612763e82">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Categoria_Producto_a_c91e3a6a6a755695a31668fa903a9627" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Categoria_Producto_b_f3d2ba02b3585c8f88c1f5b10b1c9bf6" name="producto" type="dom_Producto_a5d5befd33d2522d86a9a905974b2a66" association="dom_assoc_Categoria_Producto_d7d0b2c70ad85531bc042b1612763e82">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Categoria_Producto_b_05757a8747245356b6a154fb9dfe9b2e" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Menu_Producto_3225ad911af453ac9fb7f8efa962d305" name="Menu-Producto">
+        <ownedEnd xmi:id="end_Menu_Producto_a_b8d73aaa15e95134a66454324716ae93" name="menu" type="dom_Menu_67eedd74f5fa5a4eb37ad456a5ba7ae9" association="dom_assoc_Menu_Producto_3225ad911af453ac9fb7f8efa962d305">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Menu_Producto_a_cfacef5c19565886b27dc7b02fabd8ce" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Menu_Producto_b_509f93742edb52fe9160f94e4fa16e8f" name="producto" type="dom_Producto_a5d5befd33d2522d86a9a905974b2a66" association="dom_assoc_Menu_Producto_3225ad911af453ac9fb7f8efa962d305">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Menu_Producto_b_4cca2bc336ad577a832ab2968d097122" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Pedido_Descuento_8ef9dff0e05555f882c1e6d85e351be7" name="Pedido-Descuento">
+        <ownedEnd xmi:id="end_Pedido_Descuento_a_9f0b07a2ed0951b3bb0b7f6b5bab65c0" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Pedido_Descuento_8ef9dff0e05555f882c1e6d85e351be7">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_Descuento_a_a73ec8329cfa5ac191f92f2434a98363" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Pedido_Descuento_b_6b55b13861435ded91fc7bbb0d226d08" name="descuento" type="dom_Descuento_f52dd0ec8cee54afb79b1268f1e65c87" association="dom_assoc_Pedido_Descuento_8ef9dff0e05555f882c1e6d85e351be7">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_Descuento_b_e405ced86eb154e2b54697cfe12ad95a" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Pedido_Pago_e3e19747dd3d54359b2adf989a711768" name="Pedido-Pago">
+        <ownedEnd xmi:id="end_Pedido_Pago_a_104497262fed5118857d5655e3432a46" name="pedido" type="dom_Pedido_2c6bf34785925481bf2998449fb21eb2" association="dom_assoc_Pedido_Pago_e3e19747dd3d54359b2adf989a711768">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_Pago_a_786f16ec7e0a56e1b9f62bd3a5766e18" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Pedido_Pago_b_8328b4d5e2b75ab0a4c0b72a2b0b66e3" name="pago" type="dom_Pago_1ce9f12d92f154088973b5ee8d6910bd" association="dom_assoc_Pedido_Pago_e3e19747dd3d54359b2adf989a711768">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Pedido_Pago_b_8a5fa5ed549a5ae9869e7a6f36a9067a" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_CierreCaja_MovimientoCaja_191a01a09d9c52c18fcc4a1bb5666090" name="CierreCaja-MovimientoCaja">
+        <ownedEnd xmi:id="end_CierreCaja_MovimientoCaja_a_ef2666f2695a511c81d943eff850a4d6" name="cierrecaja" type="dom_CierreCaja_f9a570c51a645967819278d288f1dc0b" association="dom_assoc_CierreCaja_MovimientoCaja_191a01a09d9c52c18fcc4a1bb5666090">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_CierreCaja_MovimientoCaja_a_15b3534b11af55eb9ccf72a48eb58087" value="0" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_CierreCaja_MovimientoCaja_b_81395b80f4355795a2cff8fce5c64519" name="movimientocaja" type="dom_MovimientoCaja_81ed1fc939135d51bf8f425abb8246d7" association="dom_assoc_CierreCaja_MovimientoCaja_191a01a09d9c52c18fcc4a1bb5666090">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_CierreCaja_MovimientoCaja_b_d29dd03f77b751a5a8e3ea948890abbb" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Producto_HistorialStock_f8da1d147d1b521596be20ede2b9b990" name="Producto-HistorialStock">
+        <ownedEnd xmi:id="end_Producto_HistorialStock_a_2c561de5c5bb5b539023434d62ec3dd8" name="producto" type="dom_Producto_a5d5befd33d2522d86a9a905974b2a66" association="dom_assoc_Producto_HistorialStock_f8da1d147d1b521596be20ede2b9b990">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Producto_HistorialStock_a_6ae98fdc92455e21901f6d0487c58ffe" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Producto_HistorialStock_b_0236d1bdbdd7552b907d47b65b52d557" name="historialstock" type="dom_HistorialStock_588f948d73815a1dae4a176860440c09" association="dom_assoc_Producto_HistorialStock_f8da1d147d1b521596be20ede2b9b990">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Producto_HistorialStock_b_1043268a85b35915a613efe0a0088be3" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Sucursal_GastoFinanciero_84002e257fc754afb978ceec2cc98ab5" name="Sucursal-GastoFinanciero">
+        <ownedEnd xmi:id="end_Sucursal_GastoFinanciero_a_fd82aa8ef1b35280a8988fdf23c5fde9" name="sucursal" type="dom_Sucursal_a2aa914efdd9553a9996abb870483241" association="dom_assoc_Sucursal_GastoFinanciero_84002e257fc754afb978ceec2cc98ab5">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_GastoFinanciero_a_8b160f19862759e59345a08e31062479" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Sucursal_GastoFinanciero_b_e843629dbb725995bccd466186c15a33" name="gastofinanciero" type="dom_GastoFinanciero_89a8f5ca7aaf59a0ba45dab4138a10d9" association="dom_assoc_Sucursal_GastoFinanciero_84002e257fc754afb978ceec2cc98ab5">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Sucursal_GastoFinanciero_b_7f0d5d1b4ec1584db4c92fa4ca6c6980" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Cliente_Conversacion_f9fe03aa03305fbb92b97a5cff2e6e58" name="Cliente-Conversacion">
+        <ownedEnd xmi:id="end_Cliente_Conversacion_a_f64b9e5ddf4e52abb141d74afc8d0c64" name="cliente" type="dom_Cliente_341b3f7731795e69823d6aee06239080" association="dom_assoc_Cliente_Conversacion_f9fe03aa03305fbb92b97a5cff2e6e58">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Conversacion_a_6b46d217c5e7573ebd1469902f922172" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Cliente_Conversacion_b_5f4dad4970be56bda63506233f53448c" name="conversacion" type="dom_Conversacion_1a8994919aad5b63851dd536c9f51a6d" association="dom_assoc_Cliente_Conversacion_f9fe03aa03305fbb92b97a5cff2e6e58">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Cliente_Conversacion_b_6ad563234f6e543da415259ba3807d93" value="0" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Conversacion_Mensaje_fb0169af42055935aa23bf4122c277c9" name="Conversacion-Mensaje">
+        <ownedEnd xmi:id="end_Conversacion_Mensaje_a_bfe0c597ca0e5633a13922f3b21c5e2e" name="conversacion" type="dom_Conversacion_1a8994919aad5b63851dd536c9f51a6d" association="dom_assoc_Conversacion_Mensaje_fb0169af42055935aa23bf4122c277c9">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Conversacion_Mensaje_a_ad15b8f258a85c14a8311e0f09118f68" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Conversacion_Mensaje_b_c4b96686884150a394168276eb029998" name="mensaje" type="dom_Mensaje_8be69d0149a2592e9f095882defcdd5f" association="dom_assoc_Conversacion_Mensaje_fb0169af42055935aa23bf4122c277c9">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Conversacion_Mensaje_b_596ecd249bfa55a38e6d79059d3bb4b9" value="1" />
+        </ownedEnd>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Association" xmi:id="dom_assoc_Usuario_RegistroAuditoria_163da4b8745453f99c9d930fd6621fc4" name="Usuario-RegistroAuditoria">
+        <ownedEnd xmi:id="end_Usuario_RegistroAuditoria_a_2e463b83bb1752eb8ed79c98f11ecf4a" name="usuario" type="dom_Usuario_11a389d3f9375aac8732dfad9c1c8647" association="dom_assoc_Usuario_RegistroAuditoria_163da4b8745453f99c9d930fd6621fc4">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Usuario_RegistroAuditoria_a_17be83e3f0675c0a82650e6ed33d3f76" value="1" />
+        </ownedEnd>
+        <ownedEnd xmi:id="end_Usuario_RegistroAuditoria_b_ebf01356b21056b39f7ec8b8cd1278b7" name="registroauditoria" type="dom_RegistroAuditoria_b0067e1230e95063a3abec7b0d1297b0" association="dom_assoc_Usuario_RegistroAuditoria_163da4b8745453f99c9d930fd6621fc4">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="low_Usuario_RegistroAuditoria_b_7f12696e31e9530ebb66c98e3f7d768b" value="0" />
+        </ownedEnd>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_04 Analisis de Robustez_fecdb2095ef451c298b25117e8a3d7a1" name="04 Analisis de Robustez" />
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_05 Diagramas de Secuencia_c49da72ae7935aae9dd03a16f361a3cb" name="05 Diagramas de Secuencia">
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-01 Iniciar sesión_67b7ac9f94b35e05a217f30737062780" name="Secuencia - CU-01 Iniciar sesión">
+        <ownedComment xmi:id="comment_seq_CU-01 Iniciar sesión_bdfa9f4005c35569a3f2bde69eda06a2">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-03 Registrar pedido_a61f6a2808da5bfe9ea58c88c2658572" name="Secuencia - CU-03 Registrar pedido">
+        <ownedComment xmi:id="comment_seq_CU-03 Registrar pedido_73455122e63651e7b2d06dc2af391857">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-06 Cobrar pedido_313a91aaab7c561bb15d8a89eeddc041" name="Secuencia - CU-06 Cobrar pedido">
+        <ownedComment xmi:id="comment_seq_CU-06 Cobrar pedido_f697e48185ad58ef9bef7c49c50899f7">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-11 Gestionar productos_096f0c3af1be5785ad794071f74f6ae8" name="Secuencia - CU-11 Gestionar productos">
+        <ownedComment xmi:id="comment_seq_CU-11 Gestionar productos_01a50c2df5b05295953fb669760546e5">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-14 Controlar existencias_5715016eb31f5f59aa0bcb6fa04a11a5" name="Secuencia - CU-14 Controlar existencias">
+        <ownedComment xmi:id="comment_seq_CU-14 Controlar existencias_56654edf9cbb50acb4e50d588e6db976">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-17 Gestionar reservas_b06360416fe25fb9ac38f789eeb5c4a8" name="Secuencia - CU-17 Gestionar reservas">
+        <ownedComment xmi:id="comment_seq_CU-17 Gestionar reservas_b3623fa913355be6ac4fac092900e9bc">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-19 Realizar cierre de caja_56cb87108c2f5669bbb2e78347f4355c" name="Secuencia - CU-19 Realizar cierre de caja">
+        <ownedComment xmi:id="comment_seq_CU-19 Realizar cierre de caja_e614a65a57c0528ba3f019ee75914839">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-27 Administrar usuarios_aa6f0fba12aa5040aaa33bd2d3326f49" name="Secuencia - CU-27 Administrar usuarios">
+        <ownedComment xmi:id="comment_seq_CU-27 Administrar usuarios_98b9584760c0549388bdd456d78925c2">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-28 Registrar restaurante_366e11f83d475b6284d3af86efb6f8f4" name="Secuencia - CU-28 Registrar restaurante">
+        <ownedComment xmi:id="comment_seq_CU-28 Registrar restaurante_153947b233fa5af0a85e1c3ed182fc0e">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-32 Gestionar suscripciones_297d4ea0329e5c04b1fc83f87d0c4a3a" name="Secuencia - CU-32 Gestionar suscripciones">
+        <ownedComment xmi:id="comment_seq_CU-32 Gestionar suscripciones_d5b04962c08c5b0e9f95025b201d16ee">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interaction" xmi:id="seq_CU-34 Atender consulta por WhatsApp_d04b9b5e13da5411888231ffc36ef44a" name="Secuencia - CU-34 Atender consulta por WhatsApp">
+        <ownedComment xmi:id="comment_seq_CU-34 Atender consulta por WhatsApp_ad2c0fa828f95f488ef78334b57c2063">
+          <body>El flujo detallado y editable se incluye en diagramas_plantuml.</body>
+        </ownedComment>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_06 Modelo de Clases_f29914884bac543b95fcc7536c466de0" name="06 Modelo de Clases">
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ApiClient_44ca0adc3abe5adeaf893f9a515ff88e" name="ApiClient">
+        <ownedOperation xmi:id="op_ApiClient_0_1bd345f297c45b8b8bfebe6fb55ec3cb" name="request(action, data)" />
+        <ownedOperation xmi:id="op_ApiClient_1_f3bd83695c755749a79bd80a3558f51b" name="attachCsrfToken()" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_AppStore_8984633e8fb75468892b76f241b64851" name="AppStore">
+        <ownedOperation xmi:id="op_AppStore_0_b7cf6502f6ab5d2f900dc7690baec2b8" name="getState()" />
+        <ownedOperation xmi:id="op_AppStore_1_a97fe2d6ced8592198b60985934dc99a" name="setState(state)" />
+        <ownedOperation xmi:id="op_AppStore_2_f09b6775287555189d8d63f563c6363a" name="subscribe(listener)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ViewController_1c90d7adcb4e537b9afee2107cab758a" name="ViewController">
+        <ownedOperation xmi:id="op_ViewController_0_0dae4a9259af58308c24d7ce0e56ac28" name="register(name, view)" />
+        <ownedOperation xmi:id="op_ViewController_1_451c8b42b4ee51d9889c271bbc3b289d" name="show(name)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_PosController_d4120189427f50d29dbfe904580fef78" name="PosController">
+        <ownedOperation xmi:id="op_PosController_0_7709cbe8d3515af8aa14d5be5db96ca2" name="addItem(product)" />
+        <ownedOperation xmi:id="op_PosController_1_2eab5cd611f65acbb589b2ef75daebba" name="confirmOrder()" />
+        <ownedOperation xmi:id="op_PosController_2_ae5673d9c0aa5add9c5b6c057022901c" name="applyDiscount()" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_OrdersController_aded2c77858f5c59967833cb37b42fba" name="OrdersController">
+        <ownedOperation xmi:id="op_OrdersController_0_598f90f56cf65db48c34cb1b082226c6" name="changeState(orderId, state)" />
+        <ownedOperation xmi:id="op_OrdersController_1_60b034be5b5d5a4c9f536d5f3efda577" name="complete(orderId)" />
+        <ownedOperation xmi:id="op_OrdersController_2_b14a4442a4df5182a950b240aac813e3" name="cancel(orderId)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_InventoryController_f2dbd39ff0235bbbb3e89d472cfbf078" name="InventoryController">
+        <ownedOperation xmi:id="op_InventoryController_0_4b6884a2e1845c66808c6777728e08f0" name="saveProduct(product)" />
+        <ownedOperation xmi:id="op_InventoryController_1_b3839ede7f4e5260a23e33ef9b6f5bfd" name="deleteProduct(id)" />
+        <ownedOperation xmi:id="op_InventoryController_2_d66a33f5acaa5a0fb38d6d75f0aa78bd" name="adjustStock(id, qty)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_CashController_024d753696115f958d224b040fcd9022" name="CashController">
+        <ownedOperation xmi:id="op_CashController_0_0ee43d22e2ff5338b3bb70c9544b656f" name="saveMovement(data)" />
+        <ownedOperation xmi:id="op_CashController_1_bc9d31b857855a71b604d7089ac47e32" name="closeCash(data)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ReservationsController_28340c189c25571e8d8b6273e8c33d8c" name="ReservationsController">
+        <ownedOperation xmi:id="op_ReservationsController_0_46e55b4fdda15847ad5cc60a84c97757" name="saveReservation(data)" />
+        <ownedOperation xmi:id="op_ReservationsController_1_e9f1509e437d5aca971a40fb382b3b68" name="changeStatus(id, state)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_SaasAdminController_8ca3d64d2dca54488ee76f98bd1160f1" name="SaasAdminController">
+        <ownedOperation xmi:id="op_SaasAdminController_0_09e849c5ecb35a43be4007c97649c00a" name="createTenant(data)" />
+        <ownedOperation xmi:id="op_SaasAdminController_1_68332db22aa1596aa054261100a4e88b" name="manageSubscription(data)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_AuthService_1cc45e3f74e55813b0cdf0d046eb675b" name="AuthService">
+        <ownedOperation xmi:id="op_AuthService_0_8ee0228b58dd5e9e986e8275f241721e" name="login(credentials)" />
+        <ownedOperation xmi:id="op_AuthService_1_ad252530dbdb59d0af981549ba636f83" name="resolveContext()" />
+        <ownedOperation xmi:id="op_AuthService_2_d2eac091362c5bab9ad349174e13085f" name="requirePermission(permission)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_OrderService_ba9cc3ab524e5f2190a28b07d2432643" name="OrderService">
+        <ownedOperation xmi:id="op_OrderService_0_6a36b9225b7a517095194ad3497eb534" name="saveOrder(data)" />
+        <ownedOperation xmi:id="op_OrderService_1_5019d634871554adaa8878804b60403a" name="appendItems(data)" />
+        <ownedOperation xmi:id="op_OrderService_2_70535c9bcafd59baaf50b32377679214" name="completeOrder(id)" />
+        <ownedOperation xmi:id="op_OrderService_3_c88f7c26dc9a5652ad60527b0cb23ec4" name="cancelOrder(id)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_InventoryService_5f7114c7d9b75ebaaf32a9e8d313092b" name="InventoryService">
+        <ownedOperation xmi:id="op_InventoryService_0_8470ba6c0b63576284fd7d8910a75a3b" name="saveProduct(data)" />
+        <ownedOperation xmi:id="op_InventoryService_1_cfff18f2e437530eb59d286dc08bc7e0" name="saveMenu(data)" />
+        <ownedOperation xmi:id="op_InventoryService_2_a8d063f69d9255c8ac4ebf917ddce352" name="getCatalog(scope)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_CashService_ce1741042b835144ad1fbb87b74cc320" name="CashService">
+        <ownedOperation xmi:id="op_CashService_0_3078855977375dc4877872424c9db17c" name="saveMovement(data)" />
+        <ownedOperation xmi:id="op_CashService_1_342fff7555f95e2db9e0c24298947a6d" name="closeCash(data)" />
+        <ownedOperation xmi:id="op_CashService_2_bba30f3abccd51d0886dcf047c06c073" name="deductStock(orders)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ReservationService_f5a852ededfb5a65882147a286e4a4bb" name="ReservationService">
+        <ownedOperation xmi:id="op_ReservationService_0_f91269fb9ebc5abba1ca3e068c5e78c5" name="save(data)" />
+        <ownedOperation xmi:id="op_ReservationService_1_98cf40b3e51d5e92be77f52d5f42ce01" name="changeStatus(id, state)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_SaasService_3ef4ea5495605987b749694bfca8ecdf" name="SaasService">
+        <ownedOperation xmi:id="op_SaasService_0_1655ffcfc12e525a99f0706d5243845a" name="createTenant(data)" />
+        <ownedOperation xmi:id="op_SaasService_1_8424dba39e2a55b58862f901d4a13463" name="createBranch(data)" />
+        <ownedOperation xmi:id="op_SaasService_2_cff3276ddb585e7c9e6e542d7ffbbf5c" name="updateSubscription(data)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ChatbotService_e205a344c38950399a05762a05dbc5b7" name="ChatbotService">
+        <ownedOperation xmi:id="op_ChatbotService_0_4657003a46725e05abfbc311b5148469" name="processMessage(message)" />
+        <ownedOperation xmi:id="op_ChatbotService_1_85c7cdd14e565435862bf87c8ac2d4e7" name="executeTool(tool)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_DatabaseGateway_717df96a495555668229bdea41c95baf" name="DatabaseGateway">
+        <ownedOperation xmi:id="op_DatabaseGateway_0_fd05e37da51154adb252931bad62e450" name="query(sql, params)" />
+        <ownedOperation xmi:id="op_DatabaseGateway_1_36beb3621eb652d7b3086817469a2e5a" name="transaction(callback)" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_AuditService_94a8330f7835510eab0a061b0c2078fe" name="AuditService">
+        <ownedOperation xmi:id="op_AuditService_0_8fd85b1d6d0e5f07bf5736b9e9293c27" name="write(action, entity, before, after)" />
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_07 Maquinas de Estado_dd2e7212042a535d9ee003065f6a5b8b" name="07 Maquinas de Estado">
+      <packagedElement xmi:type="uml:StateMachine" xmi:id="sm_Pedido_922ccac11696519c80f655dc4b2f1f48" name="Estados de Pedido">
+        <region xmi:id="region_Pedido_426eb7a86a50556ba248fef3cbb84c0e" name="Ciclo de vida">
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_Pendiente_ae766c5518d75a01a93bee529007725f" name="Pendiente" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_En preparación_e9c01f5149895244a6c5e83ba5f9d5a9" name="En preparación" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_Listo_5381f9628a2a5a3ab0b43d2c5303ceba" name="Listo" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_Completado_5f23838873395a799fb1994006503e28" name="Completado" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_Cancelado_e44b44f57e3b5f32af0ba6ce13846ddf" name="Cancelado" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Pedido_Anulado_a365337e58ce5299a3a3af4d775d12a2" name="Anulado" />
+        </region>
+      </packagedElement>
+      <packagedElement xmi:type="uml:StateMachine" xmi:id="sm_Reserva_2b04ff875bed5e39b62e5d7935df9359" name="Estados de Reserva">
+        <region xmi:id="region_Reserva_613f6765e69f5436a5d933d9f7c4967f" name="Ciclo de vida">
+          <subvertex xmi:type="uml:State" xmi:id="state_Reserva_Pendiente_1dd5ffd1081b59e394582c089a98b237" name="Pendiente" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Reserva_Confirmada_384525e4b937579faea9b4233511eb5c" name="Confirmada" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Reserva_Completada_551c4056dfd8528caf305cf5b3b122e3" name="Completada" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Reserva_Cancelada_0948060eaf7259609c2e7fd02ad233f4" name="Cancelada" />
+        </region>
+      </packagedElement>
+      <packagedElement xmi:type="uml:StateMachine" xmi:id="sm_Suscripción_521e9cc894b35e2ba6aa00d1100d87aa" name="Estados de Suscripción">
+        <region xmi:id="region_Suscripción_005ce006632d5a54aaf887eafca25d90" name="Ciclo de vida">
+          <subvertex xmi:type="uml:State" xmi:id="state_Suscripción_Prueba_aaa13e99de095cdbb1d4e97b17519332" name="Prueba" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Suscripción_Activa_4d85e6462ff45bf3b0f9a26a0f3718b4" name="Activa" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Suscripción_Suspendida_f7f7f628e2625c588f4db2cb3b130539" name="Suspendida" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Suscripción_Cancelada_13b77dee0ce6525ba60e5fe096dd304e" name="Cancelada" />
+        </region>
+      </packagedElement>
+      <packagedElement xmi:type="uml:StateMachine" xmi:id="sm_Mensaje WhatsApp_1be01d5280495ace8d407f9f72c2c84a" name="Estados de Mensaje WhatsApp">
+        <region xmi:id="region_Mensaje WhatsApp_7d90624c9ddf5c72a7a795e8c3f4a48c" name="Ciclo de vida">
+          <subvertex xmi:type="uml:State" xmi:id="state_Mensaje WhatsApp_Recibido_56e9a600e18352ad84d2dd51928dfbff" name="Recibido" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Mensaje WhatsApp_Procesando_62962759f20f5838893775038422d87f" name="Procesando" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Mensaje WhatsApp_Listo_c5762b9d5d1855a1ac2a35269e61dab6" name="Listo" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Mensaje WhatsApp_Enviado_b458cd216da359c693a4abc20bb2a347" name="Enviado" />
+          <subvertex xmi:type="uml:State" xmi:id="state_Mensaje WhatsApp_Fallido_8ba35d3c9a035f409de1c6715366be70" name="Fallido" />
+        </region>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_08 Componentes y Arquitectura_28316182a9b956bca191bd3e82e40b8a" name="08 Componentes y Arquitectura">
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Navegador PWA_388e657369735bb48356a5414fa4d876" name="Navegador PWA" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Frontend JavaScript_a5e324520fee5edb8293670989e28bc4" name="Frontend JavaScript" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_API PHP_b2b55169771753818dcffd291d49205e" name="API PHP" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Autenticación_b9a955856e595fad9d558df968966eb4" name="Autenticación" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Pedidos_62f0017d3cb05cb09f56a03baecbc2d9" name="Pedidos" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Inventario_e002b56573945a86a161b88044451fae" name="Inventario" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Caja y Finanzas_fc62724498fe5967b53da150fbd47799" name="Caja y Finanzas" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Reservas_4041148074e657c981118844e89ae34f" name="Reservas" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Administración SaaS_9867075592f05c2bb0fc7af35560438b" name="Administración SaaS" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Chatbot_51799a9cede4552b97fec7b72120f950" name="Chatbot" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_WebSocket_9a125eb9da985388ac7ec1b619258d7a" name="WebSocket" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Caché y Sesiones_e703daf3db505dbb90b1905024f36ce1" name="Caché y Sesiones" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Base de datos MySQL_470be89350495aa594e76ed02033fd8c" name="Base de datos MySQL" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_WhatsApp_7695011196085697bd7e7ed932fcda13" name="WhatsApp" />
+      <packagedElement xmi:type="uml:Component" xmi:id="comp_Proveedor LLM_92c0961acfc7513cad44da52176b0b9e" name="Proveedor LLM" />
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_09 Despliegue_0d0fe9370e93588f97c87bc1b1143657" name="09 Despliegue">
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Dispositivo del usuario_852a2eb4604a567597bf39398838e49b" name="Dispositivo del usuario" />
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Servidor web Apache/PHP_f87530453d8458a7be515c96c1b490c6" name="Servidor web Apache/PHP" />
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Servidor MySQL_b32dfd9b8f2759368699c6719c60a63e" name="Servidor MySQL" />
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Servidor WebSocket_bbb324fe33da5fb2a6fa3b134b56005d" name="Servidor WebSocket" />
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Servicio WhatsApp_5550a2b6025555ccbc8eda66956be877" name="Servicio WhatsApp" />
+      <packagedElement xmi:type="uml:Node" xmi:id="node_Servicio LLM_23e791a0027752b3a0ec59f31dbbb09f" name="Servicio LLM" />
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_10 Trazabilidad_6c0c32372799597e85d647f3f9460269" name="10 Trazabilidad" />
+  </uml:Model>
+</xmi:XMI>

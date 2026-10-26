@@ -1,0 +1,48 @@
+@startuml
+hide methods
+skinparam classAttributeIconSize 0
+class Tenant
+class Sucursal
+class Usuario
+class Rol
+class Plan
+class Suscripcion
+class Cliente
+class Mesa
+class Reserva
+class Pedido
+class DetallePedido
+class Producto
+class Categoria
+class Menu
+class Descuento
+class Pago
+class MovimientoCaja
+class CierreCaja
+class HistorialStock
+class GastoFinanciero
+class Conversacion
+class Mensaje
+Tenant "1" *-- "1..*" Sucursal
+Tenant "1" o-- "1..*" Usuario
+Tenant "1" -- "1" Suscripcion
+Plan "1" -- "0..*" Suscripcion
+Usuario "0..*" -- "1" Rol
+Sucursal "1" *-- "0..*" Mesa
+Sucursal "1" *-- "0..*" Pedido
+Sucursal "1" *-- "0..*" Reserva
+Cliente "0..1" -- "0..*" Pedido
+Cliente "1" -- "0..*" Reserva
+Mesa "0..1" -- "0..*" Pedido
+Pedido "1" *-- "1..*" DetallePedido
+Producto "1" -- "0..*" DetallePedido
+Categoria "1" -- "0..*" Producto
+Menu "0..1" -- "0..*" Producto
+Pedido "0..*" -- "0..*" Descuento
+Pedido "1" *-- "0..*" Pago
+CierreCaja "0..1" o-- "0..*" MovimientoCaja
+Producto "1" *-- "0..*" HistorialStock
+Sucursal "1" *-- "0..*" GastoFinanciero
+Cliente "1" -- "0..*" Conversacion
+Conversacion "1" *-- "1..*" Mensaje
+@enduml

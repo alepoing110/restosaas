@@ -1,0 +1,20 @@
+@startuml
+left to right direction
+actor Cajero
+boundary "Pantalla POS" as POS
+control "Control de pedido" as CP
+control "Validación de sesión y permisos" as Auth
+entity Producto
+entity Pedido
+entity DetallePedido
+entity Mesa
+entity Descuento
+Cajero --> POS
+POS --> CP
+CP --> Auth
+CP --> Producto
+CP --> Mesa
+CP --> Descuento
+CP --> Pedido
+Pedido --> DetallePedido
+@enduml

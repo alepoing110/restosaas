@@ -1,0 +1,18 @@
+@startuml
+actor Cajero
+boundary "Vista de pedidos" as UI
+control OrdersController
+control "API Pedidos" as API
+control AuthService
+database MySQL
+Cajero -> UI: selecciona cobrar
+UI -> OrdersController: complete(id, método)
+OrdersController -> API: complete_order(id, método)
+API -> AuthService: requirePermission(orders)
+API -> MySQL: consultar pedido por tenant/sucursal
+API -> API: validar estado y pago
+API -> MySQL: actualizar pedido como completado
+API -> MySQL: guardar pago e historial
+API -> MySQL: registrar auditoría
+API --> UI: venta completada
+@enduml

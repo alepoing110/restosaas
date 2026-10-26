@@ -1,0 +1,290 @@
+
+Importing Model from XMI
+Root Package: RestoCloud - Diagramas de Tesis
+Add Classifier: Cajero
+Adding tagged values (object)
+Add Classifier: Administrador
+Adding tagged values (object)
+Add Classifier: Propietario
+Adding tagged values (object)
+Add Classifier: Superadministrador SaaS
+Adding tagged values (object)
+Add Classifier: Cliente
+Adding tagged values (object)
+Add Classifier: Registrar pedido
+Adding tagged values (object)
+Add Classifier: Cobrar pedido
+Adding tagged values (object)
+Add Classifier: Gestionar inventario
+Adding tagged values (object)
+Add Classifier: Gestionar reservas
+Adding tagged values (object)
+Add Classifier: Realizar cierre de caja
+Adding tagged values (object)
+Add Classifier: Consultar reportes
+Adding tagged values (object)
+Add Classifier: Administrar usuarios
+Adding tagged values (object)
+Add Classifier: Gestionar tenants
+Adding tagged values (object)
+Add Classifier: Gestionar suscripciones
+Adding tagged values (object)
+Add Classifier: Registrar restaurante
+Adding tagged values (object)
+Add Classifier: Atender por WhatsApp
+Adding tagged values (object)
+Add Classifier: Tenant
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Sucursal
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Usuario
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Rol
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Plan
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Suscripción
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Cliente
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Mesa
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Reserva
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Pedido
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: DetallePedido
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Producto
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Categoría
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Menú
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Descuento
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Pago
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: MovimientoCaja
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: CierreCaja
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: HistorialStock
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: GastoFinanciero
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Conversación
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Mensaje
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Cajero
+Adding tagged values (object)
+Add Classifier: Pantalla POS
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Control de pedido
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Validación de sesión y permisos
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Producto
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Pedido
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: DetallePedido
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Mesa
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Descuento
+Adding tagged values (object)
+Adding tagged values (object)
+Add Classifier: Pendiente
+Adding tagged values (object)
+Add Classifier: En preparación
+Adding tagged values (object)
+Add Classifier: Listo
+Adding tagged values (object)
+Add Classifier: Completado
+Adding tagged values (object)
+Add Classifier: Cancelado
+Adding tagged values (object)
+Add Classifier: Anulado
+Adding tagged values (object)
+Add Classifier: Navegador PWA
+Adding tagged values (object)
+Add Classifier: Frontend JavaScript
+Adding tagged values (object)
+Add Classifier: API PHP
+Adding tagged values (object)
+Add Classifier: Autenticación
+Adding tagged values (object)
+Add Classifier: Pedidos
+Adding tagged values (object)
+Add Classifier: Inventario
+Adding tagged values (object)
+Add Classifier: Caja y Finanzas
+Adding tagged values (object)
+Add Classifier: Administración SaaS
+Adding tagged values (object)
+Add Classifier: Chatbot
+Adding tagged values (object)
+Add Classifier: MySQL
+Adding tagged values (object)
+Add Classifier: Dispositivo del usuario
+Adding tagged values (object)
+Add Classifier: Servidor Apache/PHP
+Adding tagged values (object)
+Add Classifier: Servidor WebSocket
+Adding tagged values (object)
+Add Classifier: Servidor MySQL
+Adding tagged values (object)
+Add Classifier: Servicio WhatsApp
+Adding tagged values (object)
+Add Classifier: Servicio LLM
+Adding tagged values (object)
+Resolving Classifiers
+Resolve Package Links
+Add Diagrams
+Adding diagram objects
+Resolving connections
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add association
+Add diagram links
+Add notes
+Add diagram links
+Add stereotypes
+Adding tagged values
+Import Complete!

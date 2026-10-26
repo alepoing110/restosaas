@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">RestoCloud</string>
+    <string name="login_error">No se pudo iniciar sesión.</string>
+    <string name="connection_error">No se pudo conectar con el servidor.</string>
+    <string name="active_orders">Pedidos activos</string>
+    <string name="catalog">Catálogo</string>
+</resources>

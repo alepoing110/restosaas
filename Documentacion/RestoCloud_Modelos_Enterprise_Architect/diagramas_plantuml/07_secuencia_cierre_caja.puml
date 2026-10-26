@@ -1,0 +1,18 @@
+@startuml
+actor Administrador
+boundary "Vista de caja" as UI
+control CashController
+control "API Caja" as API
+control AuthService
+database MySQL
+Administrador -> UI: solicita cierre
+UI -> CashController: closeCash(datos)
+CashController -> API: save_caja_cierre(datos)
+API -> AuthService: requirePermission(settings)
+API -> MySQL: consultar ventas y movimientos abiertos
+API -> API: calcular esperado, real y diferencia
+API -> MySQL: guardar cierre
+API -> MySQL: descontar stock de ventas cerradas
+API -> MySQL: asociar operaciones al cierre
+API --> UI: cierre confirmado
+@enduml

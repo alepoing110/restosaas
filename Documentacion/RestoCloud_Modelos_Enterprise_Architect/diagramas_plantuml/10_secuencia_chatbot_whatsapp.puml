@@ -1,0 +1,24 @@
+@startuml
+actor Cliente
+participant WhatsApp
+control Webhook
+control ChatbotService
+participant "Proveedor LLM" as LLM
+control "Herramientas RestoCloud" as Tools
+database MySQL
+Cliente -> WhatsApp: envía mensaje
+WhatsApp -> Webhook: evento entrante
+Webhook -> MySQL: registrar y deduplicar evento
+Webhook -> ChatbotService: procesar mensaje
+ChatbotService -> LLM: contexto + mensaje
+LLM --> ChatbotService: respuesta o herramienta
+opt requiere datos del negocio
+  ChatbotService -> Tools: ejecutar herramienta autorizada
+  Tools -> MySQL: consultar por tenant/sucursal
+  MySQL --> Tools: resultado
+  Tools --> ChatbotService: datos
+  ChatbotService -> LLM: completar respuesta
+end
+ChatbotService -> WhatsApp: enviar respuesta
+WhatsApp --> Cliente: respuesta
+@enduml

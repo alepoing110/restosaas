@@ -1,0 +1,20 @@
+﻿Requisito;Descripción;Casos de uso relacionados
+RF-01;Autenticar usuarios y controlar sesiones;CU-01,CU-02
+RF-02;Gestionar pedidos durante todo su ciclo de vida;CU-03,CU-04,CU-05,CU-06,CU-07,CU-08
+RF-03;Calcular totales y descuentos de venta;CU-09
+RF-04;Emitir comprobantes de venta;CU-10
+RF-05;Administrar catálogo, productos, menús y categorías;CU-11,CU-12,CU-13
+RF-06;Controlar stock e historial de existencias;CU-14,CU-15
+RF-07;Administrar mesas y reservas;CU-16,CU-17
+RF-08;Gestionar movimientos y cierres de caja;CU-18,CU-19
+RF-09;Generar reportes, indicadores y análisis financiero;CU-20,CU-21,CU-22,CU-23
+RF-10;Importar, exportar y configurar datos del negocio;CU-24,CU-25,CU-26
+RF-11;Administrar usuarios, roles y permisos;CU-27
+RF-12;Registrar restaurantes mediante autoservicio;CU-28
+RF-13;Administrar tenants, sucursales, planes y suscripciones;CU-29,CU-30,CU-31,CU-32,CU-33
+RF-14;Proporcionar atención mediante chatbot y WhatsApp;CU-34,CU-35,CU-36
+RNF-01;Aislar todos los datos por tenant y sucursal;Todos
+RNF-02;Proteger operaciones con autenticación, permisos y CSRF;Todos
+RNF-03;Funcionar en hosting compartido PHP/MySQL sin compilación;Arquitectura
+RNF-04;Ofrecer disponibilidad parcial sin conexión mediante PWA;CU-03
+RNF-05;Mantener trazabilidad mediante auditoría;Operaciones mutantes

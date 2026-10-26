@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ink">#10251F</color>
+    <color name="leaf">#244A3D</color>
+    <color name="lime">#D9FF70</color>
+    <color name="paper">#F4F0E7</color>
+    <color name="line">#D8D4CA</color>
+    <color name="muted">#66716B</color>
+    <color name="danger">#B3261E</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,24 @@
+@startuml
+actor Cajero
+boundary "Pantalla POS" as POS
+control PosController
+control ApiClient
+control "API Pedidos" as API
+control AuthService
+database MySQL
+Cajero -> POS: selecciona productos y confirma
+POS -> PosController: confirmOrder(datos)
+PosController -> ApiClient: request(save_order, datos)
+ApiClient -> API: POST + CSRF
+API -> AuthService: requirePermission(orders)
+AuthService --> API: contexto tenant/sucursal
+API -> API: validar pedido, cantidades y total
+API -> MySQL: BEGIN
+API -> MySQL: guardar pedido y detalles
+API -> MySQL: registrar auditoría
+API -> MySQL: COMMIT
+MySQL --> API: confirmado
+API --> ApiClient: pedido registrado
+ApiClient --> PosController: resultado
+PosController --> POS: mostrar confirmación
+@enduml

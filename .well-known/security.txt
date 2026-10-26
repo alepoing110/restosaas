@@ -1,0 +1,3 @@
+Contact: https://github.com/anomalyco/opencode/issues
+Preferred-Languages: es
+Canonical: https://simplefoot.ifree.page/.well-known/security.txt

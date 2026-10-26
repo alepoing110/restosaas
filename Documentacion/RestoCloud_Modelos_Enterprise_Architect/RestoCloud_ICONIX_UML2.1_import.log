@@ -1,0 +1,31 @@
+
+Importing Model from XMI
+Root Package: 01 Requisitos
+Add Classifier: Autenticar usuarios y controlar sesiones
+Add Classifier: Gestionar pedidos durante todo su ciclo de vida
+Add Classifier: Calcular totales y descuentos de venta
+Add Classifier: Emitir comprobantes de venta
+Add Classifier: Administrar catálogo, productos, menús y categorías
+Add Classifier: Controlar stock e historial de existencias
+Add Classifier: Administrar mesas y reservas
+Add Classifier: Gestionar movimientos y cierres de caja
+Add Classifier: Generar reportes, indicadores y análisis financiero
+Add Classifier: Importar, exportar y configurar datos del negocio
+Add Classifier: Administrar usuarios, roles y permisos
+Add Classifier: Registrar restaurantes mediante autoservicio
+Add Classifier: Administrar tenants, sucursales, planes y suscripciones
+Add Classifier: Proporcionar atención mediante chatbot y WhatsApp
+Add Classifier: Aislar todos los datos por tenant y sucursal
+Add Classifier: Proteger operaciones con autenticación, permisos y CSRF
+Add Classifier: Funcionar en hosting compartido PHP/MySQL sin compilación
+Add Classifier: Ofrecer disponibilidad parcial sin conexión mediante PWA
+Add Classifier: Mantener trazabilidad mediante auditoría
+Resolving Classifiers
+Resolving Owners
+Resolving Attribute Types
+Resolving Parameter Types
+Resolving Association-Classes
+Resolving Properties for Association Ends
+Resolving InteractionOccurences
+Fixup external references
+Import Complete!

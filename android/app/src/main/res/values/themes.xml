@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.RestoCloud" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/ink</item>
+        <item name="colorSecondary">@color/lime</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/ink</item>
+    </style>
+
+    <style name="Theme.RestoCloud" parent="Base.Theme.RestoCloud" />
+</resources>

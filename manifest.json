@@ -1,0 +1,12 @@
+{
+  "name": "RestoCloud POS",
+  "short_name": "RestoCloud",
+  "description": "Sistema de pedidos, reservas e inventario para restaurantes.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121216",
+  "theme_color": "#ff6b35",
+  "lang": "es"
+}

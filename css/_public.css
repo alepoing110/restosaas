@@ -1,0 +1,37 @@
+/* Shared public-page layout: landing and payment. */
+:root { color-scheme: light; --public-accent: #1d4ed8; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body { line-height: 1.6; }
+button, input, select, textarea { font: inherit; }
+:is(a, button, input, select, textarea):focus-visible { outline: 3px solid var(--public-accent); outline-offset: 4px; }
+button:disabled { cursor: wait; }
+input, select, textarea { max-width: 100%; min-width: 0; }
+.hero { padding-block: clamp(48px, 8vw, 96px); }
+.hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -0.035em; line-height: 1.15; }
+.hero p { line-height: 1.7; }
+.plans-grid { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.plan-card { display: flex; flex-direction: column; min-width: 0; }
+.plan-card .features-list { flex: 1; }
+.plan-card .btn-plan, .btn-register, .btn-confirm, .btn-whatsapp { min-height: 48px; }
+.plan-card .btn-plan { margin-top: auto; }
+.form-group label { line-height: 1.5; }
+.form-group input, .form-group select, .form-group textarea { font-size: 16px; min-height: 46px; }
+.register-form, .card { overflow-wrap: anywhere; }
+.error-msg { line-height: 1.5; }
+.bank-details .detail-row { gap: 12px; flex-wrap: wrap; }
+.bank-details .value { overflow-wrap: anywhere; text-align: right; }
+footer { color: #59677b; }
+@media (max-width: 600px) {
+    .plans-section, .features-section, .register-section { padding: 40px 16px; }
+    .container { padding-inline: 0; }
+    .plan-card, .register-form, .card { padding: 24px 18px; }
+    .features-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .feature-item { padding: 18px 12px; }
+    .payment-page .container { margin: 24px auto; padding-inline: 12px; }
+    .bank-details { padding: 12px; }
+    .btn-whatsapp { display: block; padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

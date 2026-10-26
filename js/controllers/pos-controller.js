@@ -1,0 +1,1044 @@
+(function (window) {
+    let initialized = false;
+
+    function init() {
+        if (initialized) return;
+
+        const catalogContainer = document.getElementById('pos-catalog-cards');
+        if (catalogContainer) {
+            catalogContainer.addEventListener('click', handleCatalogClick);
+        }
+
+        const cartContainer = document.getElementById('cart-items-container');
+        if (cartContainer) {
+            cartContainer.addEventListener('click', handleCartClick);
+        }
+
+        // Mixed payment toggle
+        const paymentSelect = document.getElementById('order-payment-select');
+        if (paymentSelect) {
+            paymentSelect.addEventListener('change', (e) => {
+                 updatePaymentMethodIcon(e.target.value);
+                 const section = document.getElementById('mixed-payment-section');
+                 if (section) section.style.display = e.target.value === 'mixto' ? 'flex' : 'none';
+                 const creditSection = document.getElementById('credit-payment-section');
+                 if (creditSection) creditSection.style.display = e.target.value === 'credito' ? 'flex' : 'none';
+                 const dueDate = document.getElementById('credit-due-date');
+                 if (dueDate) dueDate.required = e.target.value === 'credito';
+                if (e.target.value === 'mixto') updateMixedPaymentSum();
+            });
+            updatePaymentMethodIcon(paymentSelect.value);
+        }
+
+        // Mixed payment auto-calculate
+        const mixedEfectivo = document.getElementById('mixed-efectivo');
+        const mixedQr = document.getElementById('mixed-qr');
+        if (mixedEfectivo) mixedEfectivo.addEventListener('input', updateMixedPaymentSum);
+        if (mixedQr) mixedQr.addEventListener('input', updateMixedPaymentSum);
+
+        // Table select: show customer name input for Mesa/Llevar/Delivery/Personalizado
+        const tableSelect = document.getElementById('order-table-select');
+        if (tableSelect) {
+            tableSelect.addEventListener('change', (e) => {
+                syncCatalogServiceDefaults(e.target.value);
+                updatePickupTimeVisibility(e.target.value);
+                if (e.target.value !== 'Llevar' && e.target.value !== 'Delivery' && e.target.value !== 'Personalizado') {
+                    const occupiedTables = new Set(
+                        (window.state.activeOrders || [])
+                            .filter(o => o.status === 'pendiente' && o.deliveryType === 'mesa')
+                            .map(o => {
+                                if (o.tableId) return o.tableId;
+                                const cust = o.customer || '';
+                                const dashIdx = cust.indexOf(' - ');
+                                return dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
+                            })
+                    );
+                    const selectedTable = (window.state.tables || []).find(table => table.name === e.target.value);
+                    if (occupiedTables.has(selectedTable?.id) || occupiedTables.has(e.target.value)) {
+                        const existingOrder = window.state.activeOrders.find(o => {
+                            if (o.status !== 'pendiente' || o.deliveryType !== 'mesa') return false;
+                            const cust = o.customer || '';
+                            const dashIdx = cust.indexOf(' - ');
+                            const tableName = dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
+                            return o.tableId === selectedTable?.id || tableName === e.target.value;
+                        });
+                        showToast(`La mesa "${e.target.value}" ya tiene un pedido activo (Bs ${existingOrder ? existingOrder.total.toFixed(2) : '0'}). Use "Agregar Ítems" desde el board.`, 'warning');
+                        e.target.value = 'Llevar';
+                        syncCatalogServiceDefaults('Llevar');
+                    }
+                }
+            });
+            syncCatalogServiceDefaults(tableSelect.value);
+            updatePickupTimeVisibility(tableSelect.value);
+        }
+
+        // Promo popover: open/close, apply coupon, remove promo
+        document.getElementById('btn-open-promos')?.addEventListener('click', () => {
+            const popover = document.getElementById('cart-promo-popover');
+            const trigger = document.getElementById('btn-open-promos');
+            if (!popover) return;
+            const open = popover.style.display === 'none' || !popover.style.display;
+            popover.style.display = open ? '' : 'none';
+            trigger?.setAttribute('aria-expanded', String(open));
+            if (open) window.PosView?.renderPromoSection?.();
+        });
+        document.getElementById('btn-toggle-promos')?.addEventListener('click', () => {
+            const popover = document.getElementById('cart-promo-popover');
+            const trigger = document.getElementById('btn-open-promos');
+            if (popover) popover.style.display = 'none';
+            trigger?.setAttribute('aria-expanded', 'false');
+        });
+        document.getElementById('btn-apply-coupon')?.addEventListener('click', () => {
+            const input = document.getElementById('cart-coupon-input');
+            if (input && input.value.trim()) applyCouponCode(input.value.trim());
+        });
+        document.getElementById('cart-coupon-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const input = document.getElementById('cart-coupon-input');
+                if (input && input.value.trim()) applyCouponCode(input.value.trim());
+            }
+        });
+        document.getElementById('btn-remove-promo')?.addEventListener('click', () => removePromo());
+
+        document.getElementById('btn-open-order-details')?.addEventListener('click', () => {
+            window.openModal?.('modal-order-details');
+        });
+        document.getElementById('btn-complete-sale')?.addEventListener('click', () => {
+            if (!window.state.cart?.length) return showToast('El pedido está vacío.', 'warning');
+            window.PosView?.syncPaymentModalSummary?.();
+            window.openModal?.('modal-order-payment');
+        });
+        document.getElementById('btn-save-pending')?.addEventListener('click', async () => {
+            const button = document.getElementById('btn-save-pending');
+            if (button?.disabled) return;
+            if (button) button.disabled = true;
+            try {
+                await checkoutOrder(true);
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+        document.getElementById('btn-confirm-sale')?.addEventListener('click', async () => {
+            const button = document.getElementById('btn-confirm-sale');
+            if (button?.disabled) return;
+            if (button) button.disabled = true;
+            try {
+                await checkoutOrder(false);
+                window.closeModal?.('modal-order-payment');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+
+        initialized = true;
+        relocatePosFlowControls();
+    }
+
+    function relocatePosFlowControls() {
+        const detailsSlot = document.getElementById('pos-details-slot');
+        const paymentSlot = document.getElementById('pos-payment-slot');
+        if (!detailsSlot || !paymentSlot || detailsSlot.dataset.ready === 'true') return;
+        ['order-notes-inline', 'order-pickup-time-group'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) detailsSlot.appendChild(element);
+        });
+        ['order-payment-row', 'mixed-payment-section', 'cart-promo-popover'].forEach(id => {
+            const element = id === 'order-payment-row' ? document.querySelector('.order-payment-row') : document.getElementById(id);
+            if (element) paymentSlot.appendChild(element);
+        });
+        detailsSlot.dataset.ready = 'true';
+    }
+
+    function syncCatalogServiceDefaults(locationName) {
+        const serviceType = ['Llevar', 'Delivery', 'Personalizado'].includes(locationName) ? 'llevar' : 'servirse';
+        document.querySelectorAll('#pos-catalog-cards input[type="radio"][value="servirse"], #pos-catalog-cards input[type="radio"][value="llevar"]').forEach(input => {
+            input.checked = input.value === serviceType;
+        });
+    }
+
+    function updatePickupTimeVisibility(locationName) {
+        const group = document.getElementById('order-pickup-time-group');
+        const input = document.getElementById('order-pickup-time');
+        const isTakeout = ['Llevar', 'Delivery', 'Personalizado'].includes(locationName);
+        if (group) group.style.display = isTakeout ? '' : 'none';
+        if (input) {
+            input.required = false;
+            if (isTakeout && !input.value) {
+                const now = new Date();
+                input.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            }
+        }
+    }
+
+    function updatePaymentMethodIcon(method) {
+        const icon = document.getElementById('order-payment-icon');
+        if (!icon) return;
+        const icons = {
+            efectivo: 'fa-money-bill-wave',
+            qr: 'fa-qrcode',
+            tarjeta: 'fa-credit-card',
+            mixto: 'fa-code-compare',
+            credito: 'fa-book-open'
+        };
+        icon.className = `fa-solid ${icons[method] || 'fa-credit-card'} input-icon--abs`;
+    }
+
+    function updateMixedPaymentSum() {
+        const grossTotal = window.state.cart.reduce((sum, item) => {
+            const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, a) => acc + (a.accompanimentPrice || 0), 0);
+            return sum + (item.price + salsaTotal + accompanimentTotal) * (item.qty || 1);
+        }, 0);
+        const total = Math.max(0, grossTotal - (window.state.cartDiscountAmount || 0));
+        const efectivoEl = document.getElementById('mixed-efectivo');
+        const qrEl = document.getElementById('mixed-qr');
+        const efectivo = parseFloat(efectivoEl ? efectivoEl.value : 0) || 0;
+        const qr = parseFloat(qrEl ? qrEl.value : 0) || 0;
+        const sum = efectivo + qr;
+        const sumEl = document.getElementById('mixed-payment-sum');
+        if (sumEl) {
+            sumEl.textContent = `Bs ${sum.toFixed(2)} / Bs ${total.toFixed(2)}`;
+            sumEl.style.color = Math.abs(sum - total) < 0.01 ? 'var(--success)' : 'var(--danger)';
+        }
+    }
+
+    function handleCatalogClick(event) {
+        const qtyBtn = event.target.closest('[data-qty-action]');
+        if (qtyBtn) {
+            event.stopPropagation();
+            const extraId = qtyBtn.dataset.extraId;
+            const action = qtyBtn.dataset.qtyAction;
+            const input = document.getElementById('qty-extra-' + extraId);
+            if (input) {
+                let val = parseInt(input.value, 10) || 1;
+                if (action === 'inc') val = Math.min(99, val + 1);
+                else if (action === 'dec') val = Math.max(1, val - 1);
+                input.value = val;
+            }
+            return;
+        }
+
+        const actionTarget = event.target.closest('[data-action]');
+        if (!actionTarget) return;
+
+        const action = actionTarget.dataset.action;
+        if (action === 'add-cart-type') {
+            event.preventDefault();
+            const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
+            const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
+            addToCart(actionTarget.dataset.itemType, qty);
+            if (qtyInput) qtyInput.value = 1;
+            return;
+        }
+        if (action === 'add-plato-extra') {
+            event.preventDefault();
+            event.stopPropagation();
+            const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
+            const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
+            addPlatoExtraToCart(actionTarget.dataset.platoId, qty, {
+                accepts_salsa: actionTarget.dataset.acceptsSalsa,
+                accepts_accompaniment: actionTarget.dataset.acceptsAccompaniment,
+                max_included_accompaniments: actionTarget.dataset.maxIncludedAccompaniments
+            });
+            if (qtyInput) qtyInput.value = 1;
+            return;
+        }
+        if (action === 'add-extra') {
+            const extraId = actionTarget.dataset.extraId;
+            if (event.target.closest('[data-qty-action]')) return;
+            const qtyInput = document.getElementById('qty-extra-' + extraId);
+            const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
+            addExtraToCart(extraId, qty);
+            if (qtyInput) qtyInput.value = 1;
+            return;
+        }
+        if (action === 'add-standalone-catalog') {
+            const type = actionTarget.dataset.standaloneType;
+            const id = actionTarget.dataset.standaloneId;
+            const qtyInput = actionTarget.closest('.catalog-card').querySelector('.card-qty-input-top');
+            const qty = Math.max(1, parseInt(qtyInput ? qtyInput.value : 1, 10) || 1);
+            addStandaloneCatalogItem(type, id, qty);
+            if (qtyInput) qtyInput.value = 1;
+        }
+    }
+
+    function handleCartClick(event) {
+        const removeButton = event.target.closest('[data-action="remove-cart-item"]');
+        if (!removeButton) return;
+        removeCartItem(removeButton.dataset.itemId);
+    }
+
+    function setCategory(category) {
+        if (typeof window.setPosCategory === 'function') {
+            window.setPosCategory(category);
+        } else {
+            window.posCategory = category;
+        }
+
+        if (typeof window.setActiveCategoryTab === 'function') {
+            const activeButtonMap = {
+                meals: 'btn-cat-meals',
+                extras: 'btn-cat-extras',
+                drinks: 'btn-cat-drinks',
+                sauces: 'btn-cat-sauces'
+            };
+            window.setActiveCategoryTab(activeButtonMap[category]);
+        }
+
+        notify();
+    }
+
+    function commitCart(nextCart) {
+        if (window.AppStore) {
+            window.AppStore.set({ cart: nextCart });
+        } else {
+            window.state.cart = nextCart;
+        }
+        saveCartToLocalStorage();
+        refreshPosView();
+        notify();
+        schedulePromoSuggestions();
+    }
+
+    let promoDebounce = null;
+    let promoRequestVersion = 0;
+    function schedulePromoSuggestions() {
+        clearTimeout(promoDebounce);
+        const requestVersion = ++promoRequestVersion;
+        promoDebounce = setTimeout(() => suggestPromosForCart(), 400);
+    }
+
+    async function suggestPromosForCart() {
+        const appState = window.state;
+        if (!appState.cart || appState.cart.length === 0) {
+            appState.cartSuggestedPromos = [];
+            appState.cartPromo = null;
+            appState.cartDiscountAmount = 0;
+            appState.cartDiscountLabel = '';
+            appState.cartCouponCode = '';
+            refreshPosView();
+            return;
+        }
+        const requestVersion = promoRequestVersion;
+        const channel = guessPosChannel();
+        const items = appState.cart.map(item => ({
+            id: item.id || item.platoId || item.extraId || item.sopaId || '',
+            name: item.name,
+            type: item.type,
+            product_id: promoProductId(item),
+            product_type: promoProductType(item),
+            quantity: item.qty || 1,
+            price: item.price,
+            unit_price: item.price,
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0) + (item.accompaniments || []).reduce((a, acc) => a + (acc.accompanimentPrice || 0), 0)) * (item.qty || 1)
+        }));
+        try {
+            const data = await AppApi.suggestPromos(items, channel, appState.cartCouponCode || '');
+            if (requestVersion !== promoRequestVersion) return;
+            const suggested = data.suggestions || data.suggested || [];
+            appState.cartSuggestedPromos = suggested;
+            const appliedPromoId = appState.cartPromo?.id || appState.cartPromo?.plan_id;
+            const matchingPromo = appliedPromoId
+                ? suggested.find(s => (s.id || s.plan_id) === appliedPromoId)
+                : null;
+            if (appState.cartPromo && !matchingPromo) {
+                removePromo();
+                return;
+            }
+            if (matchingPromo) {
+                appState.cartPromo = matchingPromo;
+                appState.cartDiscountAmount = matchingPromo.discount_amount || matchingPromo.discount || 0;
+            }
+            refreshPosView();
+        } catch (e) {
+            console.warn('[POS] Error sugiriendo promos:', e);
+        }
+    }
+
+    function promoProductId(item) {
+        if (item.type === 'plato_extra') return item.platoId || '';
+        if (item.type === 'extra') return item.extraId || '';
+        if (item.type === 'sopa') return item.sopaId || '';
+        if (item.type === 'segundo') return item.segundoId || '';
+        if (item.type === 'salsa') return item.salsaId || '';
+        if (item.type === 'acompanamiento') return item.accompanimentId || '';
+        return '';
+    }
+
+    function promoProductType(item) {
+        return item.type === 'almuerzo' ? 'almuerzo' : item.type;
+    }
+
+    function guessPosChannel() {
+        const tableSelect = document.getElementById('order-table-select');
+        const val = tableSelect ? tableSelect.value : 'Llevar';
+        if (val === 'Delivery') return 'delivery';
+        if (val === 'Llevar' || val === 'Personalizado') return 'llevar';
+        return 'mesa';
+    }
+
+    function applyPromo(idx) {
+        const appState = window.state;
+        const promo = (appState.cartSuggestedPromos || [])[idx];
+        if (!promo) return;
+        appState.cartPromo = promo;
+        appState.cartDiscountAmount = promo.discount_amount || promo.discount || 0;
+        appState.cartDiscountLabel = promo.plan_name || promo.name || 'Descuento';
+        refreshPosView();
+    }
+
+    function removePromo() {
+        const appState = window.state;
+        appState.cartPromo = null;
+        appState.cartDiscountAmount = 0;
+        appState.cartDiscountLabel = '';
+        appState.cartCouponCode = '';
+        refreshPosView();
+    }
+
+    async function applyCouponCode(code) {
+        const appState = window.state;
+        if (!code || !appState.cart || appState.cart.length === 0) return;
+        const channel = guessPosChannel();
+        const items = appState.cart.map(item => ({
+            id: item.id || item.platoId || item.extraId || item.sopaId || '',
+            name: item.name,
+            type: item.type,
+            product_id: promoProductId(item),
+            product_type: promoProductType(item),
+            quantity: item.qty || 1,
+            price: item.price,
+            unit_price: item.price,
+            subtotal: (item.price + (item.salsas || []).reduce((a, s) => a + (s.salsaPrice || 0), 0) + (item.accompaniments || []).reduce((a, acc) => a + (acc.accompanimentPrice || 0), 0)) * (item.qty || 1)
+        }));
+        try {
+            const data = await AppApi.applyPromoCoupon(code, items, channel);
+            if (data.valid) {
+                appState.cartPromo = { id: data.plan_id, plan_id: data.plan_id, name: data.plan_name, coupon_code: data.coupon_code, discount_amount: data.discount_amount };
+                appState.cartCouponCode = code;
+                appState.cartDiscountAmount = data.discount_amount || 0;
+                appState.cartDiscountLabel = data.plan_name || `Cupón ${code}`;
+                showToast('Cupón aplicado.', 'success');
+            } else {
+                showToast(data.message || 'Cupón no válido.', 'warning');
+            }
+            refreshPosView();
+        } catch (e) {
+            showToast(e.message || 'Error al aplicar cupón.', 'error');
+        }
+    }
+
+    function cartItemKey(item) {
+        let salsaKey = '';
+        if (item.salsas && item.salsas.length > 0) {
+            salsaKey = '|' + item.salsas.map(s => `${s.salsaId}:${s.salsaMode}`).sort().join(',');
+        }
+        const accompanimentKey = (item.accompaniments || []).length ? '|' + item.accompaniments.map(a => `${a.accompanimentId}:${a.accompanimentMode}`).sort().join(',') : '';
+        if (item.type === 'almuerzo') return `almuerzo|${item.sopaId}|${item.segundoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'segundo') return `segundo|${item.segundoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'sopa') return `sopa|${item.sopaId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'plato_extra') return `plato_extra|${item.platoId}|${item.serviceType}${salsaKey}${accompanimentKey}`;
+        if (item.type === 'extra') return `extra|${item.extraId}|${item.serviceType}`;
+        if (item.type === 'salsa') return `salsa|${item.salsaId}|${item.serviceType}`;
+        if (item.type === 'acompanamiento') return `acompanamiento|${item.accompanimentId}|${item.serviceType}`;
+        return item.id;
+    }
+
+    function appendCartItem(newItem) {
+        const qty = newItem.qty || 1;
+        const cart = [...window.state.cart];
+        const key = cartItemKey(newItem);
+        const idx = cart.findIndex(c => cartItemKey(c) === key);
+        if (idx >= 0) {
+            cart[idx] = { ...cart[idx], qty: (cart[idx].qty || 1) + qty };
+        } else {
+            cart.push({ ...newItem, qty: qty });
+        }
+        commitCart(cart);
+    }
+
+    function getCanonicalProduct(appState, id, fallback) {
+        const canonical = (appState.products || []).find(product => product.id === id);
+        if (!canonical) return fallback || {};
+        return {
+            ...(fallback || {}),
+            ...canonical,
+            accepts_salsa: canonical.accepts_salsa ?? fallback?.accepts_salsa,
+            accepts_accompaniment: canonical.accepts_accompaniment ?? fallback?.accepts_accompaniment,
+            max_included_accompaniments: canonical.max_included_accompaniments ?? fallback?.max_included_accompaniments
+        };
+    }
+
+    function chooseItemOptions(itemData, optionProduct, complete) {
+        const selectionProduct = { ...(optionProduct || {}), selectionQuantity: itemData.qty || itemData.quantity || 1 };
+        const optionEnabled = value => value === true || value === 1 || value === '1';
+        const selectAccompaniments = () => {
+            if (optionEnabled(selectionProduct.accepts_accompaniment)) {
+                openAccompanimentSelectModal(selectionProduct, (accompaniments) => {
+                    if (accompaniments === null) return;
+                    if (accompaniments?.length) itemData.accompaniments = accompaniments;
+                    complete();
+                });
+            } else complete();
+        };
+        if (optionEnabled(selectionProduct.accepts_salsa)) {
+            openSalsaSelectModal(selectionProduct, (salsas) => {
+                if (salsas === null) return;
+                if (salsas?.length) itemData.salsas = salsas;
+                selectAccompaniments();
+            });
+        } else selectAccompaniments();
+    }
+
+    function refreshPosView() {
+        if (typeof currentTabId !== 'undefined' && currentTabId === 'pos' && window.PosView) {
+            window.PosView.render();
+        }
+    }
+
+    function addToCart(type, qty = 1) {
+        const appState = window.state;
+
+        if (type === 'almuerzo') {
+            const soupSelect = document.getElementById('pos-select-sopa-almuerzo');
+            const sopaId = soupSelect ? soupSelect.value : '';
+            if (!sopaId) {
+                showToast('Seleccione una sopa para el almuerzo.', 'warning');
+                return;
+            }
+
+            const sopaStockVal = getAvailableSopaStock(sopaId);
+            if (sopaStockVal < qty) {
+                showToast(`Stock insuficiente de sopa. Disponible: ${sopaStockVal}`, 'error');
+                return;
+            }
+
+            const segundoSelect = document.getElementById('pos-select-segundo-almuerzo');
+            const segundoId = segundoSelect ? segundoSelect.value : '';
+            if (!segundoId) {
+                showToast('Seleccione un segundo para el almuerzo.', 'warning');
+                return;
+            }
+
+            const segundoStockVal = getAvailableSegundoStock(segundoId);
+            if (segundoStockVal < qty) {
+                showToast(`Stock insuficiente de segundo. Disponible: ${segundoStockVal}`, 'error');
+                return;
+            }
+
+            const chosenSopa = appState.sopas.find(s => s.id === sopaId);
+            const chosenSec = appState.seconds.find(s => s.id === segundoId);
+            const almeTypeRadio = document.querySelector('input[name="almuerzo-type"]:checked');
+            const serviceType = almeTypeRadio ? almeTypeRadio.value : 'servirse';
+
+            const itemData = {
+                id: generateId(),
+                type: 'almuerzo',
+                name: 'Almuerzo Completo',
+                sopaId: sopaId,
+                sopaName: chosenSopa?.name || '',
+                segundoId: segundoId,
+                segundoName: chosenSec?.name || '',
+                serviceType: serviceType,
+                price: appState.prices.almuerzo,
+                qty: qty
+            };
+
+            const canonicalSopa = getCanonicalProduct(appState, sopaId, chosenSopa);
+            const canonicalSegundo = getCanonicalProduct(appState, segundoId, chosenSec);
+            const salsaProduct = canonicalSegundo?.accepts_salsa ? canonicalSegundo : canonicalSopa;
+            const accompProduct = canonicalSegundo?.accepts_accompaniment ? canonicalSegundo : canonicalSopa;
+            itemData._salsaProduct = salsaProduct;
+            itemData._accompProduct = accompProduct;
+            const optionProduct = { accepts_salsa: salsaProduct?.accepts_salsa, accepts_accompaniment: accompProduct?.accepts_accompaniment, max_included_accompaniments: accompProduct?.max_included_accompaniments || 0 };
+            chooseItemOptions(itemData, optionProduct, () => {
+                appendCartItem(itemData);
+                showToast(`${qty > 1 ? qty + ' almuerzos' : 'Almuerzo'} añadido(s) al pedido`, 'success');
+            });
+
+            const remainingSegundo = segundoStockVal - qty;
+            const remainingSopa = sopaStockVal - qty;
+            if (remainingSegundo <= 3 || remainingSopa <= 3) {
+                setTimeout(() => {
+                    showToast(`Stock bajo. Quedan pocas porciones (${chosenSopa.name}: ${remainingSopa}, ${chosenSec.name}: ${remainingSegundo})`, 'warning');
+                }, 600);
+            }
+        } else if (type === 'segundo') {
+            const segundoSelect = document.getElementById('pos-select-segundo-suelto');
+            const segundoId = segundoSelect ? segundoSelect.value : '';
+            if (!segundoId) {
+                showToast('Seleccione un segundo.', 'warning');
+                return;
+            }
+
+            const segundoStockVal = getAvailableSegundoStock(segundoId);
+            if (segundoStockVal < qty) {
+                showToast(`Stock insuficiente. Disponible: ${segundoStockVal}`, 'error');
+                return;
+            }
+
+            const chosenSec = appState.seconds.find(s => s.id === segundoId);
+            const secTypeRadio = document.querySelector('input[name="segundo-type"]:checked');
+            const serviceType = secTypeRadio ? secTypeRadio.value : 'servirse';
+
+            const itemData = {
+                id: generateId(),
+                type: 'segundo',
+                 name: chosenSec.name,
+                segundoId: segundoId,
+                segundoName: chosenSec.name,
+                serviceType: serviceType,
+                price: appState.prices.segundo,
+                qty: qty
+            };
+
+            chooseItemOptions(itemData, getCanonicalProduct(appState, segundoId, chosenSec), () => {
+                appendCartItem(itemData);
+                showToast(`${qty > 1 ? qty + ' segundos' : 'Segundo suelto'} añadido(s) al pedido`, 'success');
+            });
+
+            const remainingSegundo = segundoStockVal - qty;
+            if (remainingSegundo <= 3) {
+                setTimeout(() => {
+                    showToast(`Stock bajo. Quedan solo ${remainingSegundo} porciones de "${chosenSec.name}"`, 'warning');
+                }, 600);
+            }
+        } else if (type === 'sopa') {
+            const soupSelect = document.getElementById('pos-select-sopa-suelta');
+            const sopaId = soupSelect ? soupSelect.value : '';
+            if (!sopaId) {
+                showToast('Seleccione una sopa.', 'warning');
+                return;
+            }
+
+            const sopaStockVal = getAvailableSopaStock(sopaId);
+            if (sopaStockVal < qty) {
+                showToast(`Stock insuficiente. Disponible: ${sopaStockVal}`, 'error');
+                return;
+            }
+
+            const chosenSopa = appState.sopas.find(s => s.id === sopaId);
+            const sopaTypeRadio = document.querySelector('input[name="sopa-type"]:checked');
+            const serviceType = sopaTypeRadio ? sopaTypeRadio.value : 'servirse';
+
+            const itemData = {
+                id: generateId(),
+                type: 'sopa',
+                name: chosenSopa.name,
+                sopaId: sopaId,
+                sopaName: chosenSopa.name,
+                serviceType: serviceType,
+                price: appState.prices.sopa,
+                qty: qty
+            };
+
+            chooseItemOptions(itemData, getCanonicalProduct(appState, sopaId, chosenSopa), () => {
+                appendCartItem(itemData);
+                showToast(`${qty > 1 ? qty + ' sopas' : chosenSopa.name} añadida(s) al pedido`, 'success');
+            });
+
+            const remainingSopa = sopaStockVal - qty;
+            if (remainingSopa <= 3) {
+                setTimeout(() => {
+                    showToast(`Stock bajo. Quedan solo ${remainingSopa} porciones de "${chosenSopa.name}"`, 'warning');
+                }, 600);
+            }
+        }
+    }
+
+    function addPlatoExtraToCart(platoId, qty = 1, renderedOptions = null) {
+        const appState = window.state;
+        const plato = appState.platosExtras.find(p => p.id === platoId);
+        if (!plato) return;
+
+        const availStock = getAvailablePlatoExtraStock(platoId);
+        if (availStock < qty) {
+            showToast(`Stock insuficiente de "${plato.name}". Disponible: ${availStock}`, 'error');
+            return;
+        }
+
+        const peTypeRadio = document.querySelector(`input[name="pe-${platoId}-type"]:checked`);
+        const serviceType = peTypeRadio ? peTypeRadio.value : 'servirse';
+
+        const itemData = {
+            id: generateId(),
+            type: 'plato_extra',
+            name: plato.name,
+            platoId: platoId,
+            segundoId: null,
+            segundoName: null,
+            serviceType: serviceType,
+            price: plato.price,
+            qty: qty
+        };
+
+        const optionProduct = { ...getCanonicalProduct(appState, platoId, plato), ...(renderedOptions || {}) };
+        chooseItemOptions(itemData, optionProduct, () => {
+            appendCartItem(itemData);
+            showToast(`${qty > 1 ? qty + 'x ' : ''}"${plato.name}" añadido(s) al pedido`, 'success');
+        });
+
+        const remainingPlato = availStock - qty;
+        if (remainingPlato <= 3) {
+            setTimeout(() => {
+                showToast(`Stock bajo. Quedan solo ${remainingPlato} porciones de "${plato.name}"`, 'warning');
+            }, 600);
+        }
+    }
+
+    function addExtraToCart(extraId, qty = 1) {
+        const appState = window.state;
+        const extra = appState.extras.find(e => e.id === extraId);
+        if (!extra) return;
+
+        const availStock = getAvailableExtraStock(extraId);
+        if (availStock < qty) {
+            showToast(`Stock insuficiente de "${extra.name}". Disponible: ${availStock}`, 'error');
+            return;
+        }
+
+        const drinkService = document.querySelector(`input[name="drink-${extraId}-type"]:checked`)?.value || 'servirse';
+        appendCartItem({
+            id: generateId(),
+            type: 'extra',
+            name: extra.name,
+            extraId: extraId,
+            segundoId: null,
+            segundoName: null,
+            serviceType: drinkService,
+            price: extra.price,
+            qty: qty
+        });
+
+        showToast(`${qty > 1 ? qty + 'x ' : ''}Bebida "${extra.name}" añadida(s) al pedido`, 'success');
+
+        const remainingExtra = availStock - qty;
+        if (remainingExtra <= 3) {
+            setTimeout(() => {
+                showToast(`Stock bajo. Quedan solo ${remainingExtra} unidades de "${extra.name}"`, 'warning');
+            }, 600);
+        }
+    }
+
+    function addStandaloneCatalogItem(type, id, qty = 1) {
+        const appState = window.state;
+        const source = type === 'salsa'
+            ? (appState.salsas || []).find(item => item.id === id)
+            : (appState.accompaniments || []).find(item => item.id === id);
+        if (!source || Number(source.active) === 0) return;
+        const price = type === 'salsa' ? Number(source.price || 0) : Number(source.price_extra || 0);
+        const availableStock = type === 'salsa' ? getAvailableSalsaStock(id) : getAvailableAccompanimentStock(id);
+        if (availableStock < qty) {
+            showToast(`Stock insuficiente de "${source.name}". Disponible: ${availableStock}`, 'error');
+            return;
+        }
+        if (price < 0) {
+            showToast('El precio del producto no es válido.', 'error');
+            return;
+        }
+        const serviceType = document.querySelector(`input[name="${type}-${id}-service"]:checked`)?.value || 'servirse';
+        appendCartItem({
+            id: generateId(),
+            type,
+            name: source.name,
+            salsaId: type === 'salsa' ? source.id : null,
+            accompanimentId: type === 'acompanamiento' ? source.id : null,
+            serviceType,
+            price,
+            qty
+        });
+        showToast(`${qty > 1 ? qty + 'x ' : ''}${source.name} añadido(s) al pedido`, 'success');
+    }
+
+    function removeCartItem(itemId) {
+        commitCart(window.state.cart.filter(item => item.id !== itemId));
+        showToast('Item removido del pedido', 'info');
+    }
+
+    function clearCart() {
+        if (window.state.cart.length === 0) return;
+        commitCart([]);
+        showToast('Pedido vaciado', 'info');
+    }
+
+    async function checkoutOrder(isPendingOnly) {
+        const appState = window.state;
+        if (appState.cart.length === 0) {
+            showToast('El pedido está vacío.', 'warning');
+            return;
+        }
+
+        const tableSelect = document.getElementById('order-table-select');
+        const locationName = tableSelect ? tableSelect.value : 'Llevar';
+        const selectedTable = (appState.tables || []).find(table => table.name === locationName);
+        const customerInput = document.getElementById('order-customer-name');
+        const enteredCustomerName = customerInput ? customerInput.value.trim() : '';
+        const selectedCustomerId = document.getElementById('order-customer-id')?.value || '';
+        if (!enteredCustomerName) {
+            showToast('Ingrese el nombre del cliente para continuar.', 'warning');
+            customerInput?.focus();
+            return;
+        }
+
+        let customerName = enteredCustomerName;
+        let deliveryType = 'llevar';
+
+        if (locationName === 'Personalizado') {
+            customerName = `Personalizado - ${enteredCustomerName}`;
+            deliveryType = 'llevar';
+        } else if (locationName === 'Delivery') {
+            customerName = `Delivery - ${enteredCustomerName}`;
+            deliveryType = 'delivery';
+        } else if (locationName === 'Llevar') {
+            customerName = `Para Llevar - ${enteredCustomerName}`;
+            deliveryType = 'llevar';
+        } else {
+            customerName = `${locationName} - ${enteredCustomerName}`;
+            deliveryType = 'mesa';
+        }
+
+        const hasSoup = appState.cart.some(i => i.type === 'almuerzo' || i.type === 'sopa');
+        const initialServiceState = hasSoup ? 'esperando_sopa' : 'esperando_segundo';
+
+        if (deliveryType === 'mesa') {
+            const tableName = customerName.includes(' - ') ? customerName.split(' - ')[0] : customerName;
+            const occupiedTables = new Set(
+                (appState.activeOrders || [])
+                    .filter(o => o.status === 'pendiente' && o.deliveryType === 'mesa')
+                    .map(o => {
+                        const cust = o.customer || '';
+                        const dashIdx = cust.indexOf(' - ');
+                        return dashIdx > -1 ? cust.substring(0, dashIdx) : cust;
+                    })
+            );
+            if (occupiedTables.has(tableName)) {
+                showToast(`La mesa "${tableName}" ya tiene un pedido activo. No se puede crear otro pedido para la misma mesa.`, 'error');
+                return;
+            }
+        }
+        const paymentSelectEl = document.getElementById('order-payment-select');
+        const paymentSelect = paymentSelectEl ? paymentSelectEl.value : 'efectivo';
+        const creditDueDate = document.getElementById('credit-due-date')?.value || '';
+        const creditOverrideReason = document.getElementById('credit-override-reason')?.value.trim() || '';
+        const kitchenNote = document.getElementById('order-kitchen-note')?.value.trim() || '';
+        const waiterNote = document.getElementById('order-waiter-note')?.value.trim() || '';
+        const pickupTime = document.getElementById('order-pickup-time')?.value || '';
+        const effectivePickupTime = deliveryType !== 'mesa' && !pickupTime
+            ? `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+            : pickupTime;
+        if (paymentSelect === 'credito' && (!enteredCustomerName || !creditDueDate)) {
+            showToast('Para una venta a crédito indique el cliente y la fecha de vencimiento.', 'warning');
+            return;
+        }
+        const grossTotal = appState.cart.reduce((sum, item) => {
+            const salsaTotal = (item.salsas || []).reduce((acc, s) => acc + (s.salsaPrice || 0), 0);
+            const accompanimentTotal = (item.accompaniments || []).reduce((acc, a) => acc + (a.accompanimentPrice || 0), 0);
+            return sum + (item.price + salsaTotal + accompanimentTotal) * (item.qty || 1);
+        }, 0);
+        const discountTotal = appState.cartDiscountAmount || 0;
+        const appliedPromo = appState.cartPromo || null;
+        const couponCode = appState.cartCouponCode || null;
+        const total = Math.max(0, Math.round((grossTotal - discountTotal) * 100) / 100);
+
+        let paymentMethod;
+        if (paymentSelect === 'mixto') {
+            const efectivo = parseFloat(document.getElementById('mixed-efectivo').value) || 0;
+            const qr = parseFloat(document.getElementById('mixed-qr').value) || 0;
+            const sumParts = efectivo + qr;
+            if (Math.abs(sumParts - total) > 0.01) {
+                showToast(`La suma de pagos (Bs ${sumParts.toFixed(2)}) no coincide con el total (Bs ${total.toFixed(2)}).`, 'warning');
+                return;
+            }
+            paymentMethod = { efectivo: efectivo, qr: qr };
+        } else {
+            paymentMethod = paymentSelect;
+        }
+
+        const newOrder = {
+            id: generateId(),
+            customer: customerName,
+            customerId: selectedCustomerId || null,
+            deliveryType: deliveryType,
+            tableId: deliveryType === 'mesa' ? (selectedTable?.id || null) : null,
+            items: [...appState.cart],
+            total: total,
+            subtotal: grossTotal,
+            discountTotal: discountTotal,
+            appliedPromo: appliedPromo,
+            couponCode: couponCode,
+            kitchenNote: kitchenNote,
+            waiterNote: waiterNote,
+            pickupTime: deliveryType !== 'mesa' ? effectivePickupTime : null,
+            paymentMethod: paymentMethod,
+            dueDate: paymentSelect === 'credito' ? creditDueDate : null,
+            credit_override_reason: paymentSelect === 'credito' ? creditOverrideReason : '',
+            timestamp: nowLocal()
+        };
+        if (paymentSelect === 'credito') {
+            newOrder.status = 'completado';
+            newOrder.paid = false;
+        }
+
+        if (isPendingOnly) {
+            newOrder.status = 'pendiente';
+            newOrder.serviceState = initialServiceState;
+
+            await saveOrderOnServer(newOrder);
+
+            try {
+                commitCart([]);
+                resetCartInputs();
+                if (typeof window.upsertActiveOrder === 'function') {
+                    window.upsertActiveOrder(newOrder);
+                }
+            } catch (e) {
+                console.error('[POS] Error actualizando pedido activo:', e);
+            }
+
+            if (window.PrintJobs) {
+                const kitchenItems = (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
+                if (kitchenItems.length) PrintJobs.printKitchen(newOrder, kitchenItems);
+                const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
+                if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+            }
+
+            Notifications.notify(`🛒 Nuevo pedido: ${customerName}`, 'success');
+            showToast('La comanda quedó registrada.', 'success');
+            return;
+        }
+
+        newOrder.status = 'pendiente';
+        newOrder.paid = true;
+        newOrder.soldAt = new Date().toISOString();
+        newOrder.serviceState = initialServiceState;
+
+        await saveOrderOnServer(newOrder);
+
+        try {
+            commitCart([]);
+            resetCartInputs();
+            if (typeof window.upsertActiveOrder === 'function') {
+                window.upsertActiveOrder(newOrder);
+            }
+        } catch (e) {
+            console.error('[POS] Error actualizando pedido activo:', e);
+        }
+
+        if (window.PrintJobs) {
+            const kitchenItems = (newOrder.items || []).filter(item => !['extra', 'refresco', 'gaseosa', 'bebida'].includes(item.type));
+            if (kitchenItems.length) PrintJobs.printKitchen(newOrder, kitchenItems);
+            PrintJobs.printPayment(newOrder);
+            const takeoutItems = (newOrder.items || []).filter(item => PrintJobs.isCustomerItem(item));
+            if (takeoutItems.length) PrintJobs.printCustomer(newOrder, takeoutItems);
+        }
+
+        Notifications.notify(`💰 Venta cobrada: ${customerName}`, 'success');
+        showToast('Pedido cobrado correctamente.', 'success');
+    }
+
+    async function saveOrderOnServer(order) {
+        try {
+            const data = await AppApi.request('save_order', order);
+            if (data.status !== 'success') {
+                console.error('[ORDER] Server rejected order:', data);
+                throw new Error(data.message || 'El servidor rechazó el pedido.');
+            }
+            return true;
+        } catch (error) {
+            console.error('[ORDER] saveOrderOnServer error:', error);
+            const message = error?.message || '';
+            const isConnectionFailure = message.startsWith('No se pudo conectar con el API') ||
+                message.startsWith('El servidor tardó demasiado en responder');
+            if (isConnectionFailure && window.OfflineQueue) {
+                try {
+                    await OfflineQueue.enqueue(order);
+                    showToast('Sin conexión. Pedido en cola — se enviará cuando haya red.', 'warning');
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.ready.then(reg => {
+                            if (reg.sync) reg.sync.register('replay-offline-orders').catch(() => {});
+                        });
+                    }
+                    return true;
+                } catch (qError) {
+                    console.error('[ORDER] OfflineQueue error:', qError);
+                }
+            }
+            throw error;
+        }
+    }
+
+    function resetCartInputs() {
+        const tableSelect = document.getElementById('order-table-select');
+        if (tableSelect) tableSelect.value = 'Llevar';
+        const customWrapper = document.getElementById('custom-customer-name-wrapper');
+        if (customWrapper) customWrapper.style.display = '';
+        const customerName = document.getElementById('order-customer-name');
+        if (customerName) customerName.value = '';
+        const customerId = document.getElementById('order-customer-id');
+        if (customerId) customerId.value = '';
+        const kitchenNote = document.getElementById('order-kitchen-note');
+        const waiterNote = document.getElementById('order-waiter-note');
+        const pickupTime = document.getElementById('order-pickup-time');
+        if (kitchenNote) kitchenNote.value = '';
+        if (waiterNote) waiterNote.value = '';
+        if (pickupTime) pickupTime.value = '';
+        const paymentSelect = document.getElementById('order-payment-select');
+        if (paymentSelect) paymentSelect.value = 'efectivo';
+        const mixedSection = document.getElementById('mixed-payment-section');
+        if (mixedSection) mixedSection.style.display = 'none';
+        const creditSection = document.getElementById('credit-payment-section');
+        if (creditSection) creditSection.style.display = 'none';
+        const dueDate = document.getElementById('credit-due-date');
+        if (dueDate) { dueDate.value = ''; dueDate.required = false; }
+        const creditOverrideReason = document.getElementById('credit-override-reason');
+        if (creditOverrideReason) creditOverrideReason.value = '';
+        const mixedEfectivo = document.getElementById('mixed-efectivo');
+        if (mixedEfectivo) mixedEfectivo.value = '0';
+        const mixedQr = document.getElementById('mixed-qr');
+        if (mixedQr) mixedQr.value = '0';
+         const couponInput = document.getElementById('cart-coupon-input');
+         if (couponInput) couponInput.value = '';
+         const promoPopover = document.getElementById('cart-promo-popover');
+         if (promoPopover) promoPopover.style.display = 'none';
+         document.getElementById('btn-open-promos')?.setAttribute('aria-expanded', 'false');
+         updatePickupTimeVisibility('Llevar');
+    }
+
+    function notify() {
+        if (typeof window.notifyStateChanged === 'function') {
+            window.notifyStateChanged();
+            return;
+        }
+        if (typeof window.renderCurrentTab === 'function') {
+            window.renderCurrentTab('pos');
+        }
+    }
+
+    window.PosController = {
+        init,
+        setCategory,
+        addToCart,
+        addPlatoExtraToCart,
+        addExtraToCart,
+        addStandaloneCatalogItem,
+        removeCartItem,
+        clearCart,
+        checkoutOrder,
+        relocatePosFlowControls,
+        syncServiceModeFromLocation: () => syncCatalogServiceDefaults(document.getElementById('order-table-select')?.value || 'Llevar'),
+        applyPromo,
+        removePromo,
+        applyCouponCode,
+        suggestPromosForCart
+    };
+})(window);
+
+window.setActiveCategoryTab = function(btnId) {
+    if (!btnId) return;
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const siblings = btn.parentElement ? btn.parentElement.querySelectorAll('button') : [];
+    siblings.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+};

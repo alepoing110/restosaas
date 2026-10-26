@@ -1,0 +1,37 @@
+﻿Código;Caso de uso;Actores;Módulo
+CU-01;Iniciar sesión;ACT-01,ACT-02,ACT-03,ACT-04;Autenticación
+CU-02;Cambiar de sucursal;ACT-02,ACT-03;Autenticación
+CU-03;Registrar pedido;ACT-01;POS y pedidos
+CU-04;Agregar productos al pedido;ACT-01;POS y pedidos
+CU-05;Cambiar estado del pedido;ACT-01;POS y pedidos
+CU-06;Cobrar pedido;ACT-01;POS y pedidos
+CU-07;Cancelar pedido;ACT-01;POS y pedidos
+CU-08;Anular venta;ACT-02,ACT-03;POS y pedidos
+CU-09;Aplicar descuento;ACT-01;POS y pedidos
+CU-10;Imprimir comprobante;ACT-01;POS y pedidos
+CU-11;Gestionar productos;ACT-02,ACT-03;Inventario
+CU-12;Gestionar menús;ACT-02,ACT-03;Inventario
+CU-13;Gestionar categorías;ACT-02,ACT-03;Inventario
+CU-14;Controlar existencias;ACT-02,ACT-03;Inventario
+CU-15;Consultar historial de stock;ACT-01,ACT-02,ACT-03;Inventario
+CU-16;Gestionar mesas;ACT-02,ACT-03;Operación
+CU-17;Gestionar reservas;ACT-02,ACT-03;Operación
+CU-18;Registrar movimiento de caja;ACT-02,ACT-03;Caja
+CU-19;Realizar cierre de caja;ACT-02,ACT-03;Caja
+CU-20;Consultar reportes;ACT-01,ACT-02,ACT-03;Reportes
+CU-21;Consultar dashboard;ACT-01,ACT-02,ACT-03;Reportes
+CU-22;Consultar información financiera;ACT-03;Finanzas
+CU-23;Registrar gasto financiero;ACT-03;Finanzas
+CU-24;Exportar datos del negocio;ACT-02,ACT-03;Administración
+CU-25;Importar datos del negocio;ACT-02,ACT-03;Administración
+CU-26;Configurar restaurante;ACT-02,ACT-03;Administración
+CU-27;Administrar usuarios;ACT-02,ACT-03;Administración
+CU-28;Registrar restaurante;ACT-05;SaaS
+CU-29;Gestionar empresas tenant;ACT-04;SaaS
+CU-30;Gestionar sucursales;ACT-04;SaaS
+CU-31;Gestionar planes;ACT-04;SaaS
+CU-32;Gestionar suscripciones;ACT-04;SaaS
+CU-33;Aprobar o rechazar pagos;ACT-04;SaaS
+CU-34;Atender consulta por WhatsApp;ACT-05,ACT-06,ACT-07;Chatbot
+CU-35;Consultar conversaciones del chatbot;ACT-02,ACT-03;Chatbot
+CU-36;Cerrar conversación del chatbot;ACT-02,ACT-03;Chatbot
